@@ -31,6 +31,8 @@ type Props = {
   summary: { status: string; scenario: string | null; surveys: string[] };
   onRestore: (d: Snapshot) => void;
   onSaved?: () => void;
+  anchorNotation?: boolean;
+  propelled?: boolean | null;
 };
 
 const LABEL: Record<string, string> = {
@@ -44,7 +46,7 @@ const TONE: Record<string, string> = {
   WITHDRAWN: 'bg-red-100 text-red-800',
 };
 
-export default function AgendaPanel({ vesselName, vesselType, yearBuilt, agendaNo, start, completion, snapshot, summary, onRestore, onSaved }: Props) {
+export default function AgendaPanel({ vesselName, vesselType, yearBuilt, agendaNo, start, completion, snapshot, summary, onRestore, onSaved, anchorNotation, propelled }: Props) {
   const { user, configured, loading } = useAuth();
   const [rows, setRows] = useState<Row[]>([]);
   const [busy, setBusy] = useState(false);
@@ -76,7 +78,7 @@ export default function AgendaPanel({ vesselName, vesselType, yearBuilt, agendaN
     setBusy(true);
     setMsg(null);
     const yb = parseInt(yearBuilt, 10);
-    const vinfo = { vessel_type: vesselType, year_built: Number.isFinite(yb) ? yb : null };
+    const vinfo = { vessel_type: vesselType, year_built: Number.isFinite(yb) ? yb : null, anchor_notation: anchorNotation ?? false, propelled: propelled ?? null };
 
     const found = await supabase.from('vessels').select('id').eq('owner', user.id).eq('name', name).maybeSingle();
     if (found.error) {

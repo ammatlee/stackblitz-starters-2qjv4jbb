@@ -247,18 +247,17 @@ function renewalTables(rn: number, age: number | null) {
 /* ============================================================================
  * 5. SHAFT CLEARANCE & DIMENSI (Sheet "Dimensi Kemudi")
  * ========================================================================== */
-const SHAFT_ROWS = [
-  { lub: 'Water Lubricated', cond: 'New Assembly' },
-  { lub: 'Water Lubricated', cond: 'Maximum Clearance' },
-  { lub: 'Oil Lubricated', cond: 'New Assembly' },
-  { lub: 'Oil Lubricated', cond: 'Maximum Clearance' },
+type ShaftSys = 'open' | 'oil' | 'fw';
+const SHAFT_SYS: [ShaftSys, string][] = [
+  ['open', 'Open loop (dilumasi air laut)'],
+  ['oil', 'Closed loop — oil'],
+  ['fw', 'Closed loop — fresh water'],
 ];
-function shaftLimits(lub: string, cond: string, d: number | null): { lo: number | null; hi: number | null } {
-  if (d === null) return { lo: null, hi: null };
-  const water = lub === 'Water Lubricated';
-  if (cond === 'New Assembly')
-    return water ? { lo: 0.003 * d + 0.2, hi: 0.004 * d + 0.5 } : { lo: 0.001 * d + 0.03, hi: 0.001 * d + 0.5 };
-  return water ? { lo: null, hi: 0.01 * d + 2.5 } : { lo: null, hi: 0.0015 * d + 0.65 };
+/** Open loop = rumus Water Lubricated; Closed loop oil = rumus Oil Lubricated; Closed loop fresh water = batas dari manual pabrikan. */
+function shaftLimits(sys: ShaftSys, cond: 'new' | 'max', d: number | null): { lo: number | null; hi: number | null } {
+  if (d === null || sys === 'fw') return { lo: null, hi: null };
+  if (sys === 'open') return cond === 'new' ? { lo: 0.003 * d + 0.2, hi: 0.004 * d + 0.5 } : { lo: null, hi: 0.01 * d + 2.5 };
+  return cond === 'new' ? { lo: 0.001 * d + 0.03, hi: 0.001 * d + 0.5 } : { lo: null, hi: 0.0015 * d + 0.65 };
 }
 function rudderMax(item: 'Neck Bearing' | 'Pintle Bearing', d: number | null): number | null {
   if (d === null) return null;
@@ -462,7 +461,8 @@ export default function Page() {
   const [startDate, setStartDate] = useState('2026-01-23');
   const [compDate, setCompDate] = useState('2026-03-13');
   const [sel, setSel] = useState<Sel>({ A1: false, A2: false, A3: false, A4: false, A5: false, INT: false, D1: false, REN: true, PS: false });
-  const [notation, setNotation] = useState(false);
+  const [notation, setNotation] = useState(false); // notasi jangkar (data induk kapal)
+  const [propelledFlag, setPropelledFlag] = useState<boolean | null>(null); // null = otomatis dari jenis kapal
   const [lastNo, setLastNo] = useState<number | null>(null); // nomor Renewal terakhir yang selesai
   const [statusRaw, setStatusInfo] = useState<NonNullable<ApplyValues['info']> | null>(null); // ringkasan Survey Status kapal terpilih
   const [statusName, setStatusName] = useState('');
@@ -478,14 +478,15 @@ export default function Page() {
   const setCheck = (id: string, v: string) => setChecks((c) => ({ ...c, [id]: v }));
 
   /* ---- Modul 3 ---- */
-  const [shaft, setShaft] = useState([
-    { d: '152.4', a: '', m: '' }, { d: '152.4', a: '', m: '' }, { d: '', a: '', m: '' }, { d: '', a: '', m: '' },
-  ]);
-  const [fw, setFw] = useState({ a: '', m: '' }); // FW closed loop: batas dari manual pabrikan
+  const [shaftSys, setShaftSys] = useState<ShaftSys>('open');
+  const [shaftCond, setShaftCond] = useState<'new' | 'max'>('max');
+  const [shafts, setShafts] = useState([{ d: '', a: '', m: '' }]); // satu baris per poros (mis. port / starboard)
   const [wd, setWd] = useState({ a: '', then: '', now: '' }); // wear-down gauge (oil lubricated)
-  const [anchor, setAnchor] = useState({ o: '400', a: '' });
-  const [chain, setChain] = useState({ o: '17.5', a: '' });
-  const [rudder, setRudder] = useState([{ d: '100', a: '' }, { d: '100', a: '' }]);
+  const [anchor, setAnchor] = useState({ o: '', a: '' });
+  const [chain, setChain] = useState({ o: '', a: '' });
+  const [rudder, setRudder] = useState([{ d: '', a: '' }, { d: '', a: '' }]);
+  // kapal berpenggerak: otomatis dari jenis kapal (pontoon, barge, crane barge = tanpa penggerak), bisa dikoreksi per kapal
+  const propelled = propelledFlag ?? !isNonPropelled(vType);
 
   /* ======================= MODUL 1: kalkulasi (mengikuti sheet Class Status) ======================= */
   const A = useMemo(() => {
@@ -715,18 +716,16 @@ export default function Page() {
 
   /* ======================= MODUL 3: kalkulasi (sheet Dimensi Kemudi) ======================= */
   const S = useMemo(() => {
-    const shaftRes = SHAFT_ROWS.map((r, i) => {
-      const d = num(shaft[i].d);
-      const a = num(shaft[i].a);
-      const { lo, hi: hiRule } = shaftLimits(r.lub, r.cond, d);
-      const manual = num(shaft[i].m ?? ''); // ITS Part A 1.10.2: instruksi pabrikan boleh menggantikan batas Rules
+    const shaftRes = shafts.map((r) => {
+      const d = num(r.d);
+      const a = num(r.a);
+      const { lo, hi: hiRule } = shaftLimits(shaftSys, shaftCond, d);
+      const manual = num(r.m ?? ''); // ITS Part A 1.10.2: instruksi pabrikan boleh menggantikan batas Rules
       const hi = manual !== null ? manual : hiRule;
       let v: Verdict = '';
-      if (a !== null && hi !== null) v = r.cond === 'New Assembly' ? (lo !== null && a >= lo && a <= hi ? 'COMPLIANT' : 'NON-COMPLIANT') : a <= hi ? 'COMPLIANT' : 'NON-COMPLIANT';
-      return { ...r, d, a, lo, hi, v, manual: manual !== null };
+      if (a !== null && hi !== null) v = lo !== null ? (a >= lo && a <= hi ? 'COMPLIANT' : 'NON-COMPLIANT') : a <= hi ? 'COMPLIANT' : 'NON-COMPLIANT';
+      return { d, a, lo, hi, v, manual: manual !== null };
     });
-    const fwA = num(fw.a), fwM = num(fw.m);
-    const fwV: Verdict = fwA !== null && fwM !== null ? (fwA <= fwM ? 'COMPLIANT' : 'NON-COMPLIANT') : '';
     const wdA = num(wd.a), wdT = num(wd.then), wdN = num(wd.now);
     const wdFinal = wdA !== null && wdT !== null && wdN !== null ? wdA + (wdN - wdT) : null;
     const ao = num(anchor.o), aa = num(anchor.a), co2 = num(chain.o), ca = num(chain.a);
@@ -741,12 +740,13 @@ export default function Page() {
       const v: Verdict = a !== null && mx !== null ? (a <= mx ? 'COMPLIANT' : 'NON-COMPLIANT') : '';
       return { item, d, a, mx, v };
     });
-    const all: Verdict[] = [...shaftRes.map((x) => x.v), fwV, anchorV, chainV, ...rudderRes.map((x) => x.v)];
-    return { shaftRes, fwV, wdFinal, anchorMin, chainMin, anchorV, chainV, rudderRes, measured: all.filter((v) => v !== '').length, fails: all.filter((v) => v === 'NON-COMPLIANT').length, total: all.length };
-  }, [shaft, fw, wd, anchor, chain, rudder]);
+    // kapal tanpa penggerak: hanya jangkar dan rantai jangkar yang dinilai
+    const all: Verdict[] = [...(propelled ? [...shaftRes.map((x) => x.v), ...rudderRes.map((x) => x.v)] : []), anchorV, chainV];
+    return { shaftRes, wdFinal, anchorMin, chainMin, anchorV, chainV, rudderRes, measured: all.filter((v) => v !== '').length, fails: all.filter((v) => v === 'NON-COMPLIANT').length, total: all.length };
+  }, [shaftSys, shaftCond, shafts, wd, anchor, chain, rudder, propelled]);
 
   // ---- Simpan / buka agenda (Supabase) ----
-  const snapshot = { name, agenda, vType, yearBuilt, expiry, annivD, annivM, extension, startDate, compDate, sel, notation, lastNo, recDue, recDone, recAssess, checks, shaft, fw, wd, anchor, chain, rudder };
+  const snapshot = { name, agenda, vType, yearBuilt, expiry, annivD, annivM, extension, startDate, compDate, sel, notation, lastNo, recDue, recDone, recAssess, checks, shaftSys, shaftCond, shafts, wd, anchor, chain, rudder };
   const agendaSummary = {
     status: A.overall as string,
     scenario: A.c ? A.caseTitle[A.c] : null,
@@ -763,14 +763,15 @@ export default function Page() {
     if (typeof d.startDate === 'string') setStartDate(d.startDate);
     if (typeof d.compDate === 'string') setCompDate(d.compDate);
     if (d.sel && typeof d.sel === 'object') setSel(d.sel as Sel);
-    if (typeof d.notation === 'boolean') setNotation(d.notation);
+    // notasi jangkar & penggerak adalah data induk kapal: tidak ditimpa oleh agenda lama
     setLastNo(typeof d.lastNo === 'number' ? d.lastNo : null);
     if (typeof d.recDue === 'string') setRecDue(d.recDue);
     if (typeof d.recDone === 'string') setRecDone(d.recDone);
     if (typeof d.recAssess === 'string') setRecAssess(d.recAssess);
     if (d.checks && typeof d.checks === 'object') setChecks(d.checks as Record<string, string>);
-    if (Array.isArray(d.shaft)) setShaft((d.shaft as { d: string; a: string; m?: string }[]).map((x) => ({ d: x.d, a: x.a, m: x.m ?? '' })));
-    if (d.fw && typeof d.fw === 'object') setFw(d.fw as typeof fw);
+    if (d.shaftSys === 'open' || d.shaftSys === 'oil' || d.shaftSys === 'fw') setShaftSys(d.shaftSys);
+    if (d.shaftCond === 'new' || d.shaftCond === 'max') setShaftCond(d.shaftCond);
+    if (Array.isArray(d.shafts) && d.shafts.length > 0) setShafts((d.shafts as { d: string; a: string; m?: string }[]).map((x) => ({ d: x.d, a: x.a, m: x.m ?? '' })));
     if (d.wd && typeof d.wd === 'object') setWd(d.wd as typeof wd);
     if (d.anchor && typeof d.anchor === 'object') setAnchor(d.anchor as typeof anchor);
     if (d.chain && typeof d.chain === 'object') setChain(d.chain as typeof chain);
@@ -788,17 +789,20 @@ export default function Page() {
       setAnnivM(v.annivM);
       setLastNo(v.lastNo);
     }
+    setPropelledFlag(v.propelled);
+    setNotation(v.anchorNotation);
     setStatusInfo(v.info ?? null);
     setStatusName(v.name);
   };
 
-  const dimActive = (A.active.renewal && notation) || sel.PS;
+  // modul Propulsi hanya muncul untuk kapal bernotasi jangkar, saat Renewal atau Propeller Shaft Survey
+  const dimActive = notation && (A.active.renewal || sel.PS);
 
   // survei yang sudah tercatat pada periode berjalan tidak ditawarkan lagi (hanya yang belum dikerjakan)
   const chipVisible = (k: SurveyKey) => {
     if (sel[k]) return true;
     if (k === 'A5' && !A.a5Applicable) return false;
-    if (k === 'PS' && isNonPropelled(vType)) return false;
+    if (k === 'PS' && !propelled) return false;
     if (statusInfo) {
       if (k.length === 2 && k[0] === 'A' && Number(k[1]) <= statusInfo.annCount) return false;
       if (k === 'INT' && statusInfo.intDone) return false;
@@ -810,8 +814,9 @@ export default function Page() {
   const tabs: [1 | 2 | 3, string, string][] = [
     [1, 'Status', 'Validity class'],
     [2, 'Scope', 'Checklist survei'],
-    [3, 'Propulsi', dimActive ? 'Clearance & dimensi' : 'Tidak aktif'],
+    ...(notation ? ([[3, 'Propulsi', dimActive ? (propelled ? 'Clearance & dimensi' : 'Jangkar') : 'Tidak aktif']] as [1 | 2 | 3, string, string][]) : []),
   ];
+  const shownTab = tab === 3 && !notation ? 1 : tab;
 
   return (
     <div className="min-h-screen bg-slate-100 text-slate-800">
@@ -836,9 +841,9 @@ export default function Page() {
       </header>
 
       <main className="mx-auto max-w-5xl space-y-4 px-3 py-5 sm:px-4">
-        {tab === 1 && Module1()}
-        {tab === 2 && Module2()}
-        {tab === 3 && Module3()}
+        {shownTab === 1 && Module1()}
+        {shownTab === 2 && Module2()}
+        {shownTab === 3 && Module3()}
         <p className="pb-6 text-center text-[11px] text-slate-500">Alat bantu perhitungan; keputusan akhir mengacu pada aturan BKI dan penilaian Surveyor.</p>
       </main>
     </div>
@@ -909,6 +914,8 @@ export default function Page() {
             summary={agendaSummary}
             onRestore={restoreAgenda}
             onSaved={() => setRefreshKey((k) => k + 1)}
+            anchorNotation={notation}
+            propelled={propelledFlag}
           />
         </Fold>
 
@@ -923,7 +930,7 @@ export default function Page() {
             <Field label="No. Agenda"><input className={inputCls} value={agenda} onChange={(e) => setAgenda(e.target.value)} /></Field>
             <div>
               <span className="mb-1 block text-xs font-semibold text-slate-600">Jenis Kapal</span>
-              <VesselTypeSelect className={inputCls} value={vType} onChange={(v) => setVType(v)} />
+              <VesselTypeSelect className={inputCls} value={vType} onChange={(v, info) => { setVType(v); setPropelledFlag(info?.propelled ?? null); }} />
             </div>
             <Field label="Year Built"><input className={inputCls} inputMode="numeric" value={yearBuilt} onChange={(e) => setYearBuilt(e.target.value)} /></Field>
             <Field label="Certificate Expiry">{dateIn(expiry, setExpiry)}</Field>
@@ -970,7 +977,7 @@ export default function Page() {
           <div className="mt-4 flex flex-wrap items-center gap-x-6 gap-y-2">
             <label className="flex items-center gap-2 text-xs font-semibold text-slate-600">
               <input type="checkbox" checked={notation} onChange={(e) => setNotation(e.target.checked)} className="h-4 w-4 accent-teal-600" />
-              Notasi jangkar (dimensi kemudi, jangkar & clearance dihitung saat Renewal)
+              Notasi jangkar (menampilkan modul Propulsi: clearance dan dimensi saat Renewal)
             </label>
             {sel.REN && (
               <div className="w-56"><Field label="Approved Renewal Extension (opsional)">{dateIn(extension, setExtension)}</Field></div>
@@ -1236,15 +1243,14 @@ export default function Page() {
   function Module3() {
     if (!dimActive)
       return (
-        <Card title="Propulsi & Clearance — tidak aktif">
+        <Card title="Propulsi & Clearance — belum diperlukan">
           <p className="text-sm text-slate-600">
-            Modul ini dihitung saat <b>Renewal Survey</b> (untuk kapal dengan <b>notasi jangkar</b>) atau saat <b>Propeller Shaft Survey</b> dipilih.
+            Modul ini dihitung untuk kapal bernotasi jangkar saat <b>Renewal Survey</b> atau saat <b>Propeller Shaft Survey</b> dipilih.
           </p>
           <ul className="mt-3 space-y-1 text-sm">
-            <li>{A.active.renewal ? '✓' : '✗'} Renewal aktif (dipilih atau dipicu Case C/D)</li>
             <li>{notation ? '✓' : '✗'} Notasi jangkar</li>
+            <li>{A.active.renewal || sel.PS ? '✓' : '✗'} Renewal atau Propeller Shaft Survey aktif</li>
           </ul>
-          {!notation && <button onClick={() => setNotation(true)} className="mt-4 rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-700">Tandai notasi jangkar</button>}
         </Card>
       );
     const numIn = (v: string, set: (s: string) => void) => (
@@ -1252,60 +1258,118 @@ export default function Page() {
     );
     const f2 = (v: number | null) => (v === null ? '—' : v.toFixed(4).replace(/0+$/, '').replace(/\.$/, ''));
     const sum = S.measured === 0 ? 'BELUM DIUKUR' : S.fails > 0 ? 'NON-COMPLIANT' : 'COMPLIANT';
+    const sysName = SHAFT_SYS.find((x) => x[0] === shaftSys)?.[1] ?? '';
+    const setShaftRow = (i: number, k: 'd' | 'a' | 'm', v: string) => setShafts((rows) => rows.map((x, j) => (j === i ? { ...x, [k]: v } : x)));
 
     return (
       <>
-        <Card title="Ringkasan Dimensi" right={<Badge v={sum} big />}>
+        <Card title="Ringkasan" sub={propelled ? 'Kapal berpenggerak: poros, rudder, jangkar, dan rantai jangkar' : 'Kapal tanpa penggerak: hanya jangkar dan rantai jangkar'} right={<Badge v={sum} big />}>
           <p className="text-sm">{S.measured} dari {S.total} item terukur · <b>{S.fails}</b> di luar kriteria.</p>
+          <p className="mt-1 text-[11px] text-slate-500">
+            Status penggerak: {propelled ? 'berpenggerak' : 'tanpa penggerak'} ({propelledFlag === null ? `otomatis dari jenis kapal ${vType}` : 'diatur manual pada data kapal'}).
+          </p>
         </Card>
 
-        <Card title="Shaft Clearance" sub="New Assembly: di antara Lower–Upper. Maximum: tidak boleh melebihi limit.">
-          <div className="grid gap-4 md:grid-cols-2">
-            {S.shaftRes.map((r, i) => (
-              <div key={i} className="rounded-xl border border-slate-200 p-4">
-                <div className="flex items-start justify-between gap-2">
-                  <div><p className="text-sm font-bold">{r.lub}</p><p className="text-xs text-slate-500">{r.cond}</p></div>
-                  <Badge v={r.v || 'BELUM DIUKUR'} />
-                </div>
-                <div className="mt-3 grid grid-cols-2 gap-3">
-                  <Field label="Diameter (mm)">{numIn(shaft[i].d, (v) => setShaft((s) => s.map((x, j) => (j === i ? { ...x, d: v } : x))))}</Field>
-                  <Field label="Actual (mm)">{numIn(shaft[i].a, (v) => setShaft((s) => s.map((x, j) => (j === i ? { ...x, a: v } : x))))}</Field>
-                </div>
-                <div className="mt-3">
-                  <Field label="Maks. menurut manual pabrikan (opsional)" hint="Bila ada instruksi pabrikan, nilainya menggantikan batas Rules (ITS Part A 1.10.2).">{numIn(shaft[i].m ?? '', (v) => setShaft((s) => s.map((x, j) => (j === i ? { ...x, m: v } : x))))}</Field>
-                </div>
-                <p className="mt-3 text-xs text-slate-600">
-                  {r.cond === 'New Assembly' ? `Lower ${f2(r.lo)} · Upper ${f2(r.hi)} mm` : `Maksimum ${f2(r.hi)} mm`}{r.manual ? ' (manual pabrikan)' : ''}
-                </p>
-                <Gauge lo={r.lo} hi={r.hi} a={r.a} />
+        {propelled && (
+          <>
+            <Card title="Poros Baling-baling (Propeller Shaft Clearance)" sub="Pilih sistem pelumasan; hanya aturan yang sesuai yang dipakai.">
+              <div className="flex flex-wrap gap-2">
+                {SHAFT_SYS.map(([k, l]) => (
+                  <button key={k} onClick={() => setShaftSys(k)} className={cx('rounded-full border px-3 py-1.5 text-xs font-semibold transition', shaftSys === k ? 'border-teal-600 bg-teal-600 text-white' : 'border-slate-300 bg-white text-slate-600 hover:border-teal-500')}>
+                    {l}
+                  </button>
+                ))}
               </div>
-            ))}
-          </div>
-        </Card>
+              {shaftSys !== 'fw' && (
+                <div className="mt-3 max-w-xs">
+                  <Field label="Kondisi pengukuran">
+                    <select className={inputCls} value={shaftCond} onChange={(e) => setShaftCond(e.target.value as 'new' | 'max')}>
+                      <option value="max">Dalam pemakaian (Maximum Clearance)</option>
+                      <option value="new">Perakitan baru (New Assembly)</option>
+                    </select>
+                  </Field>
+                </div>
+              )}
+              {shaftSys === 'fw' && <p className="mt-3 rounded-lg bg-slate-50 p-3 text-xs text-slate-600">Closed loop fresh water: batas maksimum clearance mengikuti manual pabrikan (ITS Part A 1.10.3). Isi nilainya pada kolom di tiap poros.</p>}
 
-        <Card title="Propeller Shaft — FW Lubricating (closed loop)" sub="Maksimum clearance mengikuti manual pabrikan (ITS Part A 1.10.3)" right={<Badge v={S.fwV || 'BELUM DIUKUR'} />}>
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="Actual (mm)">{numIn(fw.a, (v) => setFw((x) => ({ ...x, a: v })))}</Field>
-            <Field label="Maksimum manual pabrikan (mm)">{numIn(fw.m, (v) => setFw((x) => ({ ...x, m: v })))}</Field>
-          </div>
-        </Card>
+              <div className="mt-4 grid gap-4 md:grid-cols-2">
+                {S.shaftRes.map((r, i) => (
+                  <div key={i} className="rounded-xl border border-slate-200 p-4">
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <p className="text-sm font-bold">Poros {i + 1}</p>
+                        <p className="text-xs text-slate-500">{sysName}</p>
+                      </div>
+                      <Badge v={r.v || 'BELUM DIUKUR'} />
+                    </div>
+                    <div className="mt-3 grid grid-cols-2 gap-3">
+                      <Field label="Diameter (mm)">{numIn(shafts[i].d, (v) => setShaftRow(i, 'd', v))}</Field>
+                      <Field label="Actual (mm)">{numIn(shafts[i].a, (v) => setShaftRow(i, 'a', v))}</Field>
+                    </div>
+                    <div className="mt-3">
+                      <Field
+                        label={shaftSys === 'fw' ? 'Maksimum menurut manual pabrikan (mm) *' : 'Maks. menurut manual pabrikan (opsional)'}
+                        hint={shaftSys === 'fw' ? undefined : 'Bila ada instruksi pabrikan, nilainya menggantikan batas Rules (ITS Part A 1.10.2).'}
+                      >
+                        {numIn(shafts[i].m ?? '', (v) => setShaftRow(i, 'm', v))}
+                      </Field>
+                    </div>
+                    <p className="mt-3 text-xs text-slate-600">
+                      {r.hi === null
+                        ? shaftSys === 'fw' ? 'Isi batas maksimum dari manual pabrikan.' : 'Isi diameter poros untuk melihat batas.'
+                        : r.lo !== null
+                        ? `Lower ${f2(r.lo)} · Upper ${f2(r.hi)} mm`
+                        : `Maksimum ${f2(r.hi)} mm`}
+                      {r.manual ? ' (manual pabrikan)' : ''}
+                    </p>
+                    <Gauge lo={r.lo} hi={r.hi} a={r.a} />
+                    {shafts.length > 1 && (
+                      <button onClick={() => setShafts((rows) => rows.filter((_, j) => j !== i))} className="mt-3 text-xs font-semibold text-red-700">Hapus poros ini</button>
+                    )}
+                  </div>
+                ))}
+              </div>
+              {shafts.length < 4 && (
+                <button onClick={() => setShafts((rows) => [...rows, { d: '', a: '', m: '' }])} className="mt-3 rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-semibold hover:bg-slate-50">
+                  + Tambah poros (mis. twin screw)
+                </button>
+              )}
+            </Card>
 
-        <Card title="Clearance Poros Oil Lubricated — dari wear-down gauge" sub="Poros tidak ditarik; piston acuan di TDC (ITS Part A 1.10.4)">
-          <div className="grid gap-3 sm:grid-cols-3">
-            <Field label="Actual clearance saat poros ditarik (mm)">{numIn(wd.a, (v) => setWd((x) => ({ ...x, a: v })))}</Field>
-            <Field label="Wear-down saat itu (mm)">{numIn(wd.then, (v) => setWd((x) => ({ ...x, then: v })))}</Field>
-            <Field label="Wear-down sekarang (mm)">{numIn(wd.now, (v) => setWd((x) => ({ ...x, now: v })))}</Field>
-          </div>
-          <p className="mt-3 text-sm">Clearance akhir: <b>{S.wdFinal === null ? '—' : `${f2(S.wdFinal)} mm`}</b></p>
-          <p className="mt-1 text-[11px] text-slate-500">Clearance akhir = actual clearance saat poros ditarik + selisih nilai wear-down (sekarang − saat itu).</p>
-          {S.wdFinal !== null && (
-            <button onClick={() => setShaft((s) => s.map((x, j) => (j === 3 ? { ...x, a: String(Math.round((S.wdFinal as number) * 10000) / 10000) } : x)))} className="mt-2 rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-semibold hover:bg-slate-50">
-              Pakai sebagai Actual (Oil Lubricated — Maximum Clearance)
-            </button>
-          )}
-        </Card>
+            {shaftSys === 'oil' && (
+              <Card title="Clearance poros oil — dari wear-down gauge" sub="Poros tidak ditarik; piston acuan di TDC (ITS Part A 1.10.4)">
+                <div className="grid gap-3 sm:grid-cols-3">
+                  <Field label="Actual clearance saat poros ditarik (mm)">{numIn(wd.a, (v) => setWd((x) => ({ ...x, a: v })))}</Field>
+                  <Field label="Wear-down saat itu (mm)">{numIn(wd.then, (v) => setWd((x) => ({ ...x, then: v })))}</Field>
+                  <Field label="Wear-down sekarang (mm)">{numIn(wd.now, (v) => setWd((x) => ({ ...x, now: v })))}</Field>
+                </div>
+                <p className="mt-3 text-sm">Clearance akhir: <b>{S.wdFinal === null ? '—' : `${f2(S.wdFinal)} mm`}</b></p>
+                <p className="mt-1 text-[11px] text-slate-500">Clearance akhir = actual clearance saat poros ditarik + selisih nilai wear-down (sekarang − saat itu).</p>
+                {S.wdFinal !== null && (
+                  <button onClick={() => setShaftRow(0, 'a', String(Math.round((S.wdFinal as number) * 10000) / 10000))} className="mt-2 rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-semibold hover:bg-slate-50">
+                    Pakai sebagai Actual pada Poros 1
+                  </button>
+                )}
+              </Card>
+            )}
 
-        <p className="rounded-xl bg-slate-50 p-3 text-xs text-slate-600">Data clearance rudder stock dan propeller shaft wajib dicantumkan pada survey report terkait (ITS Part A 1.9 dan 1.10.1).</p>
+            <Card title="Rudder Stock Clearance" sub="Neck: min(0,01d + 2; 4). Pintle: d<50 → 3; 50–100 → 5; d>100 → min(0,01d + 4; 6)">
+              <div className="grid gap-4 md:grid-cols-2">
+                {S.rudderRes.map((r, i) => (
+                  <div key={r.item} className="rounded-xl border border-slate-200 p-4">
+                    <div className="flex items-center justify-between"><p className="text-sm font-bold">{r.item}</p><Badge v={r.v || 'BELUM DIUKUR'} /></div>
+                    <div className="mt-3 grid grid-cols-2 gap-3">
+                      <Field label="Diameter (mm)">{numIn(rudder[i].d, (v) => setRudder((s) => s.map((x, j) => (j === i ? { ...x, d: v } : x))))}</Field>
+                      <Field label="Actual (mm)">{numIn(rudder[i].a, (v) => setRudder((s) => s.map((x, j) => (j === i ? { ...x, a: v } : x))))}</Field>
+                    </div>
+                    <p className="mt-3 text-sm">Maksimum: <b>{r.mx === null ? '—' : `${r.mx.toFixed(2)} mm`}</b></p>
+                    <Gauge lo={null} hi={r.mx} a={r.a} />
+                  </div>
+                ))}
+              </div>
+            </Card>
+          </>
+        )}
 
         <div className="grid gap-4 md:grid-cols-2">
           <Card title="Anchor Weight" sub="Minimum 88% berat asli" right={<Badge v={S.anchorV || 'BELUM DIUKUR'} />}>
@@ -1324,21 +1388,7 @@ export default function Page() {
           </Card>
         </div>
 
-        <Card title="Rudder Stock Clearance" sub="Neck: min(0,01d + 2; 4). Pintle: d<50 → 3; 50–100 → 5; d>100 → min(0,01d + 4; 6)">
-          <div className="grid gap-4 md:grid-cols-2">
-            {S.rudderRes.map((r, i) => (
-              <div key={r.item} className="rounded-xl border border-slate-200 p-4">
-                <div className="flex items-center justify-between"><p className="text-sm font-bold">{r.item}</p><Badge v={r.v || 'BELUM DIUKUR'} /></div>
-                <div className="mt-3 grid grid-cols-2 gap-3">
-                  <Field label="Diameter (mm)">{numIn(rudder[i].d, (v) => setRudder((s) => s.map((x, j) => (j === i ? { ...x, d: v } : x))))}</Field>
-                  <Field label="Actual (mm)">{numIn(rudder[i].a, (v) => setRudder((s) => s.map((x, j) => (j === i ? { ...x, a: v } : x))))}</Field>
-                </div>
-                <p className="mt-3 text-sm">Maksimum: <b>{r.mx === null ? '—' : `${r.mx.toFixed(2)} mm`}</b></p>
-                <Gauge lo={null} hi={r.mx} a={r.a} />
-              </div>
-            ))}
-          </div>
-        </Card>
+        {propelled && <p className="rounded-xl bg-slate-50 p-3 text-xs text-slate-600">Data clearance rudder stock dan propeller shaft wajib dicantumkan pada survey report terkait (ITS Part A 1.9 dan 1.10.1).</p>}
       </>
     );
   }

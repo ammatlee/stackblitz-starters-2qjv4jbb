@@ -9,7 +9,7 @@ import { isNonPropelled } from '../lib/vesselTypes';
 import { computeSurveyStatus, roman, toDMY, toISO } from '../lib/surveyStatus';
 import type { Baseline, Ev } from '../lib/surveyStatus';
 
-type VesselRow = Baseline & { id: string; name: string; vessel_type: string | null; last_shaft: string | null };
+type VesselRow = Baseline & { id: string; name: string; vessel_type: string | null; last_shaft: string | null; anchor_notation: boolean | null; propelled: boolean | null };
 type AgRow = { vessel_id: string; agenda_no: string; surveys: string[] | null; inspection_start: string | null; inspection_completion: string | null; scenario: string | null; finished_at: string | null };
 type EvRow = { id: string; vessel_id: string; surveys: string[] | null; completion: string; created_at: string };
 
@@ -21,6 +21,8 @@ export type ApplyValues = {
   annivD: number | null;
   annivM: number | null;
   lastNo: number | null;
+  propelled: boolean | null; // null = otomatis dari jenis kapal
+  anchorNotation: boolean;
   // ringkasan Survey Status untuk form inspeksi (survei yang sudah dikerjakan tidak ditawarkan lagi)
   info?: { nextAnniv: string; annCount: number; intDone: boolean; dock1Done: boolean; shaftDone: boolean; lastDock: string | null } | null;
 };
@@ -34,7 +36,7 @@ const STATE_TONE: Record<string, string> = {
 };
 const SURVEY_NAME: Record<string, string> = { PS: 'Propeller Shaft', A1: 'Annual 1', A2: 'Annual 2', A3: 'Annual 3', A4: 'Annual 4', A5: 'Annual 5', INT: 'Intermediate', D1: 'Docking', REN: 'Renewal + Docking 2' };
 const inp = 'w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-teal-600 focus:outline-none focus:ring-2 focus:ring-teal-600/25';
-const EMPTY = { name: '', type: 'Tugboat', yb: '', expiry: '', ad: '', am: '', lastNo: '', lastSpecial: '', lastAnnual: '', lastAnnualNo: '', lastInt: '', lastDock: '', lastShaft: '', postponed: '' };
+const EMPTY = { name: '', type: 'Tugboat', yb: '', expiry: '', ad: '', am: '', lastNo: '', lastSpecial: '', lastAnnual: '', lastAnnualNo: '', lastInt: '', lastDock: '', lastShaft: '', postponed: '', propelled: 'auto', notation: false };
 const EMPTY_MU = { annual: '', int: false, dock: false, ren: false, ps: false, completion: '' };
 
 const evsOf = (id: string, ags: AgRow[], mev: EvRow[]): Ev[] => [
@@ -92,6 +94,8 @@ export default function VesselStatus({ refreshKey, vesselName, onApply }: { refr
       annivD: r && !auto ? r.ad : null,
       annivM: r && !auto ? r.am : null,
       lastNo: r ? r.lastNo : null,
+      propelled: v.propelled ?? null,
+      anchorNotation: !!v.anchor_notation,
       info: r
         ? { nextAnniv: toISO(r.nextAnniv), annCount: r.annCount, intDone: r.intDone, dock1Done: r.dock1Done, shaftDone: r.shaftDone, lastDock: r.lastDock ? toISO(r.lastDock) : null }
         : null,
@@ -151,6 +155,8 @@ export default function VesselStatus({ refreshKey, vesselName, onApply }: { refr
         lastDock: sel.last_docking ?? '',
         lastShaft: sel.last_shaft ?? '',
         postponed: sel.postponed_until ?? '',
+        propelled: sel.propelled === null || sel.propelled === undefined ? 'auto' : sel.propelled ? 'yes' : 'no',
+        notation: !!sel.anchor_notation,
       });
     }
     setPanel('baseline');
@@ -176,6 +182,8 @@ export default function VesselStatus({ refreshKey, vesselName, onApply }: { refr
       last_intermediate: f.lastInt || null,
       last_docking: f.lastDock || null,
       last_shaft: f.lastShaft || null,
+      propelled: f.propelled === 'auto' ? null : f.propelled === 'yes',
+      anchor_notation: f.notation,
       postponed_until: f.postponed || null,
       baseline_at: new Date().toISOString(),
     };
@@ -283,8 +291,19 @@ export default function VesselStatus({ refreshKey, vesselName, onApply }: { refr
             {!selId && fld('Nama kapal', <input className={inp} value={f.name} onChange={set('name')} />)}
             <div>
               <span className="block text-xs font-semibold text-slate-600">Jenis kapal</span>
-              <div className="mt-1"><VesselTypeSelect className={inp} value={f.type} onChange={(v) => setF({ ...f, type: v })} /></div>
+              <div className="mt-1"><VesselTypeSelect className={inp} value={f.type} onChange={(v, info) => setF({ ...f, type: v, propelled: info && info.propelled !== null ? (info.propelled ? 'yes' : 'no') : 'auto' })} /></div>
             </div>
+            {fld('Penggerak (propulsi)', (
+              <select className={inp} value={f.propelled} onChange={set('propelled')}>
+                <option value="auto">Otomatis dari jenis kapal</option>
+                <option value="yes">Berpenggerak</option>
+                <option value="no">Tanpa penggerak</option>
+              </select>
+            ))}
+            <label className="flex items-center gap-2 self-end pb-2 text-xs font-semibold text-slate-600">
+              <input type="checkbox" className="h-4 w-4 accent-teal-600" checked={f.notation} onChange={(e) => setF({ ...f, notation: e.target.checked })} />
+              Notasi jangkar
+            </label>
             {fld('Tahun dibangun', <input className={inp} inputMode="numeric" value={f.yb} onChange={set('yb')} />)}
             {fld('Certificate expiry *', <DateInput className={inp} value={f.expiry} onChange={setD('expiry')} />)}
             {fld('Anniversary — hari (opsional)', <input className={inp} inputMode="numeric" placeholder="otomatis dari expiry" value={f.ad} onChange={set('ad')} />)}
@@ -295,7 +314,7 @@ export default function VesselStatus({ refreshKey, vesselName, onApply }: { refr
             {fld('Annual terakhir itu yang ke- (1–5)', <input className={inp} inputMode="numeric" placeholder="mis. 2" value={f.lastAnnualNo} onChange={set('lastAnnualNo')} />)}
             {fld('Intermediate terakhir (periode ini)', <DateInput className={inp} value={f.lastInt} onChange={setD('lastInt')} />)}
             {fld('Docking terakhir', <DateInput className={inp} value={f.lastDock} onChange={setD('lastDock')} />)}
-            {!isNonPropelled(f.type) && fld('Propeller Shaft Survey terakhir', <DateInput className={inp} value={f.lastShaft} onChange={setD('lastShaft')} />)}
+            {(f.propelled === 'yes' || (f.propelled === 'auto' && !isNonPropelled(f.type))) && fld('Propeller Shaft Survey terakhir', <DateInput className={inp} value={f.lastShaft} onChange={setD('lastShaft')} />)}
             {fld('Postponed s/d (opsional)', <DateInput className={inp} value={f.postponed} onChange={setD('postponed')} />)}
           </div>
           <div className="mt-4 flex gap-2">
@@ -359,7 +378,7 @@ export default function VesselStatus({ refreshKey, vesselName, onApply }: { refr
             <p className="text-xs text-slate-500">Format tanggal: dd.mm.yyyy</p>
           </div>
           <p className="mt-1 text-xs text-slate-600">
-            Jenis kapal: <b>{sel.vessel_type ?? '—'}</b> · Tahun dibangun: <b>{sel.year_built ?? '—'}</b>
+            Jenis kapal: <b>{sel.vessel_type ?? '—'}</b> · Tahun dibangun: <b>{sel.year_built ?? '—'}</b> · Penggerak: <b>{result.propelled ? 'Ya' : 'Tidak'}</b> · Notasi jangkar: <b>{sel.anchor_notation ? 'Ya' : 'Tidak'}</b>
           </p>
           <p className="mt-1 text-xs text-slate-600">
             Anniversary date of Class Survey : <b>{String(result.ad).padStart(2, '0')}.{String(result.am).padStart(2, '0')}</b> · Periode berjalan: {toDMY(result.periodStart)} – {toDMY(result.expiry)}
