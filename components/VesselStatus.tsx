@@ -251,12 +251,6 @@ export default function VesselStatus({ refreshKey, vesselName, onApply }: { refr
 
   return (
     <div>
-      {/* daftar nama kapal untuk kolom Nama Kapal di form inspeksi (cari / pilih) */}
-      <datalist id="vessel-names">
-        {vessels.map((v) => (
-          <option key={v.id} value={v.name} />
-        ))}
-      </datalist>
 
       <div className="flex flex-wrap items-end gap-2">
         <div className="min-w-[200px] flex-1">
@@ -272,7 +266,7 @@ export default function VesselStatus({ refreshKey, vesselName, onApply }: { refr
       </div>
       {sel && (
         <div className="mt-2 flex flex-wrap gap-2">
-          <button onClick={() => openBaseline(false)} className="rounded-lg border border-slate-300 px-3 py-2 text-xs font-semibold hover:bg-slate-50">Edit status awal</button>
+          <button onClick={() => openBaseline(false)} className="rounded-lg border border-slate-300 px-3 py-2 text-xs font-semibold hover:bg-slate-50">Edit data kapal &amp; status awal</button>
           <button onClick={() => { setPanel(panel === 'manual' ? 'none' : 'manual'); setMsg(null); }} className="rounded-lg bg-slate-900 px-3 py-2 text-xs font-semibold text-white hover:bg-slate-700">Update status (tanpa agenda)</button>
         </div>
       )}
@@ -364,6 +358,9 @@ export default function VesselStatus({ refreshKey, vesselName, onApply }: { refr
             <h3 className="text-sm font-extrabold tracking-wide">SURVEY STATUS OF CLASS — {sel.name}</h3>
             <p className="text-xs text-slate-500">Format tanggal: dd.mm.yyyy</p>
           </div>
+          <p className="mt-1 text-xs text-slate-600">
+            Jenis kapal: <b>{sel.vessel_type ?? '—'}</b> · Tahun dibangun: <b>{sel.year_built ?? '—'}</b>
+          </p>
           <p className="mt-1 text-xs text-slate-600">
             Anniversary date of Class Survey : <b>{String(result.ad).padStart(2, '0')}.{String(result.am).padStart(2, '0')}</b> · Periode berjalan: {toDMY(result.periodStart)} – {toDMY(result.expiry)}
             {result.nextNo !== null && <> · Renewal berikutnya: <b>Renewal {roman(result.nextNo)}</b></>}

@@ -15,6 +15,7 @@ import AgendaPanel from '../../components/AgendaPanel';
 import VesselStatus from '../../components/VesselStatus';
 import DateInput from '../../components/DateInput';
 import VesselTypeSelect from '../../components/VesselTypeSelect';
+import VesselNameInput from '../../components/VesselNameInput';
 import { TUG_TYPES, HOLD_TYPES, CARGO_SYSTEM_TYPES, isNonPropelled } from '../../lib/vesselTypes';
 import type { ApplyValues } from '../../components/VesselStatus';
 import { roman } from '../../lib/surveyStatus';
@@ -754,8 +755,7 @@ export default function Page() {
   const restoreAgenda = (d: Record<string, unknown>) => {
     if (typeof d.name === 'string') setName(d.name);
     if (typeof d.agenda === 'string') setAgenda(d.agenda);
-    if (typeof d.vType === 'string') setVType(d.vType);
-    if (typeof d.yearBuilt === 'string') setYearBuilt(d.yearBuilt);
+    // jenis kapal & tahun dibangun adalah data induk kapal: tidak ditimpa oleh agenda lama
     if (typeof d.expiry === 'string') setExpiry(d.expiry);
     setAnnivD(typeof d.annivD === 'number' ? d.annivD : null);
     setAnnivM(typeof d.annivM === 'number' ? d.annivM : null);
@@ -915,7 +915,11 @@ export default function Page() {
         {/* ---------- INPUT ---------- */}
         <Card title="Data Kapal & Inspeksi">
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            <Field label="Nama Kapal" hint="Ketik untuk mencari atau pilih dari kapal tersimpan."><input className={inputCls} list="vessel-names" autoComplete="off" value={name} onChange={(e) => setName(e.target.value)} /></Field>
+            <div>
+              <span className="mb-1 block text-xs font-semibold text-slate-600">Nama Kapal</span>
+              <VesselNameInput className={inputCls} value={name} onChange={setName} refreshKey={refreshKey} />
+              <span className="mt-1 block text-[11px] leading-snug text-slate-500">Ketik untuk mencari atau ketuk daftar kapal tersimpan.</span>
+            </div>
             <Field label="No. Agenda"><input className={inputCls} value={agenda} onChange={(e) => setAgenda(e.target.value)} /></Field>
             <div>
               <span className="mb-1 block text-xs font-semibold text-slate-600">Jenis Kapal</span>

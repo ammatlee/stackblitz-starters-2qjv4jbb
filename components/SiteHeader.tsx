@@ -5,15 +5,15 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useAuth } from './AuthProvider';
 
-const NAV = [
-  { href: '/', label: 'Menu Utama' },
-  { href: '/bulletin', label: 'Bulletin' },
-  { href: '/class-validity', label: 'Class Validity' },
-];
-
 export default function SiteHeader() {
-  const { user, configured, signOut } = useAuth();
+  const { user, configured, approved, isAdmin, signOut } = useAuth();
   const path = usePathname();
+  const nav = [
+    { href: '/', label: 'Menu Utama' },
+    { href: '/bulletin', label: 'Bulletin' },
+    { href: '/class-validity', label: 'Class Validity' },
+    ...(isAdmin ? [{ href: '/admin', label: 'Persetujuan' }] : []),
+  ];
   return (
     <header className="border-b border-slate-200 bg-white">
       <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-2 px-4 py-3">
@@ -21,7 +21,7 @@ export default function SiteHeader() {
           RDK <span className="font-medium text-slate-500">/ Class &amp; Technical</span>
         </Link>
         <nav className="flex flex-wrap items-center gap-1 text-sm">
-          {NAV.map((n) => {
+          {nav.map((n) => {
             const on = n.href === '/' ? path === '/' : path.startsWith(n.href);
             return (
               <Link
@@ -36,9 +36,12 @@ export default function SiteHeader() {
           {!configured ? (
             <span className="ml-2 rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-900">Mode demo</span>
           ) : user ? (
-            <button onClick={() => signOut()} className="ml-2 rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50">
-              Keluar ({user.email})
-            </button>
+            <>
+              {!approved && <span className="ml-2 rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-900">Menunggu persetujuan</span>}
+              <button onClick={() => signOut()} className="ml-2 rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50">
+                Keluar ({user.email})
+              </button>
+            </>
           ) : (
             <Link href="/login" className="ml-2 rounded-lg bg-teal-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-teal-700">
               Masuk
