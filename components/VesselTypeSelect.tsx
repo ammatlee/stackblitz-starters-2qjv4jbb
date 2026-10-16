@@ -59,6 +59,7 @@ export default function VesselTypeSelect({ value, onChange, className }: { value
           }
         }}
       >
+        <option value="">— pilih jenis kapal —</option>
         {all.map((t) => (
           <option key={t} value={t}>{t}</option>
         ))}

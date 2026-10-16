@@ -86,7 +86,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
   const signUp = async (email: string, password: string): Promise<Result> => {
     if (!supabase) return { error: 'Supabase belum dikonfigurasi.' };
-    const { data, error } = await supabase.auth.signUp({ email, password });
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: { emailRedirectTo: typeof window !== 'undefined' ? window.location.origin : undefined },
+    });
     if (error) return { error: error.message };
     return data.session
       ? { info: 'Akun dibuat. Akun perlu disetujui admin sebelum bisa dipakai.' }
