@@ -1,18 +1,30 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useAuth } from './AuthProvider';
+import { supabase } from '../lib/supabase';
 
 export default function SiteHeader() {
   const { user, configured, approved, isAdmin, signOut } = useAuth();
   const path = usePathname();
+  const [pending, setPending] = useState(0);
+
+  // admin: tampilkan jumlah akun yang menunggu persetujuan
+  useEffect(() => {
+    (async () => {
+      if (!supabase || !isAdmin) return setPending(0);
+      const { count } = await supabase.from('profiles').select('user_id', { count: 'exact', head: true }).eq('approved', false);
+      setPending(count ?? 0);
+    })();
+  }, [isAdmin, path]);
+
   const nav = [
     { href: '/', label: 'Menu Utama' },
     { href: '/bulletin', label: 'Bulletin' },
     { href: '/class-validity', label: 'Class Validity' },
-    ...(isAdmin ? [{ href: '/admin', label: 'Persetujuan' }] : []),
+    ...(isAdmin ? [{ href: '/admin', label: pending > 0 ? `Persetujuan (${pending})` : 'Persetujuan' }] : []),
   ];
   return (
     <header className="border-b border-slate-200 bg-white">

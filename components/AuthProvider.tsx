@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
 import type { User } from '@supabase/supabase-js';
 import { supabase, isConfigured } from '../lib/supabase';
@@ -12,6 +12,7 @@ type Ctx = {
   configured: boolean;
   approved: boolean; // akun sudah disetujui admin
   isAdmin: boolean;
+  recheck: () => Promise<void>; // periksa ulang status persetujuan (tanpa memuat ulang halaman)
   signIn: (email: string, password: string) => Promise<Result>;
   signUp: (email: string, password: string) => Promise<Result>;
   signOut: () => Promise<void>;
@@ -23,6 +24,7 @@ const AuthCtx = createContext<Ctx>({
   configured: false,
   approved: false,
   isAdmin: false,
+  recheck: async () => {},
   signIn: async () => ({ error: 'Supabase belum dikonfigurasi.' }),
   signUp: async () => ({ error: 'Supabase belum dikonfigurasi.' }),
   signOut: async () => {},
@@ -52,32 +54,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // status persetujuan: admin otomatis disetujui; anggota lain menunggu persetujuan admin
   const uid = user?.id;
+  const runCheck = useCallback(async (id: string, silent: boolean) => {
+    if (!supabase) return;
+    if (!silent) setChecking(true);
+    const a = await supabase.from('admins').select('user_id').eq('user_id', id).maybeSingle();
+    const adm = !!a.data;
+    let ok = adm;
+    if (!adm) {
+      const p = await supabase.from('profiles').select('approved').eq('user_id', id).maybeSingle();
+      ok = !!(p.data as { approved: boolean } | null)?.approved;
+    }
+    setIsAdmin(adm);
+    setApproved(ok);
+    if (!silent) setChecking(false);
+  }, []);
+
   useEffect(() => {
-    let alive = true;
-    (async () => {
-      if (!supabase || !uid) {
-        setApproved(false);
-        setIsAdmin(false);
-        setChecking(false);
-        return;
-      }
-      setChecking(true);
-      const a = await supabase.from('admins').select('user_id').eq('user_id', uid).maybeSingle();
-      const adm = !!a.data;
-      let ok = adm;
-      if (!adm) {
-        const p = await supabase.from('profiles').select('approved').eq('user_id', uid).maybeSingle();
-        ok = !!(p.data as { approved: boolean } | null)?.approved;
-      }
-      if (!alive) return;
-      setIsAdmin(adm);
-      setApproved(ok);
+    if (!supabase || !uid) {
+      setApproved(false);
+      setIsAdmin(false);
       setChecking(false);
-    })();
-    return () => {
-      alive = false;
-    };
-  }, [uid]);
+      return;
+    }
+    runCheck(uid, false);
+  }, [uid, runCheck]);
+
+  const recheck = useCallback(async () => {
+    if (uid) await runCheck(uid, true);
+  }, [uid, runCheck]);
 
   const signIn = async (email: string, password: string): Promise<Result> => {
     if (!supabase) return { error: 'Supabase belum dikonfigurasi.' };
@@ -101,7 +105,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthCtx.Provider value={{ user, loading: sessionLoading || checking, configured: isConfigured, approved, isAdmin, signIn, signUp, signOut }}>
+    <AuthCtx.Provider value={{ user, loading: sessionLoading || checking, configured: isConfigured, approved, isAdmin, recheck, signIn, signUp, signOut }}>
       {children}
     </AuthCtx.Provider>
   );
