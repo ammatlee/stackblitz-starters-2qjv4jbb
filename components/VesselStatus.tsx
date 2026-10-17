@@ -135,7 +135,13 @@ export default function VesselStatus({ refreshKey, vesselName, onApply }: { refr
     const n = vesselName.trim().toLowerCase();
     if (!n) return;
     const v = vessels.find((x) => x.name.toLowerCase() === n);
-    if (v && v.id !== selRef.current) choose(v.id);
+    if (v) {
+      if (v.id !== selRef.current) choose(v.id);
+    } else if (selRef.current) {
+      // nama diganti ke kapal yang belum ada di database: lepas pilihan kapal sebelumnya
+      setSelId('');
+      setPanel('none');
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [vesselName, vessels]);
 

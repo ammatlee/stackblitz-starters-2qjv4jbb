@@ -718,7 +718,7 @@ export default function Page() {
     }
     // Early completion Annual/Intermediate → anniversary bergeser
     let shift: { shifted: boolean; txt: string; nd?: number; nm?: number } | null = null;
-    const annRows = rows.filter((r) => (isAnnual(r.key) || r.key === 'INT') && r.w);
+    const annRows = rows.filter((r) => isAnnual(r.key) && r.w);
     const first = annRows.length ? annRows.reduce((a, b) => (+b.w!.start > +a.w!.start ? b : a)) : undefined;
     if (first && first.w && co) {
       const na = addM(co, 3); // ITS Part A 1.1.3: anniversary baru = 3 bulan setelah tanggal completion
@@ -843,16 +843,29 @@ export default function Page() {
     setStatusName(v.name);
   };
 
-  // kosongkan seluruh isian setelah agenda tersimpan / di-Finish
-  const resetForm = () => {
-    setName(''); setAgenda(''); setVType(''); setYearBuilt(''); setExpiry('');
-    setAnnivD(null); setAnnivM(null); setExtension(''); setStartDate(''); setCompDate('');
+  // isian PER AGENDA (dikosongkan setelah agenda tersimpan / di-Finish dan saat berganti kapal)
+  const clearAgenda = () => {
+    setAgenda(''); setExtension(''); setStartDate(''); setCompDate('');
     setSel({ A1: false, A2: false, A3: false, A4: false, A5: false, INT: false, D1: false, REN: false, PS: false });
-    setNotation(false); setPropelledFlag(null); setLastNo(null); setStatusInfo(null); setStatusName('');
     setRecDue(''); setRecDone(''); setRecAssess(''); setChecks({});
-    setShaftSys('open'); setShaftCond('max'); setShafts([SHAFT0]); setDmin(DMIN0); setWd({ a: '', then: '', now: '' });
+    setShaftCond('max'); setShafts([SHAFT0]); setDmin(DMIN0); setWd({ a: '', then: '', now: '' });
     setAnchor({ o: '', a: '' }); setChain({ o: '', a: '' }); setRudder([{ d: '', a: '' }, { d: '', a: '' }]);
     setTab(1);
+  };
+  // DATA KAPAL (tahun dibangun, expiry, anniversary, jenis, dll.): terisi otomatis dari database saat kapal tersimpan dipilih
+  const clearMaster = () => {
+    setVType(''); setYearBuilt(''); setExpiry(''); setAnnivD(null); setAnnivM(null); setLastNo(null);
+    setNotation(false); setPropelledFlag(null); setShaftSys('open'); setStatusInfo(null); setStatusName('');
+  };
+  // berganti ke kapal lain: isian agenda dan data kapal sebelumnya dikosongkan; data kapal baru dimuat otomatis bila ada di database
+  const changeName = (n: string) => {
+    const was = name.trim().toLowerCase();
+    const loaded = statusName.trim().toLowerCase();
+    if (loaded && was === loaded && n.trim().toLowerCase() !== loaded) {
+      clearAgenda();
+      clearMaster();
+    }
+    setName(n);
   };
 
   // modul Propulsi hanya muncul untuk kapal bernotasi jangkar, saat Renewal atau Propeller Shaft Survey
@@ -951,7 +964,7 @@ export default function Page() {
             </dl>
             <div className="mt-3 flex flex-wrap gap-2 text-xs">
               {([['annual', 'Annual'], ['inter', 'Intermediate'], ['renewal', 'Renewal + Tangki/UT/Air Pipe'], ['docking', 'Docking'], ['machinery', 'Mesin & Utilitas']] as const)
-                .filter(([k]) => A.active[k])
+                .filter(([k]) => A.active[k] && (k !== 'annual' || A.c === 'A' || A.c === 'C' || A.c === 'D' || (['A1', 'A2', 'A3', 'A4', 'A5'] as SurveyKey[]).some((x) => sel[x])))
                 .map(([k, l]) => <span key={k} className="rounded-full bg-teal-100 px-3 py-1 font-semibold text-teal-800">{l}</span>)}
             </div>
             <button onClick={() => setTab(2)} className="mt-4 rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-700">Lihat detail scope &amp; checklist</button>
@@ -977,7 +990,7 @@ export default function Page() {
             anchorNotation={notation}
             propelled={propelledFlag}
             shaftSystem={shaftSys}
-            onClear={resetForm}
+            onClear={clearAgenda}
           />
         </Fold>
 
@@ -986,7 +999,7 @@ export default function Page() {
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <div>
               <span className="mb-1 block text-xs font-semibold text-slate-600">Nama Kapal</span>
-              <VesselNameInput className={inputCls} value={name} onChange={setName} refreshKey={refreshKey} />
+              <VesselNameInput className={inputCls} value={name} onChange={changeName} refreshKey={refreshKey} />
               <span className="mt-1 block text-[11px] leading-snug text-slate-500">Ketik untuk mencari atau ketuk daftar kapal tersimpan.</span>
             </div>
             <Field label="No. Agenda"><input className={inputCls} value={agenda} onChange={(e) => setAgenda(e.target.value)} /></Field>
@@ -1216,6 +1229,8 @@ export default function Page() {
     const mach = MACHINERY.map((m, i) => ({ m, id: `M-${i}` })).filter((r) => r.m[3] !== 'N/A' || CARGO_SYSTEM_TYPES.includes(vType));
     const systems = Array.from(new Set(mach.map((r) => r.m[0])));
     const nothing = !Object.values(A.active).some(Boolean);
+    // judul "Annual" hanya dipakai bila Annual memang dipilih atau pada kasus khusus (reinstatement A/C/D)
+    const annualNamed = (['A1', 'A2', 'A3', 'A4', 'A5'] as SurveyKey[]).some((k) => sel[k]) || A.c === 'A' || A.c === 'C' || A.c === 'D';
 
     return (
       <>
@@ -1224,7 +1239,7 @@ export default function Page() {
           <div className="flex flex-wrap gap-2 text-xs">
             {nothing && <span className="text-slate-500">Pilih survei di tab Status.</span>}
             {([['annual', 'Annual'], ['inter', 'Intermediate'], ['renewal', 'Renewal'], ['docking', 'Docking'], ['machinery', 'Mesin & Utilitas']] as const)
-              .filter(([k]) => A.active[k])
+              .filter(([k]) => A.active[k] && (k !== 'annual' || annualNamed))
               .map(([k, l]) => <span key={k} className="rounded-full bg-teal-100 px-3 py-1 font-semibold text-teal-800">{l}</span>)}
           </div>
           {A.c && (
@@ -1239,7 +1254,12 @@ export default function Page() {
         </Card>
 
         {A.active.annual && (
-          <Fold title="Annual Survey" sub="Hull, safety, mesin, listrik, fire-fighting" right={<P ids={an.ids} />} open>
+          <Fold
+            title={annualNamed ? 'Annual Survey' : 'Pemeriksaan dasar'}
+            sub={annualNamed ? 'Hull, safety, mesin, listrik, fire-fighting' : 'Cakupan Intermediate/Renewal memperluas pemeriksaan dasar ini. Annual yang belum dikerjakan tetap harus dikerjakan terpisah.'}
+            right={<P ids={an.ids} />}
+            open
+          >
             {listOf(an.rows)}{hiddenNote(an.hidden)}
           </Fold>
         )}
@@ -1466,20 +1486,4 @@ export default function Page() {
                   <Field label="Wear-down saat itu (mm)">{numIn(wd.then, (v) => setWd((x) => ({ ...x, then: v })))}</Field>
                   <Field label="Wear-down sekarang (mm)">{numIn(wd.now, (v) => setWd((x) => ({ ...x, now: v })))}</Field>
                 </div>
-                <p className="mt-3 text-sm">Clearance akhir: <b>{S.wdFinal === null ? '—' : `${f2(S.wdFinal)} mm`}</b></p>
-                <p className="mt-1 text-[11px] text-slate-500">Clearance akhir = actual clearance saat poros ditarik + selisih nilai wear-down (sekarang − saat itu).</p>
-                {S.wdFinal !== null && (
-                  <button onClick={() => setShaftRow(0, 'a', String(Math.round((S.wdFinal as number) * 10000) / 10000))} className="mt-2 rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-semibold hover:bg-slate-50">
-                    Pakai sebagai Actual pada Poros 1
-                  </button>
-                )}
-              </Card>
-            )}
-
-            <Card title="Rudder Stock Clearance" sub="Neck: min(0,01d + 2; 4). Pintle: d<50 → 3; 50–100 → 5; d>100 → min(0,01d + 4; 6)">
-              <div className="grid gap-4 md:grid-cols-2">
-                {S.rudderRes.map((r, i) => (
-                  <div key={r.item} className="rounded-xl border border-slate-200 p-4">
-                    <div className="flex items-center justify-between"><p className="text-sm font-bold">{r.item}</p><Badge v={r.v || 'BELUM DIUKUR'} /></div>
-                    <div className="mt-3 grid grid-cols-2 gap-3">
-                      <Field label="Diameter (mm)">{numI
+                <p className="mt-3 text-sm">Clearance akhir: <b>{S.wdFina

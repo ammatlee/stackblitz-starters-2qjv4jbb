@@ -114,7 +114,7 @@ export default function AgendaPanel({ vesselName, vesselType, yearBuilt, agendaN
     const up = await supabase.from('agendas').upsert(row, { onConflict: 'owner,agenda_no' });
     setBusy(false);
     if (up.error) return setMsg({ k: 'err', t: 'Gagal menyimpan agenda: ' + up.error.message });
-    setMsg({ k: 'ok', t: (finish ? `Agenda ${no} ditandai selesai dan tersimpan.` : `Agenda ${no} tersimpan.`) + ' Form dikosongkan; ketuk Buka pada riwayat untuk melanjutkan.' });
+    setMsg({ k: 'ok', t: (finish ? `Agenda ${no} ditandai selesai dan tersimpan.` : `Agenda ${no} tersimpan.`) + ' Isian agenda dikosongkan, data kapal tetap terisi otomatis. Ketuk Buka pada riwayat untuk melanjutkan agenda ini.' });
     load();
     onSaved?.();
     onClear?.();

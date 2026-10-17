@@ -135,8 +135,8 @@ export function computeSurveyStatus(b: Baseline, evsAll: Ev[], today: Date): Sta
   if (li && +li >= +periodStart) base.push({ t: 'I', d: li });
   base.sort((x, y) => +x.d - +y.d).forEach((e) => {
     if (e.t === 'I') {
+      // Intermediate adalah survei tersendiri (±2,5 tahun): tidak menggantikan dan tidak mengubah urutan Annual
       lastInt = e.d;
-      doAnnual(e.d, 'Intermediate');
       intSlot = annCount;
     } else {
       doAnnual(e.d, b.last_annual_no ? `Annual ${b.last_annual_no}` : 'Annual', b.last_annual_no ?? undefined);
@@ -157,10 +157,10 @@ export function computeSurveyStatus(b: Baseline, evsAll: Ev[], today: Date): Sta
     const hasRen = e.surveys.includes('REN') || forced;
     const hasInt = e.surveys.includes('INT') || /^A\./.test(sc);
     const annNo = ['A1', 'A2', 'A3', 'A4', 'A5'].reduce((m, k) => (e.surveys.includes(k) ? Math.max(m, Number(k[1])) : m), 0);
-    const hasAnn = hasInt || annNo > 0;
+    const hasAnn = annNo > 0; // hanya survei Annual yang dipilih yang mengkreditkan Annual (Intermediate berdiri sendiri)
     const hasDock = hasRen || e.surveys.includes('D1');
     const hasShaft = e.surveys.includes('PS');
-    if (!hasRen && !hasAnn && !hasDock && !hasShaft) continue;
+    if (!hasRen && !hasInt && !hasAnn && !hasDock && !hasShaft) continue;
     applied.push(e.agenda_no);
     if (hasShaft) lastShaft = c;
 
@@ -190,10 +190,8 @@ export function computeSurveyStatus(b: Baseline, evsAll: Ev[], today: Date): Sta
       lastNo = used;
     } else {
       if (hasInt) lastInt = c;
-      if (hasAnn) {
-        doAnnual(c, annNo ? `Annual ${annNo}` : hasInt ? 'Intermediate' : 'Annual', annNo || undefined);
-        if (hasInt) intSlot = annCount;
-      }
+      if (hasAnn) doAnnual(c, `Annual ${annNo}`, annNo);
+      if (hasInt) intSlot = annCount; // survei periodik ke-3 setelah Intermediate ini yang jatuh sebelum expiry dikerjakan sebagai Intermediate (ITS 3.B.1.2.3)
       if (hasDock) lastDock = c;
     }
   }
