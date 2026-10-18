@@ -867,6 +867,12 @@ export default function Page() {
     }
     setName(n);
   };
+  // setelah agenda tersimpan / di-Finish: semua isian dikosongkan; data kapal dimuat lagi otomatis saat nama kapal dipilih
+  const clearAll = () => {
+    clearAgenda();
+    clearMaster();
+    setName('');
+  };
 
   // modul Propulsi hanya muncul untuk kapal bernotasi jangkar, saat Renewal atau Propeller Shaft Survey
   const dimActive = notation && (A.active.renewal || sel.PS);
@@ -917,7 +923,7 @@ export default function Page() {
         {shownTab === 1 && Module1()}
         {shownTab === 2 && Module2()}
         {shownTab === 3 && Module3()}
-        <p className="pb-6 text-center text-[11px] text-slate-500">Alat bantu perhitungan; keputusan akhir mengacu pada aturan BKI dan penilaian Surveyor.</p>
+        <p className="pb-6 text-center text-[11px] text-slate-500">Alat bantu perhitungan; keputusan akhir mengacu pada aturan BKI dan penilaian Surveyor. · Versi 2026.10.17-c</p>
       </main>
     </div>
   );
@@ -990,7 +996,7 @@ export default function Page() {
             anchorNotation={notation}
             propelled={propelledFlag}
             shaftSystem={shaftSys}
-            onClear={clearAgenda}
+            onClear={clearAll}
           />
         </Fold>
 
@@ -1483,7 +1489,4 @@ export default function Page() {
               <Card title="Clearance poros oil — dari wear-down gauge" sub="Poros tidak ditarik; piston acuan di TDC (ITS Part A 1.10.4)">
                 <div className="grid gap-3 sm:grid-cols-3">
                   <Field label="Actual clearance saat poros ditarik (mm)">{numIn(wd.a, (v) => setWd((x) => ({ ...x, a: v })))}</Field>
-                  <Field label="Wear-down saat itu (mm)">{numIn(wd.then, (v) => setWd((x) => ({ ...x, then: v })))}</Field>
-                  <Field label="Wear-down sekarang (mm)">{numIn(wd.now, (v) => setWd((x) => ({ ...x, now: v })))}</Field>
-                </div>
-                <p className="mt-3 text-sm">Clearance akhir: <b>{S.wdFina
+                  <Field label="Wear-down saat itu (mm)">{numIn(wd.then, (v) => setWd((x) => ({ ...x, then: v }))
