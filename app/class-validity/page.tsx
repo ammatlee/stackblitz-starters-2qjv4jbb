@@ -1489,4 +1489,56 @@ export default function Page() {
               <Card title="Clearance poros oil — dari wear-down gauge" sub="Poros tidak ditarik; piston acuan di TDC (ITS Part A 1.10.4)">
                 <div className="grid gap-3 sm:grid-cols-3">
                   <Field label="Actual clearance saat poros ditarik (mm)">{numIn(wd.a, (v) => setWd((x) => ({ ...x, a: v })))}</Field>
-                  <Field label="Wear-down saat itu (mm)">{numIn(wd.then, (v) => setWd((x) => ({ ...x, then: v }))
+                  <Field label="Wear-down saat itu (mm)">{numIn(wd.then, (v) => setWd((x) => ({ ...x, then: v })))}</Field>
+                  <Field label="Wear-down sekarang (mm)">{numIn(wd.now, (v) => setWd((x) => ({ ...x, now: v })))}</Field>
+                </div>
+                <p className="mt-3 text-sm">Clearance akhir: <b>{S.wdFinal === null ? '—' : `${f2(S.wdFinal)} mm`}</b></p>
+                <p className="mt-1 text-[11px] text-slate-500">Clearance akhir = actual clearance saat poros ditarik + selisih nilai wear-down (sekarang − saat itu).</p>
+                {S.wdFinal !== null && (
+                  <button onClick={() => setShaftRow(0, 'a', String(Math.round((S.wdFinal as number) * 10000) / 10000))} className="mt-2 rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-semibold hover:bg-slate-50">
+                    Pakai sebagai Actual pada Poros 1
+                  </button>
+                )}
+              </Card>
+            )}
+
+            <Card title="Rudder Stock Clearance" sub="Neck: min(0,01d + 2; 4). Pintle: d<50 → 3; 50–100 → 5; d>100 → min(0,01d + 4; 6)">
+              <div className="grid gap-4 md:grid-cols-2">
+                {S.rudderRes.map((r, i) => (
+                  <div key={r.item} className="rounded-xl border border-slate-200 p-4">
+                    <div className="flex items-center justify-between"><p className="text-sm font-bold">{r.item}</p><Badge v={r.v || 'BELUM DIUKUR'} /></div>
+                    <div className="mt-3 grid grid-cols-2 gap-3">
+                      <Field label="Diameter (mm)">{numIn(rudder[i].d, (v) => setRudder((s) => s.map((x, j) => (j === i ? { ...x, d: v } : x))))}</Field>
+                      <Field label="Actual (mm)">{numIn(rudder[i].a, (v) => setRudder((s) => s.map((x, j) => (j === i ? { ...x, a: v } : x))))}</Field>
+                    </div>
+                    <p className="mt-3 text-sm">Maksimum: <b>{r.mx === null ? '—' : `${r.mx.toFixed(2)} mm`}</b></p>
+                    <Gauge lo={null} hi={r.mx} a={r.a} />
+                  </div>
+                ))}
+              </div>
+            </Card>
+          </>
+        )}
+
+        <div className="grid gap-4 md:grid-cols-2">
+          <Card title="Anchor Weight" sub="Minimum 88% berat asli" right={<Badge v={S.anchorV || 'BELUM DIUKUR'} />}>
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Original (kg)">{numIn(anchor.o, (v) => setAnchor((x) => ({ ...x, o: v })))}</Field>
+              <Field label="Actual (kg)">{numIn(anchor.a, (v) => setAnchor((x) => ({ ...x, a: v })))}</Field>
+            </div>
+            <p className="mt-3 text-sm">Minimum: <b>{S.anchorMin === null ? '—' : `${S.anchorMin.toFixed(1)} kg`}</b></p>
+          </Card>
+          <Card title="Anchor Chain Diameter" sub="Minimum 90% diameter asli" right={<Badge v={S.chainV || 'BELUM DIUKUR'} />}>
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Original (mm)">{numIn(chain.o, (v) => setChain((x) => ({ ...x, o: v })))}</Field>
+              <Field label="Actual (mm)">{numIn(chain.a, (v) => setChain((x) => ({ ...x, a: v })))}</Field>
+            </div>
+            <p className="mt-3 text-sm">Minimum: <b>{S.chainMin === null ? '—' : `${S.chainMin.toFixed(2)} mm`}</b></p>
+          </Card>
+        </div>
+
+        {propelled && <p className="rounded-xl bg-slate-50 p-3 text-xs text-slate-600">Data clearance rudder stock dan propeller shaft wajib dicantumkan pada survey report terkait (ITS Part A 1.9 dan 1.10.1).</p>}
+      </>
+    );
+  }
+}
