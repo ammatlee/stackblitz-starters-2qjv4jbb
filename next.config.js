@@ -1,4 +1,8 @@
-/** @type {import('next').NextConfig} */
-const nextConfig = {};
-
-module.exports = nextConfig;
+/** @type {import('next').NextConfiguration} */
+const nextConfig = {
+    output: 'export', // <--- Tambahkan baris ini
+    /* opsi konfigurasi lainnya jika ada */
+  };
+  
+  module.exports = nextConfig;
+  
