@@ -473,11 +473,6 @@ const BASIS: Record<string, { title: string; its: string; nd: string }> = {
     its: 'Sec. 2.B.4.2 butir 4: scope re-classification = Renewal Survey + Bottom Survey dengan lingkup sesuai umur kapal.',
     nd: 'Poin 4b dan 5b–5c: lebih dari 6 bulan setelah expiry = WITHDRAWN; Survey Penerimaan Kelas Kembali dengan periode baru dari tanggal completion.',
   },
-  'suspend-reinstate': {
-    title: 'Reinstatement kelas yang SUSPENDED',
-    its: 'Sec. 2.B.2.2: Annual terlambat → Annual Survey (afloat); Intermediate terlambat → Intermediate Survey + Docking Survey; endorse "Class reinstated and confirmed".',
-    nd: 'Poin 3: suspended hingga 6 bulan karena Annual/Intermediate/Special/rekomendasi overdue → WITHDRAWN. Poin 7: bila ragu menentukan status, hubungi SM Mempertahankan Klas.',
-  },
   'annual-advance': {
     title: 'Annual dikerjakan lebih awal (Annual in advance)',
     its: 'Sec. 3.B.1.1.3: anniversary baru = 3 bulan setelah tanggal completion dan dicatat lewat endorsement sertifikat; Annual berikutnya mengikuti interval anniversary baru. Intermediate: Sec. 3.B.1.2.3.',
@@ -680,14 +675,6 @@ export default function Page() {
       return 'Dalam jendela waktu.';
     };
 
-    // Reinstatement untuk status SUSPENDED (ITS Part A 2.B.2.2)
-    const reinstNote = (r: (typeof rows)[number]) => {
-      if (r.status !== 'SUSPENDED') return '';
-      if (isAnnual(r.key)) return 'Reinstatement: Annual Survey hull & machinery, afloat → "Class reinstated and confirmed" (ITS Part A 2.B.2.2).';
-      if (r.key === 'INT') return 'Reinstatement: Intermediate Survey hull & machinery + Docking Survey → "Class reinstated and confirmed" (ITS Part A 2.B.2.2).';
-      return '';
-    };
-
     // Status akhir = yang terburuk dari semua survei terpilih + recommendation
     const all: string[] = [...rows.map((r) => r.status), ...implied.map((r) => r.status), recSt];
     let overall: Status = 'VALID';
@@ -737,7 +724,6 @@ export default function Page() {
       else basis.push('renewal-window');
     }
     if (c) basis.push('case-' + c);
-    if (rows.some((r) => r.status === 'SUSPENDED' && (isAnnual(r.key) || r.key === 'INT'))) basis.push('suspend-reinstate');
     if (shift?.shifted) basis.push('annual-advance');
 
     // Scope aktif (Modul 2)
@@ -750,7 +736,7 @@ export default function Page() {
       machinery: sel.REN || c === 'C' || c === 'D',
     };
 
-    return { exp, st, co, age, rn, rnBumped, rnLabel, prev, ad, am, win, rows, recSt, c, caseTitle, action, scopeLbl, why, reinstNote, basis, overall, implied, reinst, trigger, newPeriod, shift, active, limit,
+    return { exp, st, co, age, rn, rnBumped, rnLabel, prev, ad, am, win, rows, recSt, c, caseTitle, action, scopeLbl, why, basis, overall, implied, reinst, trigger, newPeriod, shift, active, limit,
       a5Applicable, anniversaryAuto: annivD === null && annivM === null };
   }, [expiry, startDate, compDate, extension, yearBuilt, annivD, annivM, sel, recDue, recDone, recAssess, lastNo, statusInfo]);
 
@@ -923,7 +909,7 @@ export default function Page() {
         {shownTab === 1 && Module1()}
         {shownTab === 2 && Module2()}
         {shownTab === 3 && Module3()}
-        <p className="pb-6 text-center text-[11px] text-slate-500">Alat bantu perhitungan; keputusan akhir mengacu pada aturan BKI dan penilaian Surveyor. · Versi 2026.10.17-c</p>
+        <p className="pb-6 text-center text-[11px] text-slate-500">Alat bantu perhitungan; keputusan akhir mengacu pada aturan BKI dan penilaian Surveyor. · Versi 2026.10.18-a</p>
       </main>
     </div>
   );
@@ -1094,7 +1080,6 @@ export default function Page() {
                       {r.key === 'PS' ? '' : r.key === 'D1' ? ` · batas ${fmt(r.w?.end)}` : r.key === 'REN' ? ` · withdrawal > ${fmt(A.limit('REN'))}` : ` · withdrawal > ${fmt(A.limit(r.key))}`}
                     </p>
                     {A.why(r) && <p className="mt-0.5 text-xs text-slate-600">{A.why(r)}</p>}
-                    {A.reinstNote(r) && <p className="mt-0.5 text-xs font-semibold text-amber-800">{A.reinstNote(r)}</p>}
                   </div>
                   <Badge v={r.status} />
                 </li>
@@ -1506,39 +1491,4 @@ export default function Page() {
               <div className="grid gap-4 md:grid-cols-2">
                 {S.rudderRes.map((r, i) => (
                   <div key={r.item} className="rounded-xl border border-slate-200 p-4">
-                    <div className="flex items-center justify-between"><p className="text-sm font-bold">{r.item}</p><Badge v={r.v || 'BELUM DIUKUR'} /></div>
-                    <div className="mt-3 grid grid-cols-2 gap-3">
-                      <Field label="Diameter (mm)">{numIn(rudder[i].d, (v) => setRudder((s) => s.map((x, j) => (j === i ? { ...x, d: v } : x))))}</Field>
-                      <Field label="Actual (mm)">{numIn(rudder[i].a, (v) => setRudder((s) => s.map((x, j) => (j === i ? { ...x, a: v } : x))))}</Field>
-                    </div>
-                    <p className="mt-3 text-sm">Maksimum: <b>{r.mx === null ? '—' : `${r.mx.toFixed(2)} mm`}</b></p>
-                    <Gauge lo={null} hi={r.mx} a={r.a} />
-                  </div>
-                ))}
-              </div>
-            </Card>
-          </>
-        )}
-
-        <div className="grid gap-4 md:grid-cols-2">
-          <Card title="Anchor Weight" sub="Minimum 88% berat asli" right={<Badge v={S.anchorV || 'BELUM DIUKUR'} />}>
-            <div className="grid grid-cols-2 gap-3">
-              <Field label="Original (kg)">{numIn(anchor.o, (v) => setAnchor((x) => ({ ...x, o: v })))}</Field>
-              <Field label="Actual (kg)">{numIn(anchor.a, (v) => setAnchor((x) => ({ ...x, a: v })))}</Field>
-            </div>
-            <p className="mt-3 text-sm">Minimum: <b>{S.anchorMin === null ? '—' : `${S.anchorMin.toFixed(1)} kg`}</b></p>
-          </Card>
-          <Card title="Anchor Chain Diameter" sub="Minimum 90% diameter asli" right={<Badge v={S.chainV || 'BELUM DIUKUR'} />}>
-            <div className="grid grid-cols-2 gap-3">
-              <Field label="Original (mm)">{numIn(chain.o, (v) => setChain((x) => ({ ...x, o: v })))}</Field>
-              <Field label="Actual (mm)">{numIn(chain.a, (v) => setChain((x) => ({ ...x, a: v })))}</Field>
-            </div>
-            <p className="mt-3 text-sm">Minimum: <b>{S.chainMin === null ? '—' : `${S.chainMin.toFixed(2)} mm`}</b></p>
-          </Card>
-        </div>
-
-        {propelled && <p className="rounded-xl bg-slate-50 p-3 text-xs text-slate-600">Data clearance rudder stock dan propeller shaft wajib dicantumkan pada survey report terkait (ITS Part A 1.9 dan 1.10.1).</p>}
-      </>
-    );
-  }
-}
+             
