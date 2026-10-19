@@ -741,13 +741,14 @@ export default function Page() {
   }, [expiry, startDate, compDate, extension, yearBuilt, annivD, annivM, sel, recDue, recDone, recAssess, lastNo, statusInfo]);
 
   /* ======================= MODUL 3: kalkulasi (sheet Dimensi Kemudi) ======================= */
-  // Item Modul Propulsi menurut jenis survei:
-  //  Docking 1  → clearance poros + rudder (neck & pintle)
-  //  Renewal    → clearance poros + rudder + berat jangkar + diameter rantai (tanpa diameter minimum)
-  //  Propeller Shaft → HANYA diameter minimum poros
-  const showClear = sel.D1 || A.active.renewal;
-  const showAnchor = A.active.renewal;
-  const showDmin = sel.PS;
+  // Item Modul Propulsi menurut jenis survei (modul hanya muncul bila ada item yang diukur):
+  //  Docking 1 / Renewal → clearance poros + rudder (neck & pintle), hanya kapal berpenggerak
+  //  Propeller Shaft     → diameter minimum poros saja, hanya kapal berpenggerak
+  //  Renewal + notasi jangkar → berat jangkar + diameter rantai jangkar (kapal berpenggerak maupun tidak)
+  const showClear = propelled && (sel.D1 || A.active.renewal);
+  const showDmin = propelled && sel.PS;
+  const showAnchor = notation && A.active.renewal;
+  const propActive = showClear || showDmin || showAnchor;
   const S = useMemo(() => {
     const dminRes = shafts.map((r) => {
       const da = num(r.d);
@@ -868,7 +869,7 @@ export default function Page() {
   };
 
   // modul Propulsi hanya muncul untuk kapal bernotasi jangkar, saat Renewal atau Propeller Shaft Survey
-  const dimActive = notation && (A.active.renewal || sel.PS || sel.D1);
+  const dimActive = propActive;
 
   // survei yang sudah tercatat pada periode berjalan tidak ditawarkan lagi (hanya yang belum dikerjakan)
   const chipVisible = (k: SurveyKey) => {
@@ -885,9 +886,9 @@ export default function Page() {
   const tabs: [1 | 2 | 3, string, string][] = [
     [1, 'Status', 'Validity class'],
     [2, 'Scope', 'Checklist survei'],
-    ...(notation ? ([[3, 'Propulsi', dimActive ? (propelled ? 'Clearance & dimensi' : 'Jangkar') : 'Tidak aktif']] as [1 | 2 | 3, string, string][]) : []),
+    ...(propActive ? ([[3, 'Propulsi', [showClear ? 'Clearance' : '', showDmin ? 'Dimensi minimum' : '', showAnchor ? 'Jangkar' : ''].filter(Boolean).join(' · ')]] as [1 | 2 | 3, string, string][]) : []),
   ];
-  const shownTab = tab === 3 && !notation ? 1 : tab;
+  const shownTab = tab === 3 && !propActive ? 1 : tab;
 
   return (
     <div className="min-h-screen bg-slate-100 text-slate-800">
@@ -1320,18 +1321,7 @@ export default function Page() {
    * MODUL 3 — hanya Renewal + notasi jangkar (berdiri sendiri)
    * ==================================================================== */
   function Module3() {
-    if (!dimActive)
-      return (
-        <Card title="Propulsi & Clearance — belum diperlukan">
-          <p className="text-sm text-slate-600">
-          Modul ini dihitung untuk kapal bernotasi jangkar saat <b>Renewal Survey</b>, <b>Docking Survey</b>, atau <b>Propeller Shaft Survey</b> dipilih.
-          </p>
-          <ul className="mt-3 space-y-1 text-sm">
-            <li>{notation ? '✓' : '✗'} Notasi jangkar</li>
-            <li>{A.active.renewal || sel.PS || sel.D1 ? '✓' : '✗'} Renewal, Docking, atau Propeller Shaft Survey aktif</li>
-          </ul>
-        </Card>
-      );
+    if (!dimActive) return null; // tidak ada item pengukuran: modul disembunyikan
     const numIn = (v: string, set: (s: string) => void) => (
       <input inputMode="decimal" className={cx(inputCls, 'bg-yellow-50')} value={v} onChange={(e) => set(e.target.value)} />
     );
