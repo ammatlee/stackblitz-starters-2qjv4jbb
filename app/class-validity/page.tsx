@@ -19,6 +19,8 @@ import VesselNameInput from '../../components/VesselNameInput';
 import { TUG_TYPES, HOLD_TYPES, CARGO_SYSTEM_TYPES, isNonPropelled } from '../../lib/vesselTypes';
 import type { ApplyValues } from '../../components/VesselStatus';
 import { roman } from '../../lib/surveyStatus';
+import { PLANS, CONN_LABEL, OPEN_CFG_LABEL, extensionRules, shaftView } from '../../lib/shaftRules';
+import type { Conn, OpenCfg, PlanKey } from '../../lib/shaftRules';
 
 /* ============================================================================
  * 1. DATE UTILITIES (UTC, perilaku EDATE seperti Excel)
@@ -513,6 +515,9 @@ export default function Page() {
 
   /* ---- Modul 3 ---- */
   const [shaftSys, setShaftSys] = useState<ShaftSys>('open');
+  const [propConn, setPropConn] = useState<Conn | ''>(''); // tipe sambungan propeller (Scope Propeller Shaft)
+  const [openCfg, setOpenCfg] = useState<OpenCfg | ''>(''); // konfigurasi poros sistem open (menentukan interval 5 / 3 tahun)
+  const [shaftPlan, setShaftPlan] = useState<PlanKey | ''>(''); // Method / extension yang dikerjakan
   const [shaftCond, setShaftCond] = useState<'new' | 'max'>('max');
   const [shafts, setShafts] = useState<ShaftRow[]>([SHAFT0]); // satu baris per poros (mis. port / starboard)
   const [dmin, setDmin] = useState<DminCfg>(DMIN0);
@@ -732,7 +737,8 @@ export default function Page() {
       annual: hasAnnual || sel.INT || sel.REN || c === 'A' || c === 'C' || c === 'D',
       inter: sel.INT || c === 'A',
       renewal: sel.REN || c === 'C' || c === 'D',
-      docking: sel.D1 || sel.REN || sel.PS || c === 'C' || c === 'D',
+      docking: sel.D1 || sel.REN || c === 'C' || c === 'D',
+      shaft: sel.PS,
       machinery: sel.REN || c === 'C' || c === 'D',
     };
 
@@ -788,7 +794,7 @@ export default function Page() {
   }, [shaftSys, shaftCond, shafts, dmin, wd, anchor, chain, rudder, propelled, showShaft, showRudder, showAnchor, showDmin]);
 
   // ---- Simpan / buka agenda (Supabase) ----
-  const snapshot = { name, agenda, vType, yearBuilt, expiry, annivD, annivM, extension, startDate, compDate, sel, notation, lastNo, recDue, recDone, recAssess, checks, shaftSys, shaftCond, shafts, dmin, wd, anchor, chain, rudder };
+  const snapshot = { name, agenda, vType, yearBuilt, expiry, annivD, annivM, extension, startDate, compDate, sel, notation, lastNo, recDue, recDone, recAssess, checks, shaftSys, propConn, openCfg, shaftPlan, shaftCond, shafts, dmin, wd, anchor, chain, rudder };
   const agendaSummary = {
     status: A.overall as string,
     scenario: A.c ? A.caseTitle[A.c] : null,
@@ -813,6 +819,9 @@ export default function Page() {
     if (d.checks && typeof d.checks === 'object') setChecks(d.checks as Record<string, string>);
     if (d.shaftSys === 'open' || d.shaftSys === 'oil' || d.shaftSys === 'fw') setShaftSys(d.shaftSys);
     if (d.shaftCond === 'new' || d.shaftCond === 'max') setShaftCond(d.shaftCond);
+    if (d.propConn === 'flanged' || d.propConn === 'keyless' || d.propConn === 'keyed') setPropConn(d.propConn);
+    if (d.openCfg === 'five' || d.openCfg === 'three') setOpenCfg(d.openCfg);
+    if (typeof d.shaftPlan === 'string') setShaftPlan(d.shaftPlan as PlanKey | '');
     if (Array.isArray(d.shafts) && d.shafts.length > 0) setShafts((d.shafts as Partial<ShaftRow>[]).map((x) => ({ ...SHAFT0, ...x })));
     if (d.dmin && typeof d.dmin === 'object') setDmin({ ...DMIN0, ...(d.dmin as Partial<DminCfg>) });
     if (d.wd && typeof d.wd === 'object') setWd(d.wd as typeof wd);
@@ -835,6 +844,8 @@ export default function Page() {
     setPropelledFlag(v.propelled);
     setNotation(v.anchorNotation);
     setShaftSys(v.shaftSystem === 'oil' || v.shaftSystem === 'fw' ? v.shaftSystem : 'open');
+    setPropConn(v.propConnection === 'flanged' || v.propConnection === 'keyless' || v.propConnection === 'keyed' ? v.propConnection : '');
+    setOpenCfg(v.openConfig === 'five' || v.openConfig === 'three' ? v.openConfig : '');
     setStatusInfo(v.info ?? null);
     setStatusName(v.name);
   };
@@ -844,14 +855,14 @@ export default function Page() {
     setAgenda(''); setExtension(''); setStartDate(''); setCompDate('');
     setSel({ A1: false, A2: false, A3: false, A4: false, A5: false, INT: false, D1: false, REN: false, PS: false });
     setRecDue(''); setRecDone(''); setRecAssess(''); setChecks({});
-    setShaftCond('max'); setShafts([SHAFT0]); setDmin(DMIN0); setWd({ a: '', then: '', now: '' });
+    setShaftPlan(''); setShaftCond('max'); setShafts([SHAFT0]); setDmin(DMIN0); setWd({ a: '', then: '', now: '' });
     setAnchor({ o: '', a: '' }); setChain({ o: '', a: '' }); setRudder([{ d: '', a: '' }, { d: '', a: '' }]);
     setTab(1);
   };
   // DATA KAPAL (tahun dibangun, expiry, anniversary, jenis, dll.): terisi otomatis dari database saat kapal tersimpan dipilih
   const clearMaster = () => {
     setVType(''); setYearBuilt(''); setExpiry(''); setAnnivD(null); setAnnivM(null); setLastNo(null);
-    setNotation(false); setPropelledFlag(null); setShaftSys('open'); setStatusInfo(null); setStatusName('');
+    setNotation(false); setPropelledFlag(null); setShaftSys('open'); setPropConn(''); setOpenCfg(''); setStatusInfo(null); setStatusName('');
   };
   // berganti ke kapal lain: isian agenda dan data kapal sebelumnya dikosongkan; data kapal baru dimuat otomatis bila ada di database
   const changeName = (n: string) => {
@@ -964,7 +975,7 @@ export default function Page() {
                 </div>
               </dl>
               <div className="mt-3 flex flex-wrap gap-2 text-xs">
-                {([['annual', 'Annual'], ['inter', 'Intermediate'], ['renewal', 'Renewal + Tangki/UT/Air Pipe'], ['docking', 'Docking'], ['machinery', 'Mesin & Utilitas']] as const)
+                {([['annual', 'Annual'], ['inter', 'Intermediate'], ['renewal', 'Renewal + Tangki/UT/Air Pipe'], ['docking', 'Docking'], ['shaft', 'Propeller Shaft'], ['machinery', 'Mesin & Utilitas']] as const)
                   .filter(([k]) => A.active[k] && (k !== 'annual' || A.c === 'A' || A.c === 'C' || A.c === 'D' || (['A1', 'A2', 'A3', 'A4', 'A5'] as SurveyKey[]).some((x) => sel[x])))
                   .map(([k, l]) => <span key={k} className="rounded-full bg-teal-100 px-3 py-1 font-semibold text-teal-800">{l}</span>)}
               </div>
@@ -1238,7 +1249,7 @@ export default function Page() {
             right={<button onClick={() => setChecks({})} className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-semibold hover:bg-slate-50">Reset checklist</button>}>
             <div className="flex flex-wrap gap-2 text-xs">
               {nothing && <span className="text-slate-500">Pilih survei di tab Status.</span>}
-              {([['annual', 'Annual'], ['inter', 'Intermediate'], ['renewal', 'Renewal'], ['docking', 'Docking'], ['machinery', 'Mesin & Utilitas']] as const)
+              {([['annual', 'Annual'], ['inter', 'Intermediate'], ['renewal', 'Renewal'], ['docking', 'Docking'], ['shaft', 'Propeller Shaft'], ['machinery', 'Mesin & Utilitas']] as const)
                 .filter(([k]) => A.active[k] && (k !== 'annual' || annualNamed))
                 .map(([k, l]) => <span key={k} className="rounded-full bg-teal-100 px-3 py-1 font-semibold text-teal-800">{l}</span>)}
             </div>
@@ -1286,6 +1297,98 @@ export default function Page() {
             </>
           )}
   
+          {A.active.shaft && (() => {
+            const sv = shaftView(shaftSys, propConn, openCfg, shaftPlan);
+            const plan = sv.plan ? PLANS[sv.plan] : null;
+            const isExt = sv.plan === 'E25' || sv.plan === 'E1' || sv.plan === 'E3';
+            const sid = (k: string) => `PS-${sv.plan}-${k}`;
+            const qid = (k: string) => `PQ-${sv.plan}-${k}`;
+            const ids = [...sv.scope.map((x) => sid(x.k)), ...sv.prereq.map((x) => qid(x.k))];
+            const pill = (on: boolean) => cx('rounded-full border px-3 py-1.5 text-xs font-semibold transition', on ? 'border-teal-600 bg-teal-600 text-white' : 'border-slate-300 bg-white text-slate-600 hover:border-teal-500');
+            const step = (n: number, t: string) => <p className="mb-2 mt-4 text-xs font-bold text-slate-700"><span className="mr-1.5 inline-flex h-5 w-5 items-center justify-center rounded-full bg-slate-800 text-[11px] text-white">{n}</span>{t}</p>;
+            const ext = extensionRules(shaftSys);
+            return (
+              <Fold title="Propeller Shaft Survey" sub="Ikuti langkah 1–3; checklist menyesuaikan pilihan Anda" right={plan ? <P ids={ids} /> : undefined} open>
+                {step(1, 'Sistem pelumasan poros')}
+                <div className="flex flex-wrap gap-2">
+                  {SHAFT_SYS.map(([k, l]) => <button key={k} onClick={() => setShaftSys(k)} className={pill(shaftSys === k)}>{l}</button>)}
+                </div>
+
+                {step(2, 'Tipe sambungan propeller')}
+                <div className="flex flex-wrap gap-2">
+                  {(['flanged', 'keyless', 'keyed'] as Conn[]).map((c) => <button key={c} onClick={() => setPropConn(c)} className={pill(propConn === c)}>{CONN_LABEL[c]}</button>)}
+                </div>
+                {shaftSys === 'open' && (
+                  <div className="mt-3">
+                    <p className="mb-2 text-xs font-semibold text-slate-600">Konfigurasi poros (menentukan interval)</p>
+                    <div className="space-y-2">
+                      {(['five', 'three'] as OpenCfg[]).map((c) => (
+                        <button key={c} onClick={() => setOpenCfg(c)} className={cx('block w-full rounded-xl border px-3 py-2 text-left text-xs font-semibold transition', openCfg === c ? 'border-teal-600 bg-teal-50 text-teal-900' : 'border-slate-300 bg-white text-slate-600 hover:border-teal-500')}>
+                          {c === 'five' ? '5 tahun — ' : '3 tahun — '}{OPEN_CFG_LABEL[c]}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <div className="mt-4 rounded-xl border border-teal-200 bg-teal-50 p-3 text-xs text-slate-700">
+                  <p className="font-bold text-teal-900">{sv.intervalText}</p>
+                  {sv.methods.length > 0 && <p className="mt-1">Method yang boleh dipakai: <b>{sv.methods.map((m) => PLANS[m].title).join(', ')}</b></p>}
+                  {!propConn && <p className="mt-1">Pilih tipe sambungan propeller untuk melihat Method yang boleh dipakai.</p>}
+                  <ul className="mt-2 list-disc space-y-0.5 pl-4 text-[11px] text-slate-600">{sv.notes.map((n) => <li key={n}>{n}</li>)}</ul>
+                </div>
+
+                {propConn && (
+                  <>
+                    {step(3, 'Yang dikerjakan pada survei ini')}
+                    <p className="mb-1 text-[11px] font-semibold text-slate-500">Survei poros penuh</p>
+                    <div className="flex flex-wrap gap-2">
+                      {sv.methods.map((m) => <button key={m} onClick={() => setShaftPlan(m)} className={pill(sv.plan === m)}>{PLANS[m].title}</button>)}
+                    </div>
+                    <p className="mb-1 mt-3 text-[11px] font-semibold text-slate-500">Atau perpanjangan (extension)</p>
+                    <div className="flex flex-wrap gap-2">
+                      {sv.exts.map((m) => <button key={m} onClick={() => setShaftPlan(m)} className={pill(sv.plan === m)}>{PLANS[m].title}</button>)}
+                    </div>
+                    <details className="mt-3 rounded-xl bg-slate-50 p-3 text-xs text-slate-700">
+                      <summary className="cursor-pointer font-semibold">Apa itu extension?</summary>
+                      <p className="mt-2 leading-relaxed">Extension adalah survei <b>ringan</b> untuk menunda jatuh tempo survei poros penuh, tanpa membongkar poros. Syaratnya prasyarat dokumen terpenuhi. Dilakukan sebaiknya dalam <b>1 bulan</b> dari tanggal jatuh tempo, dan masa perpanjangan dihitung dari tanggal jatuh tempo. Bila dilakukan lebih dari 1 bulan sebelum jatuh tempo, masa perpanjangan dihitung dari tanggal survei extension selesai.</p>
+                      <ul className="mt-2 space-y-2">
+                        {ext.map((e) => (
+                          <li key={e.key} className="rounded-lg border border-slate-200 bg-white p-2">
+                            <p className="font-semibold">{e.label}</p>
+                            <p className="text-slate-600">{e.limit}</p>
+                            {e.again !== '—' && <p className="text-slate-600">{e.again}</p>}
+                          </li>
+                        ))}
+                      </ul>
+                    </details>
+                  </>
+                )}
+
+                {plan && (
+                  <div className="mt-4">
+                    <div className="rounded-xl border border-slate-200 p-3">
+                      <p className="text-sm font-bold">{plan.title}{isExt ? ' — extension' : ''}</p>
+                      <p className="mt-0.5 text-xs text-slate-600">{plan.brief}</p>
+                    </div>
+                    {sv.prereq.length > 0 && (
+                      <>
+                        <p className="mb-1 mt-4 text-xs font-bold text-slate-700">Prasyarat (harus terpenuhi dulu)</p>
+                        <ul className="divide-y divide-slate-100">
+                          {sv.prereq.map((x) => <CheckRow key={x.k} title={x.t} value={val(qid(x.k))} onChange={(v) => setCheck(qid(x.k), v)} />)}
+                        </ul>
+                      </>
+                    )}
+                    <p className="mb-1 mt-4 text-xs font-bold text-slate-700">Lingkup survei</p>
+                    <ul className="divide-y divide-slate-100">
+                      {sv.scope.map((x) => <CheckRow key={x.k} title={x.t} value={val(sid(x.k))} onChange={(v) => setCheck(sid(x.k), v)} />)}
+                    </ul>
+                  </div>
+                )}
+              </Fold>
+            );
+          })()}
+
           {A.active.docking && (
             <Fold title="Docking / Bottom Survey" sub="Interval maksimum 36 bulan" right={<P ids={dk.ids} />} open>
               {listOf(dk.rows)}{hiddenNote(dk.hidden)}

@@ -9,7 +9,7 @@ import { isNonPropelled } from '../lib/vesselTypes';
 import { computeSurveyStatus, roman, toDMY, toISO } from '../lib/surveyStatus';
 import type { Baseline, Ev } from '../lib/surveyStatus';
 
-type VesselRow = Baseline & { id: string; name: string; vessel_type: string | null; last_shaft: string | null; anchor_notation: boolean | null; propelled: boolean | null; shaft_system: string | null };
+type VesselRow = Baseline & { id: string; name: string; vessel_type: string | null; last_shaft: string | null; anchor_notation: boolean | null; propelled: boolean | null; shaft_system: string | null; prop_connection: string | null; open_config: string | null };
 type AgRow = { vessel_id: string; agenda_no: string; surveys: string[] | null; inspection_start: string | null; inspection_completion: string | null; scenario: string | null; finished_at: string | null };
 type EvRow = { id: string; vessel_id: string; surveys: string[] | null; completion: string; created_at: string };
 
@@ -24,6 +24,8 @@ export type ApplyValues = {
   propelled: boolean | null; // null = otomatis dari jenis kapal
   anchorNotation: boolean;
   shaftSystem: string | null; // open | oil | fw
+  propConnection: string | null; // flanged | keyless | keyed
+  openConfig: string | null; // five | three (hanya sistem open: interval 5 / 3 tahun)
   // ringkasan Survey Status untuk form inspeksi (survei yang sudah dikerjakan tidak ditawarkan lagi)
   info?: { nextAnniv: string; annCount: number; intDone: boolean; dock1Done: boolean; shaftDone: boolean; lastDock: string | null } | null;
 };
@@ -37,7 +39,7 @@ const STATE_TONE: Record<string, string> = {
 };
 const SURVEY_NAME: Record<string, string> = { PS: 'Propeller Shaft', A1: 'Annual 1', A2: 'Annual 2', A3: 'Annual 3', A4: 'Annual 4', A5: 'Annual 5', INT: 'Intermediate', D1: 'Docking', REN: 'Renewal + Docking 2' };
 const inp = 'w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-teal-600 focus:outline-none focus:ring-2 focus:ring-teal-600/25';
-const EMPTY = { name: '', type: '', yb: '', expiry: '', ad: '', am: '', lastNo: '', lastSpecial: '', lastAnnual: '', lastAnnualNo: '', lastInt: '', lastDock: '', lastShaft: '', postponed: '', propelled: 'auto', notation: false, shaftSys: '' };
+const EMPTY = { name: '', type: '', yb: '', expiry: '', ad: '', am: '', lastNo: '', lastSpecial: '', lastAnnual: '', lastAnnualNo: '', lastInt: '', lastDock: '', lastShaft: '', postponed: '', propelled: 'auto', notation: false, shaftSys: '', propConn: '', openCfg: '' };
 const EMPTY_MU = { annual: '', int: false, dock: false, ren: false, ps: false, completion: '' };
 
 const evsOf = (id: string, ags: AgRow[], mev: EvRow[]): Ev[] => [
@@ -100,6 +102,8 @@ export default function VesselStatus({ refreshKey, vesselName, onApply }: { refr
       propelled: v.propelled ?? null,
       anchorNotation: !!v.anchor_notation,
       shaftSystem: v.shaft_system ?? null,
+      propConnection: v.prop_connection ?? null,
+      openConfig: v.open_config ?? null,
       info: r
         ? { nextAnniv: toISO(r.nextAnniv), annCount: r.annCount, intDone: r.intDone, dock1Done: r.dock1Done, shaftDone: r.shaftDone, lastDock: r.lastDock ? toISO(r.lastDock) : null }
         : null,
@@ -169,6 +173,8 @@ export default function VesselStatus({ refreshKey, vesselName, onApply }: { refr
         propelled: sel.propelled === null || sel.propelled === undefined ? 'auto' : sel.propelled ? 'yes' : 'no',
         notation: !!sel.anchor_notation,
         shaftSys: sel.shaft_system ?? '',
+        propConn: sel.prop_connection ?? '',
+        openCfg: sel.open_config ?? '',
       });
     }
     setPanel('baseline');
@@ -197,6 +203,8 @@ export default function VesselStatus({ refreshKey, vesselName, onApply }: { refr
       propelled: f.propelled === 'auto' ? null : f.propelled === 'yes',
       anchor_notation: f.notation,
       shaft_system: f.shaftSys || null,
+      prop_connection: f.propConn || null,
+      open_config: f.shaftSys === 'open' ? f.openCfg || null : null,
       postponed_until: f.postponed || null,
       baseline_at: new Date().toISOString(),
     };
@@ -323,6 +331,21 @@ export default function VesselStatus({ refreshKey, vesselName, onApply }: { refr
                 <option value="open">Open loop (dilumasi air laut)</option>
                 <option value="oil">Closed loop — oil</option>
                 <option value="fw">Closed loop — fresh water</option>
+              </select>
+            ))}
+            {fld('Tipe sambungan propeller', (
+              <select className={inp} value={f.propConn} onChange={set('propConn')}>
+                <option value="">— belum diatur —</option>
+                <option value="flanged">Flanged</option>
+                <option value="keyless">Keyless</option>
+                <option value="keyed">Keyed</option>
+              </select>
+            ))}
+            {f.shaftSys === 'open' && fld('Konfigurasi poros (sistem open)', (
+              <select className={inp} value={f.openCfg} onChange={set('openCfg')}>
+                <option value="">— belum diatur —</option>
+                <option value="five">5 tahun — single shaft air tawar / proteksi korosi memadai / multiple shaft</option>
+                <option value="three">3 tahun — konfigurasi lainnya</option>
               </select>
             ))}
             {fld('Tahun dibangun', <input className={inp} inputMode="numeric" value={f.yb} onChange={set('yb')} />)}
