@@ -743,9 +743,11 @@ export default function Page() {
   /* ======================= MODUL 3: kalkulasi (sheet Dimensi Kemudi) ======================= */
   // Item Modul Propulsi menurut jenis survei (modul hanya muncul bila ada item yang diukur):
   //  Docking 1 / Renewal → clearance poros + rudder (neck & pintle), hanya kapal berpenggerak
-  //  Propeller Shaft     → diameter minimum poros saja, hanya kapal berpenggerak
+  //  Propeller Shaft     → diameter minimum + clearance poros + rudder (neck & pintle), hanya kapal berpenggerak
   //  Renewal + notasi jangkar → berat jangkar + diameter rantai jangkar (kapal berpenggerak maupun tidak)
-  const showClear = propelled && (sel.D1 || A.active.renewal);
+  const showShaft = propelled && (sel.D1 || A.active.renewal || sel.PS);
+  const showRudder = propelled && (sel.D1 || A.active.renewal || sel.PS);
+  const showClear = showShaft || showRudder;
   const showDmin = propelled && sel.PS;
   const showAnchor = notation && A.active.renewal;
   const propActive = showClear || showDmin || showAnchor;
@@ -781,9 +783,9 @@ export default function Page() {
       return { item, d, a, mx, v };
     });
     // kapal tanpa penggerak: hanya jangkar dan rantai jangkar yang dinilai
-    const all: Verdict[] = [...(propelled ? [...(showClear ? [...shaftRes.map((x) => x.v), ...rudderRes.map((x) => x.v)] : []), ...(showDmin ? dminRes.map((x) => x.v) : [])] : []), ...(showAnchor ? [anchorV, chainV] : [])];
+    const all: Verdict[] = [...(propelled ? [...(showShaft ? shaftRes.map((x) => x.v) : []), ...(showRudder ? rudderRes.map((x) => x.v) : []), ...(showDmin ? dminRes.map((x) => x.v) : [])] : []), ...(showAnchor ? [anchorV, chainV] : [])];
     return { shaftRes, dminRes, wdFinal, anchorMin, chainMin, anchorV, chainV, rudderRes, measured: all.filter((v) => v !== '').length, fails: all.filter((v) => v === 'NON-COMPLIANT').length, total: all.length };
-  }, [shaftSys, shaftCond, shafts, dmin, wd, anchor, chain, rudder, propelled, showClear, showAnchor, showDmin]);
+  }, [shaftSys, shaftCond, shafts, dmin, wd, anchor, chain, rudder, propelled, showShaft, showRudder, showAnchor, showDmin]);
 
   // ---- Simpan / buka agenda (Supabase) ----
   const snapshot = { name, agenda, vType, yearBuilt, expiry, annivD, annivM, extension, startDate, compDate, sel, notation, lastNo, recDue, recDone, recAssess, checks, shaftSys, shaftCond, shafts, dmin, wd, anchor, chain, rudder };
@@ -1348,7 +1350,8 @@ export default function Page() {
 
         <p className="rounded-xl bg-sky-50 p-3 text-xs text-sky-900">
           {[
-            showClear && propelled ? 'clearance poros baling-baling dan rudder stock (neck & pintle)' : '',
+            showShaft ? 'clearance poros baling-baling' : '',
+            showRudder ? 'rudder stock (neck & pintle)' : '',
             showDmin && propelled ? 'diameter minimum poros' : '',
             showAnchor ? 'berat jangkar dan diameter rantai jangkar' : '',
           ].filter(Boolean).join(' · ') || 'Tidak ada item yang diukur untuk survei dan jenis kapal ini'}
@@ -1356,7 +1359,7 @@ export default function Page() {
 
         {propelled && (
           <>
-            {showClear && (
+            {showShaft && (
             <Card title="Poros Baling-baling (Propeller Shaft Clearance)" sub="Pilih sistem pelumasan; hanya aturan yang sesuai yang dipakai.">
               <div className="flex flex-wrap gap-2">
                 {SHAFT_SYS.map(([k, l]) => (
@@ -1485,7 +1488,7 @@ export default function Page() {
             </Card>
             )}
 
-            {showClear && shaftSys === 'oil' && (
+            {showShaft && shaftSys === 'oil' && (
               <Card title="Clearance poros oil — dari wear-down gauge" sub="Poros tidak ditarik; piston acuan di TDC (ITS Part A 1.10.4)">
                 <div className="grid gap-3 sm:grid-cols-3">
                   <Field label="Actual clearance saat poros ditarik (mm)">{numIn(wd.a, (v) => setWd((x) => ({ ...x, a: v })))}</Field>
@@ -1502,7 +1505,7 @@ export default function Page() {
               </Card>
             )}
 
-            {showClear && (
+            {showRudder && (
             <Card title="Rudder Stock Clearance" sub="Neck: min(0,01d + 2; 4). Pintle: d<50 → 3; 50–100 → 5; d>100 → min(0,01d + 4; 6)">
               <div className="grid gap-4 md:grid-cols-2">
                 {S.rudderRes.map((r, i) => (
@@ -1541,7 +1544,7 @@ export default function Page() {
         </div>
         )}
 
-        {propelled && showClear && <p className="rounded-xl bg-slate-50 p-3 text-xs text-slate-600">Data clearance rudder stock dan propeller shaft wajib dicantumkan pada survey report terkait (ITS Part A 1.9 dan 1.10.1).</p>}
+        {showClear && <p className="rounded-xl bg-slate-50 p-3 text-xs text-slate-600">Data clearance rudder stock dan propeller shaft wajib dicantumkan pada survey report terkait (ITS Part A 1.9 dan 1.10.1).</p>}
       </>
     );
   }
