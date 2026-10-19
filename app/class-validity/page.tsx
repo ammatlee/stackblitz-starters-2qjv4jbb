@@ -914,403 +914,403 @@ export default function Page() {
     </div>
   );
 
-  /* ====================================================================
+    /* ====================================================================
    * MODUL 1 — ringkas: status besar dulu, input di bawah
    * ==================================================================== */
-  function Module1() {
-    const tone =
-      A.overall === 'WITHDRAWN' ? 'from-red-600 to-red-700' : A.overall === 'SUSPENDED' ? 'from-amber-500 to-amber-600' : A.overall === 'VALID' ? 'from-emerald-600 to-emerald-700' : 'from-slate-500 to-slate-600';
-    return (
-      <>
-        {/* ---------- HERO ---------- */}
-        <section className={cx('rounded-2xl bg-gradient-to-br p-5 text-white shadow-lg sm:p-6', tone)}>
-          <p className="text-xs font-semibold uppercase tracking-widest opacity-80">Class Validity</p>
-          <p className="mt-1 text-4xl font-extrabold tracking-tight sm:text-5xl">{A.overall}</p>
-          <p className="mt-3 text-sm font-semibold">
-            {A.c ? A.caseTitle[A.c] : A.overall === 'INPUT REQUIRED' ? 'Lengkapi tanggal & pilih survei' : A.overall === 'VALID' ? 'Tidak ada skenario withdrawal' : 'Tidak ada skenario withdrawal (status SUSPENDED)'}
-          </p>
-          {A.c && <p className="mt-2 text-xs leading-relaxed opacity-90">{A.trigger[A.c]}</p>}
-          <div className="mt-4 flex flex-wrap gap-3 text-xs">
-            <span className="rounded-full bg-white/20 px-3 py-1">Scope: <b>{A.c ? A.scopeLbl[A.c] : 'Normal sesuai survei terpilih'}</b></span>
-            <span className="rounded-full bg-white/20 px-3 py-1">Umur: <b>{A.age ?? '—'} th · {A.rnLabel}</b></span>
-          </div>
-        </section>
-
-        {sel.INT && sel.REN && (
-          <p className="rounded-xl border border-amber-300 bg-amber-50 p-3 text-xs text-amber-900">
-            PERINGATAN: Intermediate dan Class Renewal tidak boleh dikreditkan bersamaan (termasuk thickness measurement). Pengecualian (ITS Part A 1.1.3): bila Intermediate dikerjakan lebih awal sebagai Annual in advance, scope-nya boleh dikreditkan ke Renewal.
-          </p>
-        )}
-
-        {A.c && (
-          <Card title="Lingkup Survei Reinstatement / Re-classification" sub="Otomatis dari skenario yang terdeteksi (ITS Part A 2.B.4.2)">
-            <dl className="grid gap-4 text-sm md:grid-cols-2">
-              <div>
-                <dt className="text-xs font-semibold text-slate-500">Survei yang harus dilakukan</dt>
-                <dd className="mt-1 font-semibold">{A.reinst[A.c][0]}</dd>
-              </div>
-              <div>
-                <dt className="text-xs font-semibold text-slate-500">Docking / Sertifikat</dt>
-                <dd className="mt-1 font-semibold">{A.reinst[A.c][1]}</dd>
-              </div>
-            </dl>
-            <div className="mt-3 flex flex-wrap gap-2 text-xs">
-              {([['annual', 'Annual'], ['inter', 'Intermediate'], ['renewal', 'Renewal + Tangki/UT/Air Pipe'], ['docking', 'Docking'], ['machinery', 'Mesin & Utilitas']] as const)
-                .filter(([k]) => A.active[k] && (k !== 'annual' || A.c === 'A' || A.c === 'C' || A.c === 'D' || (['A1', 'A2', 'A3', 'A4', 'A5'] as SurveyKey[]).some((x) => sel[x])))
-                .map(([k, l]) => <span key={k} className="rounded-full bg-teal-100 px-3 py-1 font-semibold text-teal-800">{l}</span>)}
-            </div>
-            <button onClick={() => setTab(2)} className="mt-4 rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-700">Lihat detail scope &amp; checklist</button>
-          </Card>
-        )}
-
-        <Fold title="Kapal & Survey Status" sub="Pilih kapal, lihat Last/Next tiap survei" open>
-          <VesselStatus refreshKey={refreshKey} vesselName={name} onApply={applyVessel} />
-        </Fold>
-
-        <Fold title="Agenda & Riwayat" sub="Simpan hasil asesmen per nomor agenda" open>
-          <AgendaPanel
-            vesselName={name}
-            vesselType={vType}
-            yearBuilt={yearBuilt}
-            agendaNo={agenda}
-            start={startDate}
-            completion={compDate}
-            snapshot={snapshot}
-            summary={agendaSummary}
-            onRestore={restoreAgenda}
-            onSaved={() => setRefreshKey((k) => k + 1)}
-            anchorNotation={notation}
-            propelled={propelledFlag}
-            shaftSystem={shaftSys}
-            onClear={clearAll}
-          />
-        </Fold>
-
-        {/* ---------- INPUT ---------- */}
-        <Card title="Data Kapal & Inspeksi">
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            <div>
-              <span className="mb-1 block text-xs font-semibold text-slate-600">Nama Kapal</span>
-              <VesselNameInput className={inputCls} value={name} onChange={changeName} refreshKey={refreshKey} />
-              <span className="mt-1 block text-[11px] leading-snug text-slate-500">Ketik untuk mencari atau ketuk daftar kapal tersimpan.</span>
-            </div>
-            <Field label="No. Agenda"><input className={inputCls} value={agenda} onChange={(e) => setAgenda(e.target.value)} /></Field>
-            <div>
-              <span className="mb-1 block text-xs font-semibold text-slate-600">Jenis Kapal</span>
-              <VesselTypeSelect className={inputCls} value={vType} onChange={(v, info) => { setVType(v); setPropelledFlag(info?.propelled ?? null); }} />
-            </div>
-            <Field label="Year Built"><input className={inputCls} inputMode="numeric" value={yearBuilt} onChange={(e) => setYearBuilt(e.target.value)} /></Field>
-            <Field label="Certificate Expiry">{dateIn(expiry, setExpiry)}</Field>
-            <Field label="Inspection Start">{dateIn(startDate, setStartDate)}</Field>
-            <Field label="Inspection Completion">{dateIn(compDate, setCompDate)}</Field>
-            <Field label="Renewal terakhir selesai (ke-)" hint="Kosong = ikut umur kapal. Naik 1 tingkat bila periode melewati hitungan umur.">
-              <input className={inputCls} inputMode="numeric" value={lastNo ?? ''} onChange={(e) => setLastNo(e.target.value === '' ? null : Number(e.target.value) || null)} />
-            </Field>
-            <Field label="Anniversary" hint={A.anniversaryAuto ? 'Otomatis dari expiry' : 'Diubah manual'}>
-              <div className="flex gap-2">
-                <select className={inputCls} value={A.ad} onChange={(e) => setAnnivD(Number(e.target.value))}>
-                  {Array.from({ length: 31 }, (_, i) => i + 1).map((d) => <option key={d} value={d}>{d}</option>)}
-                </select>
-                <select className={inputCls} value={A.am} onChange={(e) => setAnnivM(Number(e.target.value))}>
-                  {MON.map((m, i) => <option key={m} value={i + 1}>{m}</option>)}
-                </select>
-              </div>
-              {!A.anniversaryAuto && (
-                <button className="mt-1 text-[11px] font-semibold text-teal-700 underline" onClick={() => { setAnnivD(null); setAnnivM(null); }}>Kembali ke otomatis</button>
-              )}
-            </Field>
-          </div>
-
-          <div className="mt-5">
-            <p className="mb-2 text-xs font-semibold text-slate-600">Lingkup survei yang dikerjakan (boleh lebih dari satu)</p>
-            <div className="flex flex-wrap gap-2">
-              {SURVEYS.filter((s) => chipVisible(s.key)).map((s) => (
-                <button
-                  key={s.key}
-                  onClick={() => setSel((p) => ({ ...p, [s.key]: !p[s.key] }))}
-                  className={cx('rounded-full border px-3 py-1.5 text-xs font-semibold transition', sel[s.key] ? 'border-teal-600 bg-teal-600 text-white' : 'border-slate-300 bg-white text-slate-600 hover:border-teal-500')}
-                >
-                  {sel[s.key] ? '✓ ' : ''}{s.label.replace('Annual Survey — ', 'Annual ').replace('Renewal Survey + Docking 2', 'Renewal + Docking 2')}
-                </button>
-              ))}
-            </div>
-            {statusInfo && <p className="mt-2 text-[11px] text-slate-500">Hanya survei yang belum dikerjakan pada periode ini yang ditampilkan. Untuk memilih survei yang sudah tercatat, hapus dulu pembaruan manual atau agendanya.</p>}
-            {A.a5Applicable && <p className="mt-2 rounded-lg bg-sky-50 p-2 text-[11px] text-sky-900">Annual 5 diperlukan: anniversary yang dipercepat membuat Annual ke-5 jatuh sebelum jendela Renewal (expiry − 3 bulan). Pilih Annual 5 untuk menilainya.</p>}
-            <p className="mt-2 text-[11px] text-slate-500">
-              Survei yang dicentang dinilai dengan tanggal inspeksi di atas. Annual/Intermediate setelahnya yang sudah lewat batas withdrawal otomatis dihitung terlewat; bila ≥ 2 Annual + Intermediate terlewat → Case C (scope Renewal).
+    function Module1() {
+      const tone =
+        A.overall === 'WITHDRAWN' ? 'from-red-600 to-red-700' : A.overall === 'SUSPENDED' ? 'from-amber-500 to-amber-600' : A.overall === 'VALID' ? 'from-emerald-600 to-emerald-700' : 'from-slate-500 to-slate-600';
+      return (
+        <>
+          {/* ---------- HERO ---------- */}
+          <section className={cx('rounded-2xl bg-gradient-to-br p-5 text-white shadow-lg sm:p-6', tone)}>
+            <p className="text-xs font-semibold uppercase tracking-widest opacity-80">Class Validity</p>
+            <p className="mt-1 text-4xl font-extrabold tracking-tight sm:text-5xl">{A.overall}</p>
+            <p className="mt-3 text-sm font-semibold">
+              {A.c ? A.caseTitle[A.c] : A.overall === 'INPUT REQUIRED' ? 'Lengkapi tanggal & pilih survei' : A.overall === 'VALID' ? 'Tidak ada skenario withdrawal' : 'Tidak ada skenario withdrawal (status SUSPENDED)'}
             </p>
-          </div>
-
-          <div className="mt-4 flex flex-wrap items-center gap-x-6 gap-y-2">
-            <label className="flex items-center gap-2 text-xs font-semibold text-slate-600">
-              <input type="checkbox" checked={notation} onChange={(e) => setNotation(e.target.checked)} className="h-4 w-4 accent-teal-600" />
-              Notasi jangkar (menampilkan modul Propulsi: clearance dan dimensi saat Renewal)
-            </label>
-            {sel.REN && (
-              <div className="w-56"><Field label="Approved Renewal Extension (opsional)">{dateIn(extension, setExtension)}</Field></div>
-            )}
-          </div>
-        </Card>
-
-        {/* ---------- STATUS PER SURVEI ---------- */}
-        <Card title="Status per Survei" sub={`${fmt(A.st)} – ${fmt(A.co)}`}>
-          {A.implied.length > 0 && (
-            <ul className="mb-2 divide-y divide-slate-100 rounded-xl border border-red-200 bg-red-50 px-3">
-              {A.implied.map((r) => (
-                <li key={r.key} className="flex items-center justify-between gap-2 py-2">
-                  <div>
-                    <p className="text-sm font-semibold">{r.label}</p>
-                    <p className="text-xs text-slate-600">Terlewat otomatis — window end {fmt(r.w?.end)}, batas withdrawal {fmt(A.limit(r.key))} sudah lewat.</p>
-                  </div>
-                  <Badge v="WITHDRAWN" />
-                </li>
-              ))}
-            </ul>
+            {A.c && <p className="mt-2 text-xs leading-relaxed opacity-90">{A.trigger[A.c]}</p>}
+            <div className="mt-4 flex flex-wrap gap-3 text-xs">
+              <span className="rounded-full bg-white/20 px-3 py-1">Scope: <b>{A.c ? A.scopeLbl[A.c] : 'Normal sesuai survei terpilih'}</b></span>
+              <span className="rounded-full bg-white/20 px-3 py-1">Umur: <b>{A.age ?? '—'} th · {A.rnLabel}</b></span>
+            </div>
+          </section>
+  
+          {sel.INT && sel.REN && (
+            <p className="rounded-xl border border-amber-300 bg-amber-50 p-3 text-xs text-amber-900">
+              PERINGATAN: Intermediate dan Class Renewal tidak boleh dikreditkan bersamaan (termasuk thickness measurement). Pengecualian (ITS Part A 1.1.3): bila Intermediate dikerjakan lebih awal sebagai Annual in advance, scope-nya boleh dikreditkan ke Renewal.
+            </p>
           )}
-          {A.rows.length === 0 ? (
-            <p className="text-sm text-slate-500">Pilih survei yang dikerjakan di atas.</p>
-          ) : (
-            <ul className="divide-y divide-slate-100">
-              {A.rows.map((r) => (
-                <li key={r.key} className="flex flex-col gap-1 py-3 sm:flex-row sm:items-center sm:justify-between">
-                  <div>
-                    <p className="text-sm font-semibold">{r.label}</p>
-                    <p className="text-xs text-slate-500">
-                      {r.key === 'D1' ? 'Maksimum 36 bulan dari Docking/Renewal terakhir — tanpa batas paling awal' : r.key === 'PS' ? 'Interval 5 tahun — dicatat di Survey Status' : <>Window {fmt(r.w?.start)} – {fmt(r.w?.end)}</>}
-                      {r.key === 'PS' ? '' : r.key === 'D1' ? ` · batas ${fmt(r.w?.end)}` : r.key === 'REN' ? ` · withdrawal > ${fmt(A.limit('REN'))}` : ` · withdrawal > ${fmt(A.limit(r.key))}`}
-                    </p>
-                    {A.why(r) && <p className="mt-0.5 text-xs text-slate-600">{A.why(r)}</p>}
-                  </div>
-                  <Badge v={r.status} />
-                </li>
-              ))}
-            </ul>
-          )}
-        </Card>
-
-        {/* ---------- SIKLUS BARU ---------- */}
-        {(A.newPeriod || A.shift?.shifted) && (
-          <Card title="Anniversary & Siklus Sertifikat">
-            {A.shift?.shifted && (
-              <div className="mb-3 rounded-xl border border-teal-300 bg-teal-50 p-3 text-sm">
-                <p className="font-semibold">Anniversary bergeser</p>
-                <p className="text-xs">{A.shift.txt}</p>
-                <p className="mt-1 text-[11px] text-slate-600">Tersimpan otomatis ke Survey Status saat agenda ini di-Finish. Pilih ulang kapal setelahnya untuk memuat anniversary terbaru.</p>
-              </div>
-            )}
-            {A.newPeriod && (
-              <div className="rounded-xl border border-slate-200 p-3 text-sm">
-                <div className="grid gap-3 sm:grid-cols-3">
-                  <div><p className="text-xs text-slate-500">Class Period Baru</p><p className="font-semibold">{fmt(A.newPeriod.start)}</p></div>
-                  <div><p className="text-xs text-slate-500">Expiry Baru</p><p className="font-semibold">{fmt(A.newPeriod.expiry)}</p></div>
-                  <div><p className="text-xs text-slate-500">Anniversary Baru</p><p className="font-semibold">{fmtDM(A.newPeriod.ad, A.newPeriod.am)}</p></div>
+  
+          {A.c && (
+            <Card title="Lingkup Survei Reinstatement / Re-classification" sub="Otomatis dari skenario yang terdeteksi (ITS Part A 2.B.4.2)">
+              <dl className="grid gap-4 text-sm md:grid-cols-2">
+                <div>
+                  <dt className="text-xs font-semibold text-slate-500">Survei yang harus dilakukan</dt>
+                  <dd className="mt-1 font-semibold">{A.reinst[A.c][0]}</dd>
                 </div>
-                <p className="mt-2 text-xs text-slate-600">{A.newPeriod.note}</p>
+                <div>
+                  <dt className="text-xs font-semibold text-slate-500">Docking / Sertifikat</dt>
+                  <dd className="mt-1 font-semibold">{A.reinst[A.c][1]}</dd>
+                </div>
+              </dl>
+              <div className="mt-3 flex flex-wrap gap-2 text-xs">
+                {([['annual', 'Annual'], ['inter', 'Intermediate'], ['renewal', 'Renewal + Tangki/UT/Air Pipe'], ['docking', 'Docking'], ['machinery', 'Mesin & Utilitas']] as const)
+                  .filter(([k]) => A.active[k] && (k !== 'annual' || A.c === 'A' || A.c === 'C' || A.c === 'D' || (['A1', 'A2', 'A3', 'A4', 'A5'] as SurveyKey[]).some((x) => sel[x])))
+                  .map(([k, l]) => <span key={k} className="rounded-full bg-teal-100 px-3 py-1 font-semibold text-teal-800">{l}</span>)}
               </div>
-            )}
-          </Card>
-        )}
-
-        <Fold title="Dasar Aturan" sub="ITS Part A dan Nota Dinas BKI untuk hasil saat ini" open>
-          {A.basis.length === 0 ? (
-            <p className="text-sm text-slate-500">Pilih survei dan isi tanggal inspeksi untuk melihat dasar aturan yang berlaku.</p>
-          ) : (
-            <div className="space-y-3">
-              {A.basis.map((k) => {
-                const b = BASIS[k];
-                if (!b) return null;
-                return (
-                  <div key={k} className="rounded-xl border border-slate-200 p-3">
-                    <p className="text-sm font-bold">{b.title}</p>
-                    <div className="mt-2 grid gap-3 md:grid-cols-2">
-                      <div>
-                        <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500">ITS Part A / Rules</p>
-                        <p className="mt-1 text-xs leading-relaxed text-slate-700">{b.its}</p>
-                      </div>
-                      <div>
-                        <p className="text-[11px] font-bold uppercase tracking-wide text-teal-700">Nota Dinas BKI 87/SVY/III/2020</p>
-                        <p className="mt-1 text-xs leading-relaxed text-slate-700">{b.nd}</p>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-              <p className="text-[11px] text-slate-500">
-                ITS Part A bersumber dari Rules. Nota Dinas adalah penjelasan internal BKI untuk menyeragamkan penentuan status dan tanggal. Bila ragu, hubungi SM Mempertahankan Klas (Nota Dinas poin 7).
+              <button onClick={() => setTab(2)} className="mt-4 rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-700">Lihat detail scope &amp; checklist</button>
+            </Card>
+          )}
+  
+          <Fold title="Kapal & Survey Status" sub="Pilih kapal, lihat Last/Next tiap survei" open>
+            <VesselStatus refreshKey={refreshKey} vesselName={name} onApply={applyVessel} />
+          </Fold>
+  
+          <Fold title="Agenda & Riwayat" sub="Simpan hasil asesmen per nomor agenda" open>
+            <AgendaPanel
+              vesselName={name}
+              vesselType={vType}
+              yearBuilt={yearBuilt}
+              agendaNo={agenda}
+              start={startDate}
+              completion={compDate}
+              snapshot={snapshot}
+              summary={agendaSummary}
+              onRestore={restoreAgenda}
+              onSaved={() => setRefreshKey((k) => k + 1)}
+              anchorNotation={notation}
+              propelled={propelledFlag}
+              shaftSystem={shaftSys}
+              onClear={clearAll}
+            />
+          </Fold>
+  
+          {/* ---------- INPUT ---------- */}
+          <Card title="Data Kapal & Inspeksi">
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <div>
+                <span className="mb-1 block text-xs font-semibold text-slate-600">Nama Kapal</span>
+                <VesselNameInput className={inputCls} value={name} onChange={changeName} refreshKey={refreshKey} />
+                <span className="mt-1 block text-[11px] leading-snug text-slate-500">Ketik untuk mencari atau ketuk daftar kapal tersimpan.</span>
+              </div>
+              <Field label="No. Agenda"><input className={inputCls} value={agenda} onChange={(e) => setAgenda(e.target.value)} /></Field>
+              <div>
+                <span className="mb-1 block text-xs font-semibold text-slate-600">Jenis Kapal</span>
+                <VesselTypeSelect className={inputCls} value={vType} onChange={(v, info) => { setVType(v); setPropelledFlag(info?.propelled ?? null); }} />
+              </div>
+              <Field label="Year Built"><input className={inputCls} inputMode="numeric" value={yearBuilt} onChange={(e) => setYearBuilt(e.target.value)} /></Field>
+              <Field label="Certificate Expiry">{dateIn(expiry, setExpiry)}</Field>
+              <Field label="Inspection Start">{dateIn(startDate, setStartDate)}</Field>
+              <Field label="Inspection Completion">{dateIn(compDate, setCompDate)}</Field>
+              <Field label="Renewal terakhir selesai (ke-)" hint="Kosong = ikut umur kapal. Naik 1 tingkat bila periode melewati hitungan umur.">
+                <input className={inputCls} inputMode="numeric" value={lastNo ?? ''} onChange={(e) => setLastNo(e.target.value === '' ? null : Number(e.target.value) || null)} />
+              </Field>
+              <Field label="Anniversary" hint={A.anniversaryAuto ? 'Otomatis dari expiry' : 'Diubah manual'}>
+                <div className="flex gap-2">
+                  <select className={inputCls} value={A.ad} onChange={(e) => setAnnivD(Number(e.target.value))}>
+                    {Array.from({ length: 31 }, (_, i) => i + 1).map((d) => <option key={d} value={d}>{d}</option>)}
+                  </select>
+                  <select className={inputCls} value={A.am} onChange={(e) => setAnnivM(Number(e.target.value))}>
+                    {MON.map((m, i) => <option key={m} value={i + 1}>{m}</option>)}
+                  </select>
+                </div>
+                {!A.anniversaryAuto && (
+                  <button className="mt-1 text-[11px] font-semibold text-teal-700 underline" onClick={() => { setAnnivD(null); setAnnivM(null); }}>Kembali ke otomatis</button>
+                )}
+              </Field>
+            </div>
+  
+            <div className="mt-5">
+              <p className="mb-2 text-xs font-semibold text-slate-600">Lingkup survei yang dikerjakan (boleh lebih dari satu)</p>
+              <div className="flex flex-wrap gap-2">
+                {SURVEYS.filter((s) => chipVisible(s.key)).map((s) => (
+                  <button
+                    key={s.key}
+                    onClick={() => setSel((p) => ({ ...p, [s.key]: !p[s.key] }))}
+                    className={cx('rounded-full border px-3 py-1.5 text-xs font-semibold transition', sel[s.key] ? 'border-teal-600 bg-teal-600 text-white' : 'border-slate-300 bg-white text-slate-600 hover:border-teal-500')}
+                  >
+                    {sel[s.key] ? '✓ ' : ''}{s.label.replace('Annual Survey — ', 'Annual ').replace('Renewal Survey + Docking 2', 'Renewal + Docking 2')}
+                  </button>
+                ))}
+              </div>
+              {statusInfo && <p className="mt-2 text-[11px] text-slate-500">Hanya survei yang belum dikerjakan pada periode ini yang ditampilkan. Untuk memilih survei yang sudah tercatat, hapus dulu pembaruan manual atau agendanya.</p>}
+              {A.a5Applicable && <p className="mt-2 rounded-lg bg-sky-50 p-2 text-[11px] text-sky-900">Annual 5 diperlukan: anniversary yang dipercepat membuat Annual ke-5 jatuh sebelum jendela Renewal (expiry − 3 bulan). Pilih Annual 5 untuk menilainya.</p>}
+              <p className="mt-2 text-[11px] text-slate-500">
+                Survei yang dicentang dinilai dengan tanggal inspeksi di atas. Annual/Intermediate setelahnya yang sudah lewat batas withdrawal otomatis dihitung terlewat; bila ≥ 2 Annual + Intermediate terlewat → Case C (scope Renewal).
               </p>
             </div>
-          )}
-        </Fold>
-
-        <Fold title="Recommendation (Case B)" sub="Opsional — isi bila ada recommendation" right={<Badge v={A.recSt} />}>
-          <div className="grid gap-3 sm:grid-cols-3">
-            <Field label="Due Date">{dateIn(recDue, setRecDue)}</Field>
-            <Field label="Actual Completion">{dateIn(recDone, setRecDone)}</Field>
-            <Field label="Assessment Date" hint="Bila masih terbuka">{dateIn(recAssess, setRecAssess)}</Field>
-          </div>
-          <p className="mt-2 text-xs text-slate-500">Selesai setelah due date = SUSPENDED. Outstanding &gt; 6 bulan = WITHDRAWN. Penundaan rekomendasi hanya boleh 1 kali, hanya bila kapal tidak sedang dalam prosedur suspension, dan persetujuan akhir ada di BKI Pusat (ITS Part A Annex C).</p>
-        </Fold>
-
-        <Fold title="Referensi Aturan" sub="Time window dan Case A–D">
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[640px] text-left text-xs">
-              <thead className="text-slate-500"><tr><th className="py-2 pr-3">Rule</th><th className="pr-3">Window Start</th><th className="pr-3">Window End</th><th className="pr-3">Suspended</th><th>Withdrawn</th></tr></thead>
-              <tbody className="divide-y divide-slate-100">
-                {RULES.map((r) => <tr key={r[0]} className="align-top">{r.map((c, i) => <td key={i} className={cx('py-2 pr-3', i === 0 && 'font-semibold')}>{c}</td>)}</tr>)}
-              </tbody>
-            </table>
-          </div>
-          <div className="mt-4 overflow-x-auto">
-            <table className="w-full min-w-[640px] text-left text-xs">
-              <thead className="text-slate-500"><tr><th className="py-2 pr-3">Case</th><th className="pr-3">Reinstatement</th><th>Docking / Sertifikat</th></tr></thead>
-              <tbody className="divide-y divide-slate-100">
-                {CASES.map((r) => <tr key={r[0]} className="align-top">{r.map((c, i) => <td key={i} className={cx('py-2 pr-3', i === 0 && 'font-semibold')}>{c}</td>)}</tr>)}
-              </tbody>
-            </table>
-          </div>
-        </Fold>
-      </>
-    );
-  }
-
-  /* ====================================================================
-   * MODUL 2 — hanya scope yang aktif; item N/A / NONE disembunyikan
-   * ==================================================================== */
-  function Module2() {
-    const age = A.age;
-    const rn = A.rn ?? 4;
-    const t = renewalTables(Math.min(rn, 4), age); // tabel scope: IV dan seterusnya memakai aturan yang sama
-    const val = (id: string) => checks[id] ?? 'NOT CHECKED';
-    const prog = (ids: string[]) => ({ total: ids.length, done: ids.filter((i) => val(i) !== 'NOT CHECKED').length, def: ids.filter((i) => val(i) === 'DEFICIENCY').length });
-    const P = ({ ids }: { ids: string[] }) => {
-      const p = prog(ids);
-      return <Progress done={p.done} total={p.total} def={p.def} />;
-    };
-    const hiddenNote = (n: number) => n > 0 && <p className="mt-2 text-[11px] text-slate-400">{n} item tidak berlaku untuk {vType}/umur kapal — disembunyikan.</p>;
-
-    const checklist = (id: string, items: Item[]) => {
-      const all = items.map((it, i) => ({ it, id: `${id}-${i}`, ap: applicability(it.a, it.g, vType, age) }));
-      const rows = all.filter((r) => r.ap !== 'N/A');
-      return { rows, ids: rows.map((r) => r.id), hidden: all.length - rows.length };
-    };
-    const listOf = (rows: { it: Item; id: string; ap: string }[]) => (
-      <ul className="divide-y divide-slate-100">
-        {rows.map((r) => (
-          <CheckRow key={r.id} title={r.it.s} desc={r.it.t} meta={[r.ap, r.it.n].filter(Boolean).join(' · ')} value={val(r.id)} onChange={(v) => setCheck(r.id, v)} />
-        ))}
-      </ul>
-    );
-    const tableList = (rows: TRow[]) => {
-      const live = rows.filter((r) => !['NONE', 'N/A', '—'].includes(r.scope));
-      return { live, ids: live.map((r) => r.id), hidden: rows.length - live.length };
-    };
-    const tblUi = (live: TRow[]) => (
-      <ul className="divide-y divide-slate-100">
-        {live.map((r) => <CheckRow key={r.id} title={r.item} chip={r.scope} meta={r.note} value={val(r.id)} onChange={(v) => setCheck(r.id, v)} />)}
-      </ul>
-    );
-
-    const an = checklist('AN', ANNUAL);
-    const inn = checklist('IN', INTERMEDIATE);
-    const rnw = checklist('RN', RENEWAL);
-    const dk = checklist('DK', DOCKING);
-    const tank = tableList(t.tanks);
-    const ut = tableList(t.ut);
-    const air = tableList(t.air);
-    const mach = MACHINERY.map((m, i) => ({ m, id: `M-${i}` })).filter((r) => r.m[3] !== 'N/A' || CARGO_SYSTEM_TYPES.includes(vType));
-    const systems = Array.from(new Set(mach.map((r) => r.m[0])));
-    const nothing = !Object.values(A.active).some(Boolean);
-    // judul "Annual" hanya dipakai bila Annual memang dipilih atau pada kasus khusus (reinstatement A/C/D)
-    const annualNamed = (['A1', 'A2', 'A3', 'A4', 'A5'] as SurveyKey[]).some((k) => sel[k]) || A.c === 'A' || A.c === 'C' || A.c === 'D';
-
-    return (
-      <>
-        <Card title="Scope Aktif" sub={`${name || 'Kapal'} · ${vType} · ${age ?? '—'} th · ${A.rnLabel}`}
-          right={<button onClick={() => setChecks({})} className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-semibold hover:bg-slate-50">Reset checklist</button>}>
-          <div className="flex flex-wrap gap-2 text-xs">
-            {nothing && <span className="text-slate-500">Pilih survei di tab Status.</span>}
-            {([['annual', 'Annual'], ['inter', 'Intermediate'], ['renewal', 'Renewal'], ['docking', 'Docking'], ['machinery', 'Mesin & Utilitas']] as const)
-              .filter(([k]) => A.active[k] && (k !== 'annual' || annualNamed))
-              .map(([k, l]) => <span key={k} className="rounded-full bg-teal-100 px-3 py-1 font-semibold text-teal-800">{l}</span>)}
-          </div>
-          {A.c && (
-            <div className="mt-3 rounded-xl border border-teal-200 bg-teal-50 p-3 text-xs text-slate-700">
-              <p className="font-bold">Reinstatement — {A.caseTitle[A.c]}</p>
-              <p className="mt-1">{A.reinst[A.c][0]}</p>
-              <p className="mt-1 font-semibold">{A.reinst[A.c][1]}</p>
+  
+            <div className="mt-4 flex flex-wrap items-center gap-x-6 gap-y-2">
+              <label className="flex items-center gap-2 text-xs font-semibold text-slate-600">
+                <input type="checkbox" checked={notation} onChange={(e) => setNotation(e.target.checked)} className="h-4 w-4 accent-teal-600" />
+                Notasi jangkar (menampilkan modul Propulsi: clearance dan dimensi saat Renewal)
+              </label>
+              {sel.REN && (
+                <div className="w-56"><Field label="Approved Renewal Extension (opsional)">{dateIn(extension, setExtension)}</Field></div>
+              )}
             </div>
-          )}
-          {A.active.renewal && <p className="mt-3 text-xs text-slate-600">Tangki, UT, dan air pipe head dihitung otomatis dari Year Built {yearBuilt} dan expiry {fmt(A.exp)} → umur {age ?? '—'} tahun, <b>{A.rnLabel}</b>{A.rnBumped ? ` (naik karena Renewal sebelumnya ke-${roman(lastNo ?? 0)})` : ''}. Aturan scope tangki/UT mengikuti tabel &quot;IV dan seterusnya&quot; untuk Renewal IV ke atas.</p>}
-          {sel.INT && sel.REN && <p className="mt-3 rounded-lg bg-amber-50 p-2 text-xs text-amber-900">Intermediate & Renewal tidak boleh dikreditkan bersamaan.</p>}
-        </Card>
-
-        {A.active.annual && (
-          <Fold
-            title={annualNamed ? 'Annual Survey' : 'Pemeriksaan dasar'}
-            sub={annualNamed ? 'Hull, safety, mesin, listrik, fire-fighting' : 'Cakupan Intermediate/Renewal memperluas pemeriksaan dasar ini. Annual yang belum dikerjakan tetap harus dikerjakan terpisah.'}
-            right={<P ids={an.ids} />}
-            open
-          >
-            {listOf(an.rows)}{hiddenNote(an.hidden)}
-          </Fold>
-        )}
-        {A.active.inter && (
-          <Fold title="Intermediate Survey" sub="Tambahan di atas Annual" right={<P ids={inn.ids} />} open>
-            {listOf(inn.rows)}{hiddenNote(inn.hidden)}
-          </Fold>
-        )}
-
-        {A.active.renewal && (
-          <>
-            <Fold title={`Renewal — Tangki (${A.rnLabel})`} sub="Pemeriksaan internal & pressure test" right={<P ids={tank.ids} />} open>
-              {tblUi(tank.live)}{hiddenNote(tank.hidden)}
-            </Fold>
-            <Fold title={`Renewal — UT Thickness (${A.rnLabel})`} sub="Lokasi pengukuran minimum" right={<P ids={ut.ids} />} open>
-              {tblUi(ut.live)}{hiddenNote(ut.hidden)}
-            </Fold>
-            <Fold title="Renewal — Air Pipe Heads" sub={`Umur ${age ?? '—'} tahun`} right={<P ids={air.ids} />} open>
-              {tblUi(air.live)}
-            </Fold>
-            <Fold title="Renewal — Item Umum" sub="Hull, jangkar, struktur, sertifikat" right={<P ids={rnw.ids} />} open>
-              {listOf(rnw.rows)}{hiddenNote(rnw.hidden)}
-            </Fold>
-          </>
-        )}
-
-        {A.active.docking && (
-          <Fold title="Docking / Bottom Survey" sub="Interval maksimum 36 bulan" right={<P ids={dk.ids} />} open>
-            {listOf(dk.rows)}{hiddenNote(dk.hidden)}
-          </Fold>
-        )}
-
-        {A.active.machinery && (
-          <Fold title="Class Renewal — Mesin & Utilitas" sub="Aktif otomatis saat Renewal / Case C / Case D" right={<P ids={mach.map((r) => r.id)} />} open>
-            <div className="space-y-4">
-              {systems.map((sys) => (
-                <div key={sys}>
-                  <h3 className="text-xs font-bold text-slate-700">{sys}</h3>
-                  <ul className="divide-y divide-slate-100">
-                    {mach.filter((r) => r.m[0] === sys).map((r) => (
-                      <CheckRow key={r.id} title={r.m[1]} meta={`${METHOD[r.m[2]]} · ${r.m[3] === 'N/A' ? 'IF FITTED' : r.m[3]}`} value={val(r.id)} onChange={(v) => setCheck(r.id, v)} />
-                    ))}
-                  </ul>
+          </Card>
+  
+          {/* ---------- STATUS PER SURVEI ---------- */}
+          <Card title="Status per Survei" sub={`${fmt(A.st)} – ${fmt(A.co)}`}>
+            {A.implied.length > 0 && (
+              <ul className="mb-2 divide-y divide-slate-100 rounded-xl border border-red-200 bg-red-50 px-3">
+                {A.implied.map((r) => (
+                  <li key={r.key} className="flex items-center justify-between gap-2 py-2">
+                    <div>
+                      <p className="text-sm font-semibold">{r.label}</p>
+                      <p className="text-xs text-slate-600">Terlewat otomatis — window end {fmt(r.w?.end)}, batas withdrawal {fmt(A.limit(r.key))} sudah lewat.</p>
+                    </div>
+                    <Badge v="WITHDRAWN" />
+                  </li>
+                ))}
+              </ul>
+            )}
+            {A.rows.length === 0 ? (
+              <p className="text-sm text-slate-500">Pilih survei yang dikerjakan di atas.</p>
+            ) : (
+              <ul className="divide-y divide-slate-100">
+                {A.rows.map((r) => (
+                  <li key={r.key} className="flex flex-col gap-1 py-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <p className="text-sm font-semibold">{r.label}</p>
+                      <p className="text-xs text-slate-500">
+                        {r.key === 'D1' ? 'Maksimum 36 bulan dari Docking/Renewal terakhir — tanpa batas paling awal' : r.key === 'PS' ? 'Interval 5 tahun — dicatat di Survey Status' : <>Window {fmt(r.w?.start)} – {fmt(r.w?.end)}</>}
+                        {r.key === 'PS' ? '' : r.key === 'D1' ? ` · batas ${fmt(r.w?.end)}` : r.key === 'REN' ? ` · withdrawal > ${fmt(A.limit('REN'))}` : ` · withdrawal > ${fmt(A.limit(r.key))}`}
+                      </p>
+                      {A.why(r) && <p className="mt-0.5 text-xs text-slate-600">{A.why(r)}</p>}
+                    </div>
+                    <Badge v={r.status} />
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Card>
+  
+          {/* ---------- SIKLUS BARU ---------- */}
+          {(A.newPeriod || A.shift?.shifted) && (
+            <Card title="Anniversary & Siklus Sertifikat">
+              {A.shift?.shifted && (
+                <div className="mb-3 rounded-xl border border-teal-300 bg-teal-50 p-3 text-sm">
+                  <p className="font-semibold">Anniversary bergeser</p>
+                  <p className="text-xs">{A.shift.txt}</p>
+                  <p className="mt-1 text-[11px] text-slate-600">Tersimpan otomatis ke Survey Status saat agenda ini di-Finish. Pilih ulang kapal setelahnya untuk memuat anniversary terbaru.</p>
                 </div>
-              ))}
+              )}
+              {A.newPeriod && (
+                <div className="rounded-xl border border-slate-200 p-3 text-sm">
+                  <div className="grid gap-3 sm:grid-cols-3">
+                    <div><p className="text-xs text-slate-500">Class Period Baru</p><p className="font-semibold">{fmt(A.newPeriod.start)}</p></div>
+                    <div><p className="text-xs text-slate-500">Expiry Baru</p><p className="font-semibold">{fmt(A.newPeriod.expiry)}</p></div>
+                    <div><p className="text-xs text-slate-500">Anniversary Baru</p><p className="font-semibold">{fmtDM(A.newPeriod.ad, A.newPeriod.am)}</p></div>
+                  </div>
+                  <p className="mt-2 text-xs text-slate-600">{A.newPeriod.note}</p>
+                </div>
+              )}
+            </Card>
+          )}
+  
+          <Fold title="Dasar Aturan" sub="ITS Part A dan Nota Dinas BKI untuk hasil saat ini" open>
+            {A.basis.length === 0 ? (
+              <p className="text-sm text-slate-500">Pilih survei dan isi tanggal inspeksi untuk melihat dasar aturan yang berlaku.</p>
+            ) : (
+              <div className="space-y-3">
+                {A.basis.map((k) => {
+                  const b = BASIS[k];
+                  if (!b) return null;
+                  return (
+                    <div key={k} className="rounded-xl border border-slate-200 p-3">
+                      <p className="text-sm font-bold">{b.title}</p>
+                      <div className="mt-2 grid gap-3 md:grid-cols-2">
+                        <div>
+                          <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500">ITS Part A / Rules</p>
+                          <p className="mt-1 text-xs leading-relaxed text-slate-700">{b.its}</p>
+                        </div>
+                        <div>
+                          <p className="text-[11px] font-bold uppercase tracking-wide text-teal-700">Nota Dinas BKI 87/SVY/III/2020</p>
+                          <p className="mt-1 text-xs leading-relaxed text-slate-700">{b.nd}</p>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+                <p className="text-[11px] text-slate-500">
+                  ITS Part A bersumber dari Rules. Nota Dinas adalah penjelasan internal BKI untuk menyeragamkan penentuan status dan tanggal. Bila ragu, hubungi SM Mempertahankan Klas (Nota Dinas poin 7).
+                </p>
+              </div>
+            )}
+          </Fold>
+  
+          <Fold title="Recommendation (Case B)" sub="Opsional — isi bila ada recommendation" right={<Badge v={A.recSt} />}>
+            <div className="grid gap-3 sm:grid-cols-3">
+              <Field label="Due Date">{dateIn(recDue, setRecDue)}</Field>
+              <Field label="Actual Completion">{dateIn(recDone, setRecDone)}</Field>
+              <Field label="Assessment Date" hint="Bila masih terbuka">{dateIn(recAssess, setRecAssess)}</Field>
             </div>
-            {hiddenNote(MACHINERY.length - mach.length)}
-            <div className="mt-4 rounded-xl bg-slate-50 p-3 text-[11px] leading-relaxed text-slate-600">
-              <p className="font-bold text-slate-700">Method / Source Notes</p>
-              <p><b>Method 1:</b> Pemeriksaan visual dengan membuka sebagian/seluruhnya sesuai penilaian Surveyor; uji fungsi atau tekanan bila relevan.</p>
-              <p><b>Method 2:</b> Pemeriksaan visual tanpa bongkar; performance test wajib; open-up bila dinilai perlu; verifikasi overhaul terakhir.</p>
-              <p>(1) Fuel mencakup fuel oil, fuel gas, dan cairan low-flashpoint. (2) Lepas insulasi bila perlu untuk memudahkan inspeksi. (3) Sisi non-return valve dan pompa yang terpapar fluida korosif diperiksa dengan Method 1. (4) Exhaust gas hanya uji fungsi fan. (5) Inert gas berlaku apapun jenis gas/tujuan kecuali fire-fighting. (6) Gas turbine: verifikasi catatan overhaul onboard dan laporan general-overhaul; overhaul oleh OEM/OEM-authorized.</p>
+            <p className="mt-2 text-xs text-slate-500">Selesai setelah due date = SUSPENDED. Outstanding &gt; 6 bulan = WITHDRAWN. Penundaan rekomendasi hanya boleh 1 kali, hanya bila kapal tidak sedang dalam prosedur suspension, dan persetujuan akhir ada di BKI Pusat (ITS Part A Annex C).</p>
+          </Fold>
+  
+          <Fold title="Referensi Aturan" sub="Time window dan Case A–D">
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[640px] text-left text-xs">
+                <thead className="text-slate-500"><tr><th className="py-2 pr-3">Rule</th><th className="pr-3">Window Start</th><th className="pr-3">Window End</th><th className="pr-3">Suspended</th><th>Withdrawn</th></tr></thead>
+                <tbody className="divide-y divide-slate-100">
+                  {RULES.map((r) => <tr key={r[0]} className="align-top">{r.map((c, i) => <td key={i} className={cx('py-2 pr-3', i === 0 && 'font-semibold')}>{c}</td>)}</tr>)}
+                </tbody>
+              </table>
+            </div>
+            <div className="mt-4 overflow-x-auto">
+              <table className="w-full min-w-[640px] text-left text-xs">
+                <thead className="text-slate-500"><tr><th className="py-2 pr-3">Case</th><th className="pr-3">Reinstatement</th><th>Docking / Sertifikat</th></tr></thead>
+                <tbody className="divide-y divide-slate-100">
+                  {CASES.map((r) => <tr key={r[0]} className="align-top">{r.map((c, i) => <td key={i} className={cx('py-2 pr-3', i === 0 && 'font-semibold')}>{c}</td>)}</tr>)}
+                </tbody>
+              </table>
             </div>
           </Fold>
-        )}
-      </>
-    );
-  }
+        </>
+      );
+    }
+  
+    /* ====================================================================
+     * MODUL 2 — hanya scope yang aktif; item N/A / NONE disembunyikan
+     * ==================================================================== */
+    function Module2() {
+      const age = A.age;
+      const rn = A.rn ?? 4;
+      const t = renewalTables(Math.min(rn, 4), age); // tabel scope: IV dan seterusnya memakai aturan yang sama
+      const val = (id: string) => checks[id] ?? 'NOT CHECKED';
+      const prog = (ids: string[]) => ({ total: ids.length, done: ids.filter((i) => val(i) !== 'NOT CHECKED').length, def: ids.filter((i) => val(i) === 'DEFICIENCY').length });
+      const P = ({ ids }: { ids: string[] }) => {
+        const p = prog(ids);
+        return <Progress done={p.done} total={p.total} def={p.def} />;
+      };
+      const hiddenNote = (n: number) => n > 0 && <p className="mt-2 text-[11px] text-slate-400">{n} item tidak berlaku untuk {vType}/umur kapal — disembunyikan.</p>;
+  
+      const checklist = (id: string, items: Item[]) => {
+        const all = items.map((it, i) => ({ it, id: `${id}-${i}`, ap: applicability(it.a, it.g, vType, age) }));
+        const rows = all.filter((r) => r.ap !== 'N/A');
+        return { rows, ids: rows.map((r) => r.id), hidden: all.length - rows.length };
+      };
+      const listOf = (rows: { it: Item; id: string; ap: string }[]) => (
+        <ul className="divide-y divide-slate-100">
+          {rows.map((r) => (
+            <CheckRow key={r.id} title={r.it.s} desc={r.it.t} meta={[r.ap, r.it.n].filter(Boolean).join(' · ')} value={val(r.id)} onChange={(v) => setCheck(r.id, v)} />
+          ))}
+        </ul>
+      );
+      const tableList = (rows: TRow[]) => {
+        const live = rows.filter((r) => !['NONE', 'N/A', '—'].includes(r.scope));
+        return { live, ids: live.map((r) => r.id), hidden: rows.length - live.length };
+      };
+      const tblUi = (live: TRow[]) => (
+        <ul className="divide-y divide-slate-100">
+          {live.map((r) => <CheckRow key={r.id} title={r.item} chip={r.scope} meta={r.note} value={val(r.id)} onChange={(v) => setCheck(r.id, v)} />)}
+        </ul>
+      );
+  
+      const an = checklist('AN', ANNUAL);
+      const inn = checklist('IN', INTERMEDIATE);
+      const rnw = checklist('RN', RENEWAL);
+      const dk = checklist('DK', DOCKING);
+      const tank = tableList(t.tanks);
+      const ut = tableList(t.ut);
+      const air = tableList(t.air);
+      const mach = MACHINERY.map((m, i) => ({ m, id: `M-${i}` })).filter((r) => r.m[3] !== 'N/A' || CARGO_SYSTEM_TYPES.includes(vType));
+      const systems = Array.from(new Set(mach.map((r) => r.m[0])));
+      const nothing = !Object.values(A.active).some(Boolean);
+      // judul "Annual" hanya dipakai bila Annual memang dipilih atau pada kasus khusus (reinstatement A/C/D)
+      const annualNamed = (['A1', 'A2', 'A3', 'A4', 'A5'] as SurveyKey[]).some((k) => sel[k]) || A.c === 'A' || A.c === 'C' || A.c === 'D';
+  
+      return (
+        <>
+          <Card title="Scope Aktif" sub={`${name || 'Kapal'} · ${vType} · ${age ?? '—'} th · ${A.rnLabel}`}
+            right={<button onClick={() => setChecks({})} className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-semibold hover:bg-slate-50">Reset checklist</button>}>
+            <div className="flex flex-wrap gap-2 text-xs">
+              {nothing && <span className="text-slate-500">Pilih survei di tab Status.</span>}
+              {([['annual', 'Annual'], ['inter', 'Intermediate'], ['renewal', 'Renewal'], ['docking', 'Docking'], ['machinery', 'Mesin & Utilitas']] as const)
+                .filter(([k]) => A.active[k] && (k !== 'annual' || annualNamed))
+                .map(([k, l]) => <span key={k} className="rounded-full bg-teal-100 px-3 py-1 font-semibold text-teal-800">{l}</span>)}
+            </div>
+            {A.c && (
+              <div className="mt-3 rounded-xl border border-teal-200 bg-teal-50 p-3 text-xs text-slate-700">
+                <p className="font-bold">Reinstatement — {A.caseTitle[A.c]}</p>
+                <p className="mt-1">{A.reinst[A.c][0]}</p>
+                <p className="mt-1 font-semibold">{A.reinst[A.c][1]}</p>
+              </div>
+            )}
+            {A.active.renewal && <p className="mt-3 text-xs text-slate-600">Tangki, UT, dan air pipe head dihitung otomatis dari Year Built {yearBuilt} dan expiry {fmt(A.exp)} → umur {age ?? '—'} tahun, <b>{A.rnLabel}</b>{A.rnBumped ? ` (naik karena Renewal sebelumnya ke-${roman(lastNo ?? 0)})` : ''}. Aturan scope tangki/UT mengikuti tabel &quot;IV dan seterusnya&quot; untuk Renewal IV ke atas.</p>}
+            {sel.INT && sel.REN && <p className="mt-3 rounded-lg bg-amber-50 p-2 text-xs text-amber-900">Intermediate & Renewal tidak boleh dikreditkan bersamaan.</p>}
+          </Card>
+  
+          {A.active.annual && (
+            <Fold
+              title={annualNamed ? 'Annual Survey' : 'Pemeriksaan dasar'}
+              sub={annualNamed ? 'Hull, safety, mesin, listrik, fire-fighting' : 'Cakupan Intermediate/Renewal memperluas pemeriksaan dasar ini. Annual yang belum dikerjakan tetap harus dikerjakan terpisah.'}
+              right={<P ids={an.ids} />}
+              open
+            >
+              {listOf(an.rows)}{hiddenNote(an.hidden)}
+            </Fold>
+          )}
+          {A.active.inter && (
+            <Fold title="Intermediate Survey" sub="Tambahan di atas Annual" right={<P ids={inn.ids} />} open>
+              {listOf(inn.rows)}{hiddenNote(inn.hidden)}
+            </Fold>
+          )}
+  
+          {A.active.renewal && (
+            <>
+              <Fold title={`Renewal — Tangki (${A.rnLabel})`} sub="Pemeriksaan internal & pressure test" right={<P ids={tank.ids} />} open>
+                {tblUi(tank.live)}{hiddenNote(tank.hidden)}
+              </Fold>
+              <Fold title={`Renewal — UT Thickness (${A.rnLabel})`} sub="Lokasi pengukuran minimum" right={<P ids={ut.ids} />} open>
+                {tblUi(ut.live)}{hiddenNote(ut.hidden)}
+              </Fold>
+              <Fold title="Renewal — Air Pipe Heads" sub={`Umur ${age ?? '—'} tahun`} right={<P ids={air.ids} />} open>
+                {tblUi(air.live)}
+              </Fold>
+              <Fold title="Renewal — Item Umum" sub="Hull, jangkar, struktur, sertifikat" right={<P ids={rnw.ids} />} open>
+                {listOf(rnw.rows)}{hiddenNote(rnw.hidden)}
+              </Fold>
+            </>
+          )}
+  
+          {A.active.docking && (
+            <Fold title="Docking / Bottom Survey" sub="Interval maksimum 36 bulan" right={<P ids={dk.ids} />} open>
+              {listOf(dk.rows)}{hiddenNote(dk.hidden)}
+            </Fold>
+          )}
+  
+          {A.active.machinery && (
+            <Fold title="Class Renewal — Mesin & Utilitas" sub="Aktif otomatis saat Renewal / Case C / Case D" right={<P ids={mach.map((r) => r.id)} />} open>
+              <div className="space-y-4">
+                {systems.map((sys) => (
+                  <div key={sys}>
+                    <h3 className="text-xs font-bold text-slate-700">{sys}</h3>
+                    <ul className="divide-y divide-slate-100">
+                      {mach.filter((r) => r.m[0] === sys).map((r) => (
+                        <CheckRow key={r.id} title={r.m[1]} meta={`${METHOD[r.m[2]]} · ${r.m[3] === 'N/A' ? 'IF FITTED' : r.m[3]}`} value={val(r.id)} onChange={(v) => setCheck(r.id, v)} />
+                      ))}
+                    </ul>
+                  </div>
+                ))}
+              </div>
+              {hiddenNote(MACHINERY.length - mach.length)}
+              <div className="mt-4 rounded-xl bg-slate-50 p-3 text-[11px] leading-relaxed text-slate-600">
+                <p className="font-bold text-slate-700">Method / Source Notes</p>
+                <p><b>Method 1:</b> Pemeriksaan visual dengan membuka sebagian/seluruhnya sesuai penilaian Surveyor; uji fungsi atau tekanan bila relevan.</p>
+                <p><b>Method 2:</b> Pemeriksaan visual tanpa bongkar; performance test wajib; open-up bila dinilai perlu; verifikasi overhaul terakhir.</p>
+                <p>(1) Fuel mencakup fuel oil, fuel gas, dan cairan low-flashpoint. (2) Lepas insulasi bila perlu untuk memudahkan inspeksi. (3) Sisi non-return valve dan pompa yang terpapar fluida korosif diperiksa dengan Method 1. (4) Exhaust gas hanya uji fungsi fan. (5) Inert gas berlaku apapun jenis gas/tujuan kecuali fire-fighting. (6) Gas turbine: verifikasi catatan overhaul onboard dan laporan general-overhaul; overhaul oleh OEM/OEM-authorized.</p>
+              </div>
+            </Fold>
+          )}
+        </>
+      );
+    }
 
-  /* ====================================================================
+      /* ====================================================================
    * MODUL 3 — hanya Renewal + notasi jangkar (berdiri sendiri)
    * ==================================================================== */
   function Module3() {
@@ -1329,10 +1329,17 @@ export default function Page() {
     const numIn = (v: string, set: (s: string) => void) => (
       <input inputMode="decimal" className={cx(inputCls, 'bg-yellow-50')} value={v} onChange={(e) => set(e.target.value)} />
     );
-    const f2 = (v: number | null) => (v === null ? '—' : v.toFixed(4).replace(/0+$/, '').replace(/\.$/, ''));
+    const f2 = (v: number | null) => (v === null ? '—' : String(Number(v.toFixed(4))));
     const sum = S.measured === 0 ? 'BELUM DIUKUR' : S.fails > 0 ? 'NON-COMPLIANT' : 'COMPLIANT';
     const sysName = SHAFT_SYS.find((x) => x[0] === shaftSys)?.[1] ?? '';
-    const setShaftRow = (i: number, k: keyof ShaftRow, v: string) => setShafts((rows) => rows.map((x, j) => (j === i ? { ...x, [k]: v } : x)));
+    const setShaftRow = (i: number, k: keyof ShaftRow, v: string) => {
+      setShafts((rows) =>
+        rows.map((x, j) => {
+          if (j !== i) return x;
+          return { ...x, [k]: v };
+        })
+      );
+    };
 
     return (
       <>
@@ -1491,4 +1498,39 @@ export default function Page() {
               <div className="grid gap-4 md:grid-cols-2">
                 {S.rudderRes.map((r, i) => (
                   <div key={r.item} className="rounded-xl border border-slate-200 p-4">
-             
+                    <div className="flex items-center justify-between"><p className="text-sm font-bold">{r.item}</p><Badge v={r.v || 'BELUM DIUKUR'} /></div>
+                    <div className="mt-3 grid grid-cols-2 gap-3">
+                      <Field label="Diameter (mm)">{numIn(rudder[i].d, (v) => setRudder((s) => s.map((x, j) => (j === i ? { ...x, d: v } : x))))}</Field>
+                      <Field label="Actual (mm)">{numIn(rudder[i].a, (v) => setRudder((s) => s.map((x, j) => (j === i ? { ...x, a: v } : x))))}</Field>
+                    </div>
+                    <p className="mt-3 text-sm">Maksimum: <b>{r.mx === null ? '—' : `${r.mx.toFixed(2)} mm`}</b></p>
+                    <Gauge lo={null} hi={r.mx} a={r.a} />
+                  </div>
+                ))}
+              </div>
+            </Card>
+          </>
+        )}
+
+        <div className="grid gap-4 md:grid-cols-2">
+          <Card title="Anchor Weight" sub="Minimum 88% berat asli" right={<Badge v={S.anchorV || 'BELUM DIUKUR'} />}>
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Original (kg)">{numIn(anchor.o, (v) => setAnchor((x) => ({ ...x, o: v })))}</Field>
+              <Field label="Actual (kg)">{numIn(anchor.a, (v) => setAnchor((x) => ({ ...x, a: v })))}</Field>
+            </div>
+            <p className="mt-3 text-sm">Minimum: <b>{S.anchorMin === null ? '—' : `${S.anchorMin.toFixed(1)} kg`}</b></p>
+          </Card>
+          <Card title="Anchor Chain Diameter" sub="Minimum 90% diameter asli" right={<Badge v={S.chainV || 'BELUM DIUKUR'} />}>
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Original (mm)">{numIn(chain.o, (v) => setChain((x) => ({ ...x, o: v })))}</Field>
+              <Field label="Actual (mm)">{numIn(chain.a, (v) => setChain((x) => ({ ...x, a: v })))}</Field>
+            </div>
+            <p className="mt-3 text-sm">Minimum: <b>{S.chainMin === null ? '—' : `${S.chainMin.toFixed(2)} mm`}</b></p>
+          </Card>
+        </div>
+
+        {propelled && <p className="rounded-xl bg-slate-50 p-3 text-xs text-slate-600">Data clearance rudder stock dan propeller shaft wajib dicantumkan pada survey report terkait (ITS Part A 1.9 dan 1.10.1).</p>}
+      </>
+    );
+  }
+}
