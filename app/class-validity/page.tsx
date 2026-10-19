@@ -861,7 +861,7 @@ export default function Page() {
   };
 
   // modul Propulsi hanya muncul untuk kapal bernotasi jangkar, saat Renewal atau Propeller Shaft Survey
-  const dimActive = notation && (A.active.renewal || sel.PS);
+  const dimActive = notation && (A.active.renewal || sel.PS || sel.D1);
 
   // survei yang sudah tercatat pada periode berjalan tidak ditawarkan lagi (hanya yang belum dikerjakan)
   const chipVisible = (k: SurveyKey) => {
@@ -1318,11 +1318,11 @@ export default function Page() {
       return (
         <Card title="Propulsi & Clearance — belum diperlukan">
           <p className="text-sm text-slate-600">
-            Modul ini dihitung untuk kapal bernotasi jangkar saat <b>Renewal Survey</b> atau saat <b>Propeller Shaft Survey</b> dipilih.
+          Modul ini dihitung untuk kapal bernotasi jangkar saat <b>Renewal Survey</b>, <b>Docking Survey</b>, atau <b>Propeller Shaft Survey</b> dipilih.
           </p>
           <ul className="mt-3 space-y-1 text-sm">
             <li>{notation ? '✓' : '✗'} Notasi jangkar</li>
-            <li>{A.active.renewal || sel.PS ? '✓' : '✗'} Renewal atau Propeller Shaft Survey aktif</li>
+            <li>{A.active.renewal || sel.PS || sel.D1 ? '✓' : '✗'} Renewal, Docking, atau Propeller Shaft Survey aktif</li>
           </ul>
         </Card>
       );
