@@ -7,7 +7,7 @@ import DateInput from '../../components/DateInput';
 import RichEditor, { RichView } from '../../components/RichEditor';
 import FileViewer from '../../components/FileViewer';
 import { legacyToHtml } from '../../lib/legacyBody';
-import { uploadAttachment, removeFiles, pathsInHtml, fmtSize, MAX_MB, type Attachment } from '../../lib/uploads';
+import { uploadAttachment, uploadImage, removeFiles, pathsInHtml, fmtSize, MAX_MB, type Attachment } from '../../lib/uploads';
 
 type Visibility = 'private' | 'members' | 'public';
 type Status = 'pending' | 'approved' | 'rejected';
@@ -20,6 +20,8 @@ type Entry = {
   tags: string[];
   body: string;
   body_html: string | null;
+  summary: string | null;
+  cover_url: string | null;
   attachments: Attachment[] | null;
   visibility: Visibility;
   remind_on: string | null;
@@ -41,7 +43,7 @@ const VIS_TONE: Record<Visibility, string> = {
 const STATUS_LABEL: Record<Status, string> = { pending: 'Menunggu persetujuan', approved: 'Disetujui', rejected: 'Ditolak' };
 const STATUS_TONE: Record<Status, string> = { pending: 'bg-amber-100 text-amber-900', approved: 'bg-emerald-100 text-emerald-800', rejected: 'bg-rose-100 text-rose-800' };
 // hanya alamat http(s) yang boleh jadi tautan lampiran (mencegah alamat berbahaya dari data yang dibuat manual)
-const EMPTY = { title: '', kind: 'catatan', category: 'Umum', tags: '', body: '', body_html: '', attachments: [] as Attachment[], visibility: 'private' as Visibility, remind_on: '', pinned: false };
+const EMPTY = { title: '', kind: 'catatan', category: 'Umum', tags: '', body: '', body_html: '', summary: '', cover_url: '', attachments: [] as Attachment[], visibility: 'private' as Visibility, remind_on: '', pinned: false };
 
 const inp = 'w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-teal-600 focus:outline-none focus:ring-2 focus:ring-teal-600/25';
 const dmy = (s: string | null) => (s ? s.slice(0, 10).split('-').reverse().join('.') : '');
@@ -203,7 +205,7 @@ export default function BulletinPage() {
       (e) =>
         (!cat || e.category === cat) &&
         (tab === 'all' || (tab === 'pending' ? e.status === 'pending' : !!user && e.owner === user.id)) &&
-        (!s || e.title.toLowerCase().includes(s) || e.body.toLowerCase().includes(s) || (e.tags ?? []).some((t) => t.toLowerCase().includes(s)))
+        (!s || e.title.toLowerCase().includes(s) || e.body.toLowerCase().includes(s) || (e.summary ?? '').toLowerCase().includes(s) || (e.tags ?? []).some((t) => t.toLowerCase().includes(s)))
     );
   }, [entries, q, cat, tab, user]);
 
@@ -223,7 +225,7 @@ export default function BulletinPage() {
   };
   const openEdit = (e: Entry) => {
     setCur(e);
-    setF({ title: e.title, kind: e.kind, category: e.category ?? 'Umum', tags: (e.tags ?? []).join(', '), body: e.body, body_html: e.body_html || legacyToHtml(e.body), attachments: e.attachments ?? [], visibility: e.visibility, remind_on: e.remind_on ?? '', pinned: e.pinned });
+    setF({ title: e.title, kind: e.kind, category: e.category ?? 'Umum', tags: (e.tags ?? []).join(', '), body: e.body, body_html: e.body_html || legacyToHtml(e.body), summary: e.summary ?? '', cover_url: e.cover_url ?? '', attachments: e.attachments ?? [], visibility: e.visibility, remind_on: e.remind_on ?? '', pinned: e.pinned });
     setMsg(null);
     setView('edit');
   };
@@ -245,6 +247,8 @@ export default function BulletinPage() {
       tags: f.tags.split(',').map((s) => s.trim()).filter(Boolean),
       body: f.body,
       body_html: f.body_html || null,
+      summary: f.summary.trim() || null,
+      cover_url: f.cover_url || null,
       attachments: f.attachments,
       // anggota biasa: selalu untuk umum, tidak bisa menyematkan, dan harus disetujui admin dulu (juga dipaksa di database)
       visibility: isAdmin ? f.visibility : 'public',
@@ -264,6 +268,7 @@ export default function BulletinPage() {
       await removeFiles([
         ...(cur.attachments ?? []).map((a) => a.path).filter((x) => keepAtt.indexOf(x) < 0),
         ...pathsInHtml(cur.body_html).filter((x) => keepImg.indexOf(x) < 0),
+        ...pathsInHtml(cur.cover_url).filter((x) => pathsInHtml(f.cover_url).indexOf(x) < 0),
       ]);
     }
     await load();
@@ -275,7 +280,7 @@ export default function BulletinPage() {
     if (!supabase || !window.confirm(`Hapus "${e.title}"?`)) return;
     const { error } = await supabase.from('bulletins').delete().eq('id', e.id);
     if (error) return setMsg({ k: 'err', t: error.message });
-    await removeFiles([...(e.attachments ?? []).map((a) => a.path), ...pathsInHtml(e.body_html)]);
+    await removeFiles([...(e.attachments ?? []).map((a) => a.path), ...pathsInHtml(e.body_html), ...pathsInHtml(e.cover_url)]);
     await load();
     setView('list');
   };
@@ -319,6 +324,29 @@ export default function BulletinPage() {
     if (!saved) await removeFiles([a.path]); // yang sudah tersimpan baru dihapus setelah tombol Simpan
   };
 
+  // foto sampul kartu (opsional)
+  const addCover = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    setUpBusy(true);
+    setMsg(null);
+    try {
+      const url = await uploadImage(file);
+      const old = f.cover_url;
+      setF((p) => ({ ...p, cover_url: url }));
+      if (old && old !== (cur?.cover_url ?? '')) await removeFiles(pathsInHtml(old));
+    } catch (err) {
+      setMsg({ k: 'err', t: (err as Error).message });
+    }
+    setUpBusy(false);
+  };
+  const dropCover = async () => {
+    const old = f.cover_url;
+    setF((p) => ({ ...p, cover_url: '' }));
+    if (old && old !== (cur?.cover_url ?? '')) await removeFiles(pathsInHtml(old)); // yang sudah tersimpan baru dihapus setelah Simpan
+  };
+
   const set = (k: keyof typeof EMPTY) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
     setF({ ...f, [k]: e.target.value });
 
@@ -339,6 +367,23 @@ export default function BulletinPage() {
               </label>
               <label className="block text-xs font-semibold text-slate-600">Kategori
                 <select className={inp + ' mt-1'} value={f.category} onChange={set('category')}>{CATS.map((c) => <option key={c}>{c}</option>)}</select>
+              </label>
+            </div>
+            <label className="block text-xs font-semibold text-slate-600">Ringkasan (tampil di kartu, maks. 300 huruf)
+              <textarea className={inp + ' mt-1'} rows={3} maxLength={300} value={f.summary} onChange={set('summary')} placeholder="Poin penting saja. Kosongkan untuk memakai cuplikan isi secara otomatis." />
+            </label>
+            <div>
+              <p className="text-xs font-semibold text-slate-600">Foto sampul (opsional)</p>
+              {f.cover_url && (
+                <div className="mt-2">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={f.cover_url} alt="" className="h-40 w-full rounded-lg object-cover" />
+                  <button type="button" onClick={dropCover} className="mt-1 text-xs font-semibold text-red-700">Buang foto sampul</button>
+                </div>
+              )}
+              <label className="mt-2 inline-block cursor-pointer rounded-md border border-slate-300 px-3 py-1.5 text-xs font-semibold hover:bg-slate-50">
+                {upBusy ? 'Mengunggah…' : f.cover_url ? 'Ganti foto' : '+ Pilih foto'}
+                <input type="file" accept=".jpg,.jpeg,.png,.webp" disabled={upBusy} className="hidden" onChange={addCover} />
               </label>
             </div>
             <label className="block text-xs font-semibold text-slate-600">Tag (pisahkan dengan koma)
@@ -407,6 +452,10 @@ export default function BulletinPage() {
         {viewing && <FileViewer url={viewing.att.url} name={viewing.att.name} type={viewing.att.type} label={viewing.label} onClose={() => setViewing(null)} />}
         <button onClick={() => setView('list')} className="text-sm font-semibold text-teal-700">← Kembali ke daftar</button>
         <article className="mt-3 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          {cur.cover_url && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={cur.cover_url} alt="" className="mb-4 h-52 w-full rounded-xl object-cover" />
+          )}
           <div className="flex flex-wrap items-center gap-2 text-[11px] font-semibold">
             {cur.status !== 'approved' && <span className={'rounded-full px-2.5 py-0.5 ' + STATUS_TONE[cur.status]}>{STATUS_LABEL[cur.status]}</span>}
             <span className={'rounded-full px-2.5 py-0.5 ' + VIS_TONE[cur.visibility]}>{VIS.find((v) => v[0] === cur.visibility)?.[1]}</span>
@@ -416,21 +465,22 @@ export default function BulletinPage() {
           </div>
           <h1 className="mt-3 text-xl font-extrabold tracking-tight">{cur.title}</h1>
           <p className="mt-1 text-xs text-slate-500">Diperbarui {dmy(cur.updated_at)}</p>
+          {cur.summary && <p className="mt-3 rounded-lg bg-teal-50 px-3 py-2 text-sm text-teal-900">{cur.summary}</p>}
           {cur.status === 'rejected' && cur.review_note && <p className="mt-2 rounded-lg bg-rose-50 px-3 py-2 text-xs text-rose-800">Alasan penolakan: {cur.review_note}</p>}
           <div className="mt-4">{cur.body_html ? <RichView html={cur.body_html} /> : <Body text={cur.body} />}</div>
           {(cur.attachments ?? []).length > 0 && (
             <div className="mt-5">
-              <p className="text-xs font-semibold text-slate-600">Lampiran</p>
+              <p className="text-xs font-semibold text-slate-600">Dokumen lengkap</p>
               <ul className="mt-2 space-y-1.5">
                 {(cur.attachments ?? []).map((a) => (
                   <li key={a.path}>
                     <button
                       type="button"
-                      onClick={() => setViewing({ att: a, label: 'rdk-class.pages.dev' })}
+                      onClick={() => setViewing({ att: a, label: 'RDK · Class & Technical' })}
                       className="flex w-full items-center justify-between gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-left text-sm text-teal-800 hover:border-teal-500"
                     >
                       <span className="min-w-0 truncate">📖 {a.name}</span>
-                      <span className="shrink-0 text-xs text-slate-500">Buka · {fmtSize(a.size)}</span>
+                      <span className="shrink-0 text-xs text-slate-500">Baca · {fmtSize(a.size)}</span>
                     </button>
                   </li>
                 ))}
@@ -499,17 +549,26 @@ export default function BulletinPage() {
         <ul className="mt-4 space-y-3">
           {shown.map((e) => (
             <li key={e.id}>
-              <button onClick={() => openDetail(e)} className="w-full rounded-2xl border border-slate-200 bg-white p-4 text-left shadow-sm hover:border-teal-500">
-                <div className="flex flex-wrap items-center gap-2 text-[11px] font-semibold">
-                  {e.pinned && <span>📌</span>}
-                  {e.status !== 'approved' && <span className={'rounded-full px-2.5 py-0.5 ' + STATUS_TONE[e.status]}>{STATUS_LABEL[e.status]}</span>}
-                  <span className={'rounded-full px-2.5 py-0.5 ' + VIS_TONE[e.visibility]}>{VIS.find((v) => v[0] === e.visibility)?.[1]}</span>
-                  <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-slate-700">{KINDS.find((k) => k[0] === e.kind)?.[1]}</span>
-                  {e.category && <span className="text-slate-500">{e.category}</span>}
+              <button onClick={() => openDetail(e)} className="w-full overflow-hidden rounded-2xl border border-slate-200 bg-white text-left shadow-sm hover:border-teal-500">
+                {e.cover_url && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={e.cover_url} alt="" loading="lazy" className="h-44 w-full object-cover" />
+                )}
+                <div className="p-4">
+                  <div className="flex flex-wrap items-center gap-2 text-[11px] font-semibold">
+                    {e.pinned && <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-amber-900">📌 Disematkan</span>}
+                    {e.status !== 'approved' && <span className={'rounded-full px-2.5 py-0.5 ' + STATUS_TONE[e.status]}>{STATUS_LABEL[e.status]}</span>}
+                    <span className={'rounded-full px-2.5 py-0.5 ' + VIS_TONE[e.visibility]}>{VIS.find((v) => v[0] === e.visibility)?.[1]}</span>
+                    <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-slate-700">{KINDS.find((k) => k[0] === e.kind)?.[1]}</span>
+                    {e.category && <span className="text-slate-500">{e.category}</span>}
+                  </div>
+                  <p className="mt-2 text-base font-bold text-slate-900">{e.title}</p>
+                  <p className="mt-1 line-clamp-3 text-xs text-slate-600">{e.summary || e.body.replace(/[#*•·▪◦‣●○]/g, '').replace(/\s+/g, ' ').slice(0, 200)}</p>
+                  <p className="mt-2 text-[11px] text-slate-400">
+                    {dmy(e.updated_at)}
+                    {(e.attachments ?? []).length > 0 && <span className="ml-2 font-semibold text-teal-700">📖 Dokumen lengkap</span>}
+                  </p>
                 </div>
-                <p className="mt-2 text-base font-bold text-slate-900">{e.title}</p>
-                <p className="mt-1 line-clamp-2 text-xs text-slate-600">{e.body.replace(/[#*•·▪◦‣●○]/g, '').replace(/\s+/g, ' ').slice(0, 160)}</p>
-                <p className="mt-2 text-[11px] text-slate-400">{dmy(e.updated_at)}</p>
               </button>
             </li>
           ))}
