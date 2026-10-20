@@ -24,10 +24,11 @@ export default function SiteHeader() {
     { href: '/', label: 'Menu Utama' },
     { href: '/bulletin', label: 'Bulletin' },
     { href: '/class-validity', label: 'Class Validity' },
+    { href: '/fleet', label: 'Armada' },
     ...(isAdmin ? [{ href: '/admin', label: pending > 0 ? `Persetujuan (${pending})` : 'Persetujuan' }] : []),
   ];
   return (
-    <header className="border-b border-slate-200 bg-white">
+    <header className="border-b border-slate-200 bg-white print:hidden">
       <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-2 px-4 py-3">
         <Link href="/" className="text-base font-extrabold tracking-tight text-slate-900">
           RDK <span className="font-medium text-slate-500">/ Class &amp; Technical</span>
