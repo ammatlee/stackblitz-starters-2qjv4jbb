@@ -3,13 +3,14 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from './AuthProvider';
+import { fetchOwnerEmails } from '../lib/ownerEmails';
 import DateInput from './DateInput';
 import VesselTypeSelect from './VesselTypeSelect';
 import { isNonPropelled } from '../lib/vesselTypes';
 import { computeSurveyStatus, roman, toDMY, toISO } from '../lib/surveyStatus';
 import type { Baseline, Ev } from '../lib/surveyStatus';
 
-type VesselRow = Baseline & { id: string; name: string; vessel_type: string | null; last_shaft: string | null; anchor_notation: boolean | null; propelled: boolean | null; shaft_system: string | null; prop_connection: string | null; open_config: string | null };
+type VesselRow = Baseline & { id: string; owner: string; name: string; vessel_type: string | null; last_shaft: string | null; anchor_notation: boolean | null; propelled: boolean | null; shaft_system: string | null; prop_connection: string | null; open_config: string | null };
 type AgRow = { vessel_id: string; agenda_no: string; surveys: string[] | null; inspection_start: string | null; inspection_completion: string | null; scenario: string | null; finished_at: string | null };
 type EvRow = { id: string; vessel_id: string; surveys: string[] | null; completion: string; created_at: string };
 
@@ -52,7 +53,8 @@ const evsOf = (id: string, ags: AgRow[], mev: EvRow[]): Ev[] => [
 ];
 
 export default function VesselStatus({ refreshKey, vesselName, onApply }: { refreshKey: number; vesselName: string; onApply: (v: ApplyValues) => void }) {
-  const { user, configured } = useAuth();
+  const { user, configured, isAdmin } = useAuth();
+  const [owners, setOwners] = useState<Record<string, string>>({});
   const [vessels, setVessels] = useState<VesselRow[]>([]);
   const [ags, setAgs] = useState<AgRow[]>([]);
   const [mev, setMev] = useState<EvRow[]>([]);
@@ -85,8 +87,9 @@ export default function VesselStatus({ refreshKey, vesselName, onApply }: { refr
     setVessels(vs);
     setAgs(as);
     setMev(ev);
+    if (isAdmin) setOwners(await fetchOwnerEmails(vs.map((x) => x.owner)));
     return { vs, as, ev };
-  }, [user]);
+  }, [user, isAdmin]);
 
   const emit = useCallback((v: VesselRow, all: AgRow[], evr: EvRow[]) => {
     const r = computeSurveyStatus(v, evsOf(v.id, all, evr), new Date());
@@ -244,7 +247,7 @@ export default function VesselStatus({ refreshKey, vesselName, onApply }: { refr
     if (!mu.completion) return setMsg({ k: 'err', t: 'Isi tanggal selesai (dd.mm.yyyy).' });
     setBusy(true);
     setMsg(null);
-    const r = await supabase.from('vessel_events').insert({ owner: user.id, vessel_id: selId, surveys, completion: mu.completion });
+    const r = await supabase.from('vessel_events').insert({ owner: vessels.find((x) => x.id === selId)?.owner ?? user.id, vessel_id: selId, surveys, completion: mu.completion });
     if (r.error) {
       setBusy(false);
       return setMsg({ k: 'err', t: r.error.message + ' (sudah menjalankan SQL pembaruan manual?)' });
@@ -287,7 +290,7 @@ export default function VesselStatus({ refreshKey, vesselName, onApply }: { refr
           <select className={inp} value={selId} onChange={(e) => choose(e.target.value)}>
             <option value="">— pilih kapal —</option>
             {vessels.map((v) => (
-              <option key={v.id} value={v.id}>{v.name}</option>
+              <option key={v.id} value={v.id}>{v.name}{isAdmin && v.owner !== user?.id ? ` — ${owners[v.owner] ?? 'akun lain'}` : ''}</option>
             ))}
           </select>
         </div>

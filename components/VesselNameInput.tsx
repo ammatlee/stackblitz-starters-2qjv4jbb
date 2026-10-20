@@ -15,7 +15,7 @@ export default function VesselNameInput({ value, onChange, className, refreshKey
     (async () => {
       if (!supabase || !user) return;
       const { data } = await supabase.from('vessels').select('name').order('name');
-      setNames(((data ?? []) as { name: string }[]).map((x) => x.name));
+      setNames(Array.from(new Set(((data ?? []) as { name: string }[]).map((x) => x.name))));
     })();
   }, [user, refreshKey]);
 

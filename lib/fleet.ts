@@ -5,7 +5,7 @@
 import { computeSurveyStatus, toDMY } from './surveyStatus';
 import type { Baseline, Ev, StatusRow } from './surveyStatus';
 
-export type VesselInput = Baseline & { id: string; name: string; vessel_type: string | null };
+export type VesselInput = Baseline & { id: string; name: string; vessel_type: string | null; owner?: string | null };
 export type AgInput = { vessel_id: string; agenda_no: string; surveys: string[] | null; inspection_start: string | null; inspection_completion: string | null; scenario: string | null; finished_at: string | null };
 export type EvInput = { vessel_id: string; surveys: string[] | null; completion: string; created_at: string };
 
@@ -23,6 +23,7 @@ export type Urgency = 'OVERDUE' | 'DALAM WINDOW' | 'AKAN DATANG';
 export type Pending = { kind: string; urgency: Urgency; deadline: Date; days: number; windowStart: Date | null; note?: string };
 export type FleetItem = {
   id: string;
+  owner: string;
   name: string;
   type: string;
   expiry: Date | null;
@@ -67,7 +68,7 @@ export function summarizeVessel(v: VesselInput, evs: Ev[], today: Date): FleetIt
     }
     pending.sort((a, b) => +a.deadline - +b.deadline);
   }
-  return { id: v.id, name: v.name, type: v.vessel_type ?? '', expiry: res ? res.expiry : null, pending, next: pending[0] ?? null };
+  return { id: v.id, owner: v.owner ?? '', name: v.name, type: v.vessel_type ?? '', expiry: res ? res.expiry : null, pending, next: pending[0] ?? null };
 }
 
 export function buildFleet(vessels: VesselInput[], ags: AgInput[], mev: EvInput[], today: Date): FleetItem[] {

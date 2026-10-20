@@ -5,10 +5,12 @@ import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../components/AuthProvider';
 import FleetView from '../../components/fleet/FleetView';
 import { buildFleet, todayUTC } from '../../lib/fleet';
+import { fetchOwnerEmails } from '../../lib/ownerEmails';
 import type { AgInput, EvInput, FleetItem, VesselInput } from '../../lib/fleet';
 
 export default function FleetPage() {
-  const { user, configured } = useAuth();
+  const { user, configured, isAdmin } = useAuth();
+  const [owners, setOwners] = useState<Record<string, string>>({});
   const [items, setItems] = useState<FleetItem[] | null>(null);
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);
@@ -30,9 +32,10 @@ export default function FleetPage() {
     const ags = (a.error ? [] : (a.data ?? [])) as unknown as AgInput[];
     const mev = (m.error ? [] : (m.data ?? [])) as unknown as EvInput[];
     setItems(buildFleet(vessels, ags, mev, todayUTC()));
+    if (isAdmin) setOwners(await fetchOwnerEmails(vessels.map((x) => x.owner ?? '')));
     setAt(new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }));
     setBusy(false);
-  }, [user]);
+  }, [user, isAdmin]);
 
   useEffect(() => {
     load();
@@ -62,7 +65,7 @@ export default function FleetPage() {
         ) : items === null ? (
           <p className="p-6 text-center text-sm text-slate-500">Memuat data kapal…</p>
         ) : (
-          <FleetView items={items} />
+          <FleetView items={items} owners={isAdmin ? owners : undefined} />
         )}
       </div>
     </main>

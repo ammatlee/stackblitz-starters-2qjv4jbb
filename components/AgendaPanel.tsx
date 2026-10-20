@@ -3,11 +3,13 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from './AuthProvider';
+import { fetchOwnerEmails } from '../lib/ownerEmails';
 
 type Snapshot = Record<string, unknown>;
 type VesselRef = { name: string; vessel_type: string | null };
 type Row = {
   id: string;
+  owner: string;
   vessel_id: string | null;
   agenda_no: string;
   surveys: string[] | null;
@@ -49,7 +51,8 @@ const TONE: Record<string, string> = {
 };
 
 export default function AgendaPanel({ vesselName, vesselType, yearBuilt, agendaNo, start, completion, snapshot, summary, onRestore, onSaved, anchorNotation, propelled, shaftSystem, onClear }: Props) {
-  const { user, configured, loading } = useAuth();
+  const { user, configured, loading, isAdmin } = useAuth();
+  const [owners, setOwners] = useState<Record<string, string>>({});
   const [rows, setRows] = useState<Row[]>([]);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ k: 'err' | 'ok'; t: string } | null>(null);
@@ -58,12 +61,16 @@ export default function AgendaPanel({ vesselName, vesselType, yearBuilt, agendaN
     if (!supabase || !user) return;
     const { data, error } = await supabase
       .from('agendas')
-      .select('id,vessel_id,agenda_no,surveys,inspection_start,inspection_completion,status,scenario,finished,data,vessels(name,vessel_type)')
+      .select('id,owner,vessel_id,agenda_no,surveys,inspection_start,inspection_completion,status,scenario,finished,data,vessels(name,vessel_type)')
       .order('created_at', { ascending: false })
       .limit(50);
     if (error) setMsg({ k: 'err', t: 'Gagal memuat riwayat: ' + error.message });
-    else setRows((data ?? []) as unknown as Row[]);
-  }, [user]);
+    else {
+      const list = (data ?? []) as unknown as Row[];
+      setRows(list);
+      if (isAdmin) setOwners(await fetchOwnerEmails(list.map((r) => r.owner)));
+    }
+  }, [user, isAdmin]);
 
   useEffect(() => {
     load();
@@ -82,12 +89,22 @@ export default function AgendaPanel({ vesselName, vesselType, yearBuilt, agendaN
     const yb = parseInt(yearBuilt, 10);
     const vinfo = { vessel_type: vesselType || null, year_built: Number.isFinite(yb) ? yb : null, anchor_notation: anchorNotation ?? false, propelled: propelled ?? null, shaft_system: shaftSystem || null };
 
-    const found = await supabase.from('vessels').select('id').eq('owner', user.id).eq('name', name).maybeSingle();
+    // admin boleh menyimpan di kapal milik anggota; akun biasa hanya di kapalnya sendiri
+    let vq = supabase.from('vessels').select('id,owner').eq('name', name);
+    if (!isAdmin) vq = vq.eq('owner', user.id);
+    const found = await vq;
     if (found.error) {
       setBusy(false);
       return setMsg({ k: 'err', t: 'Gagal membaca data kapal: ' + found.error.message });
     }
-    let vesselId = (found.data as { id: string } | null)?.id;
+    const matches = (found.data ?? []) as { id: string; owner: string }[];
+    if (matches.length > 1) {
+      const em = await fetchOwnerEmails(matches.map((m) => m.owner));
+      setBusy(false);
+      return setMsg({ k: 'err', t: `Ada ${matches.length} kapal bernama "${name}" (${matches.map((m) => em[m.owner] ?? 'akun lain').join(', ')}). Ubah salah satu namanya supaya tidak ambigu.` });
+    }
+    let vesselId = matches[0]?.id;
+    let vesselOwner = matches[0]?.owner ?? user.id;
     if (vesselId) {
       await supabase.from('vessels').update(vinfo).eq('id', vesselId);
     } else {
@@ -97,10 +114,11 @@ export default function AgendaPanel({ vesselName, vesselType, yearBuilt, agendaN
         return setMsg({ k: 'err', t: 'Gagal menyimpan kapal: ' + ins.error.message });
       }
       vesselId = (ins.data as { id: string }).id;
+      vesselOwner = user.id;
     }
 
     const row = {
-      owner: user.id,
+      owner: vesselOwner,
       vessel_id: vesselId,
       agenda_no: no,
       surveys: summary.surveys,
@@ -147,7 +165,8 @@ export default function AgendaPanel({ vesselName, vesselType, yearBuilt, agendaN
     const m = new Map<string, Row[]>();
     rows.forEach((r) => {
       const v = Array.isArray(r.vessels) ? r.vessels[0] : r.vessels;
-      const key = v?.name ?? '(tanpa nama kapal)';
+      const base = v?.name ?? '(tanpa nama kapal)';
+      const key = isAdmin && owners[r.owner] ? `${base} — ${owners[r.owner]}` : base;
       m.set(key, [...(m.get(key) ?? []), r]);
     });
     return Array.from(m.entries())
@@ -178,7 +197,7 @@ export default function AgendaPanel({ vesselName, vesselType, yearBuilt, agendaN
       ) : (
         <div className="mt-2 space-y-2">
           {groups.map(([name, list]) => (
-            <details key={name} open={name.toLowerCase() === vesselName.trim().toLowerCase()} className="group rounded-xl border border-slate-200">
+            <details key={name} open={name.split(' — ')[0].toLowerCase() === vesselName.trim().toLowerCase()} className="group rounded-xl border border-slate-200">
               <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-3 py-2.5">
                 <span className="text-sm font-bold">{name}</span>
                 <span className="flex items-center gap-2 text-xs text-slate-500">
