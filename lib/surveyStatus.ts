@@ -22,6 +22,13 @@ export type Baseline = {
   last_docking: string | null;
   postponed_until: string | null;
   baseline_at: string | null;
+  // Propeller Shaft (opsional; kolom baru, kosong = perilaku lama)
+  shaft_system?: string | null; // open | oil | fw
+  prop_connection?: string | null; // flanged | keyless | keyed
+  open_config?: string | null; // five | three
+  last_shaft_plan?: string | null; // Method (M1–M4) survei poros penuh terakhir
+  last_shaft_major?: string | null; // tanggal Method 1/2 (atau M4 sistem open) terakhir, untuk batas 15 tahun
+  shaft_exts?: string[] | null; // extension yang sudah diambil sejak survei penuh terakhir (E25 / E1 / E3)
 };
 export type Ev = {
   agenda_no: string; // 'Manual' untuk pembaruan tanpa agenda
@@ -30,8 +37,20 @@ export type Ev = {
   surveys: string[];
   scenario: string | null;
   finished_at: string | null;
+  shaft_plan?: string | null; // M1–M4 / E25 / E1 / E3 untuk survei Propeller Shaft
 };
-export type StatusRow = { kind: string; due: string; range: string; postponed: string; last: string; state: string; note?: string };
+export type StatusRow = { kind: string; due: string; range: string; postponed: string; last: string; state: string; note?: string; warn?: string };
+export type ShaftStatus = {
+  interval: number; // tahun
+  baseDue: Date; // jatuh tempo asli (sebelum extension)
+  exts: string[];
+  extMonths: number; // total extension yang berlaku (sudah dibatasi)
+  due: Date; // jatuh tempo efektif
+  lastPlan: string | null;
+  lastMajor: Date | null;
+  limit15: Date | null;
+  warnings: string[];
+};
 export type StatusResult = {
   rows: StatusRow[];
   expiry: Date;
@@ -49,7 +68,15 @@ export type StatusResult = {
   lastNo: number | null;
   nextNo: number | null;
   applied: string[];
+  shaft: ShaftStatus | null;
 };
+
+/** Lamanya penundaan tiap extension poros (bulan). */
+export const EXT_MONTHS: Record<string, number> = { E25: 30, E1: 12, E3: 3 };
+const EXT_LABEL: Record<string, string> = { E25: '2,5 tahun', E1: '1 tahun', E3: '3 bulan' };
+/** Method yang dihitung untuk batas 15 tahun, menurut sistem & sambungan (ITS Part A 1.4.1/1.4.2). */
+const majorPlans = (sys: string | null, conn: string | null): string[] =>
+  sys === 'oil' && conn === 'keyless' ? ['M1', 'M2'] : sys === 'fw' ? ['M1'] : sys === 'open' && conn === 'keyless' ? ['M4'] : [];
 
 /* ---------- tanggal (UTC, perilaku EDATE) ---------- */
 const parse = (s: string | null | undefined): Date | null => {
@@ -93,6 +120,16 @@ export function computeSurveyStatus(b: Baseline, evsAll: Ev[], today: Date): Sta
   let lastInt: Date | null = null;
   let lastDock = parse(b.last_docking);
   let lastShaft = parse(b.last_shaft);
+  // Propeller Shaft: interval menurut sistem, extension, dan Method terakhir
+  const shSys = b.shaft_system ?? null;
+  const shConn = b.prop_connection ?? null;
+  const intervalY = shSys === 'open' && b.open_config === 'three' ? 3 : 5;
+  const extCap = shSys === 'open' ? 12 : 30; // total penundaan maksimum (bulan)
+  const majors = majorPlans(shSys, shConn);
+  let shaftAnchor = parse(b.last_shaft); // tanggal acuan interval berikutnya
+  let shaftExts: string[] = (b.shaft_exts ?? []).filter((k) => EXT_MONTHS[k]);
+  let lastPlan: string | null = b.last_shaft_plan ?? null;
+  let lastMajor: Date | null = parse(b.last_shaft_major) ?? (lastPlan && majors.includes(lastPlan) ? lastShaft : null);
   let postponed = parse(b.postponed_until);
   let annCount = 0; // jumlah survei periodik (Annual/Intermediate) yang sudah dikreditkan pada periode ini
   let intSlot: number | null = null; // urutan survei periodik tempat Intermediate dikerjakan
@@ -105,6 +142,10 @@ export function computeSurveyStatus(b: Baseline, evsAll: Ev[], today: Date): Sta
     const p = last !== null ? last + 1 : null;
     return a === null ? p : p === null ? a : Math.max(a, p); // naik bila periode melewati hitungan umur
   };
+
+  const extRaw = () => shaftExts.reduce((m, k) => m + (EXT_MONTHS[k] ?? 0), 0);
+  const shaftD0 = () => addM(shaftAnchor ?? lastSpecial ?? periodStart, intervalY * 12);
+  const shaftDueNow = () => addM(shaftD0(), Math.min(extCap, extRaw()));
 
   /**
    * Annual/Intermediate dikreditkan pada slot tertentu (slot = nomor Annual yang dipilih; kosong = slot berikutnya).
@@ -162,7 +203,20 @@ export function computeSurveyStatus(b: Baseline, evsAll: Ev[], today: Date): Sta
     const hasShaft = e.surveys.includes('PS');
     if (!hasRen && !hasInt && !hasAnn && !hasDock && !hasShaft) continue;
     applied.push(e.agenda_no);
-    if (hasShaft) lastShaft = c;
+    if (hasShaft) {
+      const plan = e.shaft_plan ?? '';
+      if (EXT_MONTHS[plan]) {
+        shaftExts.push(plan); // extension menunda jatuh tempo; bukan survei poros penuh
+      } else {
+        // survei penuh: selesai dalam 3 bulan sebelum jatuh tempo → periode berikutnya dihitung dari tanggal jatuh tempo
+        const prev = shaftDueNow();
+        shaftAnchor = +c <= +prev && +c >= +addM(prev, -3) ? prev : c;
+        lastShaft = c;
+        shaftExts = [];
+        if (plan) lastPlan = plan;
+        if (plan && majors.includes(plan)) lastMajor = c;
+      }
+    }
 
     if (hasRen) {
       const early = +c < +addM(expiry, -3);
@@ -268,26 +322,57 @@ export function computeSurveyStatus(b: Baseline, evsAll: Ev[], today: Date): Sta
     note: dockNote,
   });
 
-  // Propeller Shaft Survey: setiap 5 tahun, hanya untuk kapal berpenggerak (bukan pontoon/barge)
+  // Propeller Shaft Survey: interval 5 tahun (sistem open: 5 atau 3 tahun), dapat ditunda dengan extension; hanya kapal berpenggerak
   const propelled = b.propelled ?? !isNonPropelled(b.vessel_type);
   const shaftDone = lastShaft !== null && +lastShaft >= +periodStart;
+  let shaft: ShaftStatus | null = null;
   if (propelled) {
-    const shaftBase = lastShaft ?? lastSpecial ?? periodStart;
-    const shaftDue = addM(shaftBase, 60);
+    const baseDue = shaftD0();
+    const raw = extRaw();
+    const extMonths = Math.min(extCap, raw);
+    const due = addM(baseDue, extMonths);
+    const warnings: string[] = [];
+    const cnt = (k: string) => shaftExts.filter((x) => x === k).length;
+    const lastIdx = (k: string) => shaftExts.lastIndexOf(k);
+    if (shSys === 'open') {
+      if (cnt('E1') > 1) warnings.push('Extension 1 tahun melebihi batas (maks. 1 kali).');
+      if (cnt('E3') > 1) warnings.push('Extension 3 bulan melebihi batas (maks. 1 kali).');
+      if (lastIdx('E1') >= 0 && lastIdx('E1') < shaftExts.length - 1) warnings.push('Tidak boleh extension jenis lain setelah extension 1 tahun.');
+    } else {
+      if (cnt('E25') > 1) warnings.push('Extension 2,5 tahun melebihi batas (maks. 1 kali).');
+      if (cnt('E1') > 2) warnings.push('Extension 1 tahun melebihi batas (maks. 2 kali berturut-turut).');
+      if (cnt('E3') > 1) warnings.push('Extension 3 bulan melebihi batas (maks. 1 kali).');
+      if (lastIdx('E25') >= 0 && lastIdx('E25') < shaftExts.length - 1) warnings.push('Tidak boleh extension jenis lain setelah extension 2,5 tahun.');
+    }
+    if (raw > extCap) warnings.push(`Total extension ${raw} bulan melebihi batas ${extCap} bulan; jatuh tempo dibatasi.`);
+    let limit15: Date | null = null;
+    if (majors.length) {
+      const ml = 'Method ' + majors.map((m) => m.slice(1)).join('/');
+      if (lastMajor) {
+        limit15 = addM(lastMajor, 180);
+        if (+today > +limit15) warnings.push(`Melewati batas 15 tahun sejak ${ml} terakhir (${toDMY(lastMajor)}).`);
+        else if (+due >= +limit15) warnings.push(`Batas 15 tahun sejak ${ml} terakhir (${toDMY(lastMajor)}) jatuh ${toDMY(limit15)}: survei berikutnya harus ${ml}.`);
+      } else warnings.push(`Tanggal ${ml} terakhir belum diisi: batas 15 tahun tidak dapat dipantau.`);
+    }
+    shaft = { interval: intervalY, baseDue, exts: [...shaftExts], extMonths, due, lastPlan, lastMajor, limit15, warnings };
+    const parts = [`Interval ${intervalY} tahun${shSys === 'open' && !b.open_config ? ' (konfigurasi open belum dipilih, dianggap 5)' : ''}`];
+    if (shaftExts.length) parts.push(`extension ${shaftExts.map((k) => EXT_LABEL[k]).join(' + ')} dari jatuh tempo asli ${toDMY(baseDue)}`);
+    if (!lastShaft) parts.push('tanggal terakhir belum diisi (dihitung dari Special Survey)');
     rows.push({
       kind: 'Propeller Shaft Survey',
-      due: toDMY(shaftDue),
+      due: toDMY(due),
       range: '',
       postponed: '',
       last: toDMY(lastShaft),
-      state: +today > +shaftDue ? 'OVERDUE' : 'AKAN DATANG',
-      note: lastShaft ? 'Interval 5 tahun' : 'Interval 5 tahun — tanggal terakhir belum diisi (dihitung dari Special Survey)',
+      state: +today > +due ? 'OVERDUE' : 'AKAN DATANG',
+      note: parts.join(' — '),
+      warn: warnings.length ? warnings.join(' ') : undefined,
     });
   }
 
   const dock1Done = lastDock !== null && +lastDock > +(lastSpecial ?? periodStart);
   return {
     rows, expiry, ad, am, periodStart, showA5, nextAnniv, annCount, intDone, dock1Done, shaftDone, propelled, lastDock,
-    lastNo, nextNo: nextNoOf(expiry, lastNo), applied,
+    lastNo, nextNo: nextNoOf(expiry, lastNo), applied, shaft,
   };
 }

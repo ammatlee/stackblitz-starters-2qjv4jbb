@@ -5,6 +5,8 @@ import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../components/AuthProvider';
 import FleetView from '../../components/fleet/FleetView';
 import { buildFleet, todayUTC } from '../../lib/fleet';
+import { plansQuery, withPlans } from '../../lib/shaftPlans';
+import type { PlanRow } from '../../lib/shaftPlans';
 import type { AgInput, EvInput, FleetItem, VesselInput } from '../../lib/fleet';
 
 export default function FleetPage() {
@@ -20,14 +22,15 @@ export default function FleetPage() {
     setErr('');
     const v = await supabase.from('vessels').select('*').order('name');
     const a = await supabase.from('agendas').select('vessel_id,agenda_no,surveys,inspection_start,inspection_completion,scenario,finished_at').eq('finished', true);
-    const m = await supabase.from('vessel_events').select('vessel_id,surveys,completion,created_at');
+    const m = await supabase.from('vessel_events').select('*');
+    const pl = await supabase.from('agendas').select(plansQuery).eq('finished', true);
     if (v.error) {
       setErr('Gagal memuat kapal: ' + v.error.message);
       setBusy(false);
       return;
     }
     const vessels = (v.data ?? []) as unknown as VesselInput[];
-    const ags = (a.error ? [] : (a.data ?? [])) as unknown as AgInput[];
+    const ags = withPlans((a.error ? [] : (a.data ?? [])) as unknown as AgInput[], (pl.error ? [] : pl.data) as unknown as PlanRow[]);
     const mev = (m.error ? [] : (m.data ?? [])) as unknown as EvInput[];
     setItems(buildFleet(vessels, ags, mev, todayUTC()));
     setAt(new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }));

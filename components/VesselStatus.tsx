@@ -7,11 +7,13 @@ import DateInput from './DateInput';
 import VesselTypeSelect from './VesselTypeSelect';
 import { isNonPropelled } from '../lib/vesselTypes';
 import { computeSurveyStatus, roman, toDMY, toISO } from '../lib/surveyStatus';
+import { plansQuery, withPlans, SHAFT_PLAN_OPTS, shaftPlanLabel } from '../lib/shaftPlans';
+import type { PlanRow } from '../lib/shaftPlans';
 import type { Baseline, Ev } from '../lib/surveyStatus';
 
 type VesselRow = Baseline & { id: string; owner: string; name: string; vessel_type: string | null; last_shaft: string | null; anchor_notation: boolean | null; propelled: boolean | null; shaft_system: string | null; prop_connection: string | null; open_config: string | null };
-type AgRow = { vessel_id: string; agenda_no: string; surveys: string[] | null; inspection_start: string | null; inspection_completion: string | null; scenario: string | null; finished_at: string | null };
-type EvRow = { id: string; vessel_id: string; surveys: string[] | null; completion: string; created_at: string };
+type AgRow = { vessel_id: string; agenda_no: string; plan?: string | null; surveys: string[] | null; inspection_start: string | null; inspection_completion: string | null; scenario: string | null; finished_at: string | null };
+type EvRow = { id: string; vessel_id: string; surveys: string[] | null; completion: string; created_at: string; shaft_plan?: string | null };
 
 export type ApplyValues = {
   name: string;
@@ -39,16 +41,16 @@ const STATE_TONE: Record<string, string> = {
 };
 const SURVEY_NAME: Record<string, string> = { PS: 'Propeller Shaft', A1: 'Annual 1', A2: 'Annual 2', A3: 'Annual 3', A4: 'Annual 4', A5: 'Annual 5', INT: 'Intermediate', D1: 'Docking', REN: 'Renewal + Docking 2' };
 const inp = 'w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-teal-600 focus:outline-none focus:ring-2 focus:ring-teal-600/25';
-const EMPTY = { name: '', type: '', yb: '', expiry: '', ad: '', am: '', lastNo: '', lastSpecial: '', lastAnnual: '', lastAnnualNo: '', lastInt: '', lastDock: '', lastShaft: '', postponed: '', propelled: 'auto', notation: false, shaftSys: '', propConn: '', openCfg: '' };
-const EMPTY_MU = { annual: '', int: false, dock: false, ren: false, ps: false, completion: '' };
+const EMPTY = { name: '', type: '', yb: '', expiry: '', ad: '', am: '', lastNo: '', lastSpecial: '', lastAnnual: '', lastAnnualNo: '', lastInt: '', lastDock: '', lastShaft: '', lastShaftPlan: '', lastShaftMajor: '', extE25: '', extE1: '', extE3: '', postponed: '', propelled: 'auto', notation: false, shaftSys: '', propConn: '', openCfg: '' };
+const EMPTY_MU = { annual: '', int: false, dock: false, ren: false, ps: false, plan: '', completion: '' };
 
 const evsOf = (id: string, ags: AgRow[], mev: EvRow[]): Ev[] => [
   ...ags
     .filter((a) => a.vessel_id === id)
-    .map((a) => ({ agenda_no: a.agenda_no, start: a.inspection_start, completion: a.inspection_completion, surveys: a.surveys ?? [], scenario: a.scenario, finished_at: a.finished_at })),
+    .map((a) => ({ agenda_no: a.agenda_no, start: a.inspection_start, completion: a.inspection_completion, surveys: a.surveys ?? [], scenario: a.scenario, finished_at: a.finished_at, shaft_plan: a.plan ?? null })),
   ...mev
     .filter((m) => m.vessel_id === id)
-    .map((m) => ({ agenda_no: 'Manual', start: null, completion: m.completion, surveys: m.surveys ?? [], scenario: null, finished_at: m.created_at })),
+    .map((m) => ({ agenda_no: 'Manual', start: null, completion: m.completion, surveys: m.surveys ?? [], scenario: null, finished_at: m.created_at, shaft_plan: m.shaft_plan ?? null })),
 ];
 
 export default function VesselStatus({ refreshKey, vesselName, onApply }: { refreshKey: number; vesselName: string; onApply: (v: ApplyValues) => void }) {
@@ -74,13 +76,14 @@ export default function VesselStatus({ refreshKey, vesselName, onApply }: { refr
     if (!supabase || !user) return null;
     const v = await supabase.from('vessels').select('*').order('name');
     const a = await supabase.from('agendas').select('vessel_id,agenda_no,surveys,inspection_start,inspection_completion,scenario,finished_at').eq('finished', true);
-    const m = await supabase.from('vessel_events').select('id,vessel_id,surveys,completion,created_at').order('completion', { ascending: false });
+    const m = await supabase.from('vessel_events').select('*').order('completion', { ascending: false });
+    const pl = await supabase.from('agendas').select(plansQuery).eq('finished', true);
     if (v.error) {
       setMsg({ k: 'err', t: 'Gagal memuat kapal: ' + v.error.message });
       return null;
     }
     const vs = (v.data ?? []) as unknown as VesselRow[];
-    const as = (a.data ?? []) as unknown as AgRow[];
+    const as = withPlans((a.data ?? []) as unknown as AgRow[], (pl.error ? [] : pl.data) as unknown as PlanRow[]);
     const ev = (m.error ? [] : (m.data ?? [])) as unknown as EvRow[];
     setVessels(vs);
     setAgs(as);
@@ -169,6 +172,11 @@ export default function VesselStatus({ refreshKey, vesselName, onApply }: { refr
         lastInt: sel.last_intermediate ?? '',
         lastDock: sel.last_docking ?? '',
         lastShaft: sel.last_shaft ?? '',
+        lastShaftPlan: sel.last_shaft_plan ?? '',
+        lastShaftMajor: sel.last_shaft_major ?? '',
+        extE25: String((sel.shaft_exts ?? []).filter((k) => k === 'E25').length || ''),
+        extE1: String((sel.shaft_exts ?? []).filter((k) => k === 'E1').length || ''),
+        extE3: String((sel.shaft_exts ?? []).filter((k) => k === 'E3').length || ''),
         postponed: sel.postponed_until ?? '',
         propelled: sel.propelled === null || sel.propelled === undefined ? 'auto' : sel.propelled ? 'yes' : 'no',
         notation: !!sel.anchor_notation,
@@ -187,6 +195,13 @@ export default function VesselStatus({ refreshKey, vesselName, onApply }: { refr
     setBusy(true);
     setMsg(null);
     const n = (s: string) => (s ? Number(s) : null);
+    const cntOf = (v: string) => Math.min(5, Math.max(0, Math.round(Number(v) || 0)));
+    const extsArr = [...Array(cntOf(f.extE1)).fill('E1'), ...Array(cntOf(f.extE25)).fill('E25'), ...Array(cntOf(f.extE3)).fill('E3')] as string[];
+    // kolom poros baru hanya dikirim bila sudah ada di database (atau sedang diisi), supaya penyimpanan lama tetap jalan tanpa SQL 03
+    const shaftExtra =
+      (sel && sel.last_shaft_plan !== undefined) || f.lastShaftPlan || f.lastShaftMajor || extsArr.length > 0
+        ? { last_shaft_plan: f.lastShaftPlan || null, last_shaft_major: f.lastShaftMajor || null, shaft_exts: extsArr }
+        : {};
     const payload = {
       vessel_type: f.type || null,
       year_built: n(f.yb),
@@ -207,19 +222,20 @@ export default function VesselStatus({ refreshKey, vesselName, onApply }: { refr
       open_config: f.shaftSys === 'open' ? f.openCfg || null : null,
       postponed_until: f.postponed || null,
       baseline_at: new Date().toISOString(),
+      ...shaftExtra,
     };
     let id = selId;
     if (selId) {
       const r = await supabase.from('vessels').update(payload).eq('id', selId);
       if (r.error) {
         setBusy(false);
-        return setMsg({ k: 'err', t: r.error.message });
+        return setMsg({ k: 'err', t: r.error.message + (/shaft_(exts|plan)|last_shaft_(plan|major)/.test(r.error.message) ? ' (jalankan SQL 03_shaft.sql dulu)' : '') });
       }
     } else {
       const r = await supabase.from('vessels').insert({ owner: user.id, name: f.name.trim(), ...payload }).select('id').single();
       if (r.error) {
         setBusy(false);
-        return setMsg({ k: 'err', t: r.error.message });
+        return setMsg({ k: 'err', t: r.error.message + (/shaft_(exts|plan)|last_shaft_(plan|major)/.test(r.error.message) ? ' (jalankan SQL 03_shaft.sql dulu)' : '') });
       }
       id = (r.data as { id: string }).id;
     }
@@ -244,10 +260,10 @@ export default function VesselStatus({ refreshKey, vesselName, onApply }: { refr
     if (!mu.completion) return setMsg({ k: 'err', t: 'Isi tanggal selesai (dd.mm.yyyy).' });
     setBusy(true);
     setMsg(null);
-    const r = await supabase.from('vessel_events').insert({ owner: vessels.find((x) => x.id === selId)?.owner ?? user.id, vessel_id: selId, surveys, completion: mu.completion });
+    const r = await supabase.from('vessel_events').insert({ owner: vessels.find((x) => x.id === selId)?.owner ?? user.id, vessel_id: selId, surveys, completion: mu.completion, ...(mu.ps && mu.plan ? { shaft_plan: mu.plan } : {}) });
     if (r.error) {
       setBusy(false);
-      return setMsg({ k: 'err', t: r.error.message + ' (sudah menjalankan SQL pembaruan manual?)' });
+      return setMsg({ k: 'err', t: r.error.message + (/shaft_plan/.test(r.error.message) ? ' (jalankan SQL 03_shaft.sql dulu)' : ' (sudah menjalankan SQL pembaruan manual?)') });
     }
     const fresh = await load();
     setBusy(false);
@@ -359,6 +375,23 @@ export default function VesselStatus({ refreshKey, vesselName, onApply }: { refr
             {fld('Intermediate terakhir (periode ini)', <DateInput className={inp} value={f.lastInt} onChange={setD('lastInt')} />)}
             {fld('Docking terakhir', <DateInput className={inp} value={f.lastDock} onChange={setD('lastDock')} />)}
             {(f.propelled === 'yes' || (f.propelled === 'auto' && !isNonPropelled(f.type))) && fld('Propeller Shaft Survey terakhir', <DateInput className={inp} value={f.lastShaft} onChange={setD('lastShaft')} />)}
+            {(f.propelled === 'yes' || (f.propelled === 'auto' && !isNonPropelled(f.type))) && fld('Method survei poros terakhir', (
+              <select className={inp} value={f.lastShaftPlan} onChange={set('lastShaftPlan')}>
+                <option value="">— belum diisi —</option>
+                {SHAFT_PLAN_OPTS.filter((o) => o[0].startsWith('M')).map((o) => <option key={o[0]} value={o[0]}>{o[1]}</option>)}
+              </select>
+            ))}
+            {(f.propelled === 'yes' || (f.propelled === 'auto' && !isNonPropelled(f.type))) && fld('Method 1/2 (sistem open: Method 4) terakhir — untuk batas 15 tahun', <DateInput className={inp} value={f.lastShaftMajor} onChange={setD('lastShaftMajor')} />)}
+            {(f.propelled === 'yes' || (f.propelled === 'auto' && !isNonPropelled(f.type))) && (
+              <div className="sm:col-span-2">
+                <span className="block text-xs font-semibold text-slate-600">Extension poros yang sudah diambil sejak survei penuh terakhir (jumlah kali)</span>
+                <div className="mt-1 grid grid-cols-3 gap-2">
+                  <input className={inp} inputMode="numeric" placeholder="2,5 thn: 0" value={f.extE25} onChange={set('extE25')} />
+                  <input className={inp} inputMode="numeric" placeholder="1 thn: 0" value={f.extE1} onChange={set('extE1')} />
+                  <input className={inp} inputMode="numeric" placeholder="3 bln: 0" value={f.extE3} onChange={set('extE3')} />
+                </div>
+              </div>
+            )}
             {fld('Postponed s/d (opsional)', <DateInput className={inp} value={f.postponed} onChange={setD('postponed')} />)}
           </div>
           <div className="mt-4 flex gap-2">
@@ -390,6 +423,15 @@ export default function VesselStatus({ refreshKey, vesselName, onApply }: { refr
             <label className="flex items-center gap-2"><input type="checkbox" className="h-4 w-4 accent-teal-600" checked={mu.ren} onChange={(e) => setMu({ ...mu, ren: e.target.checked })} />Renewal + Docking 2</label>
             {result?.propelled !== false && <label className="flex items-center gap-2"><input type="checkbox" className="h-4 w-4 accent-teal-600" checked={mu.ps} onChange={(e) => setMu({ ...mu, ps: e.target.checked })} />Propeller Shaft</label>}
           </div>
+          {mu.ps && result?.propelled !== false && (
+            <div className="mt-3 sm:max-w-sm">
+              {fld('Method / extension poros', (
+                <select className={inp} value={mu.plan} onChange={(e) => setMu({ ...mu, plan: e.target.value })}>
+                  {SHAFT_PLAN_OPTS.map((o) => <option key={o[0]} value={o[0]}>{o[1]}</option>)}
+                </select>
+              ))}
+            </div>
+          )}
           <div className="mt-4 flex gap-2">
             <button disabled={busy} onClick={saveManual} className="rounded-lg bg-teal-600 px-4 py-2 text-sm font-semibold text-white hover:bg-teal-700 disabled:opacity-50">Simpan pembaruan</button>
             <button onClick={() => setPanel('none')} className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold hover:bg-white">Tutup</button>
@@ -400,7 +442,7 @@ export default function VesselStatus({ refreshKey, vesselName, onApply }: { refr
               <ul className="mt-1 divide-y divide-slate-200">
                 {selEvents.map((m) => (
                   <li key={m.id} className="flex items-center justify-between gap-2 py-2 text-sm">
-                    <span>{toDMY(new Date(m.completion + 'T00:00:00Z'))} · {(m.surveys ?? []).map((k) => SURVEY_NAME[k] ?? k).join(', ')}</span>
+                    <span>{toDMY(new Date(m.completion + 'T00:00:00Z'))} · {(m.surveys ?? []).map((k) => SURVEY_NAME[k] ?? k).join(', ')}{m.shaft_plan ? ` (${shaftPlanLabel(m.shaft_plan)})` : ''}</span>
                     <button onClick={() => removeManual(m.id)} className="text-xs font-semibold text-red-700">Hapus</button>
                   </li>
                 ))}
@@ -436,7 +478,7 @@ export default function VesselStatus({ refreshKey, vesselName, onApply }: { refr
               <tbody className="divide-y divide-slate-100">
                 {result.rows.map((r) => (
                   <tr key={r.kind} className="align-top">
-                    <td className="py-2 pr-3 font-medium">{r.kind}{r.note && <span className="block text-[11px] font-normal text-slate-500">{r.note}</span>}</td>
+                    <td className="py-2 pr-3 font-medium">{r.kind}{r.note && <span className="block text-[11px] font-normal text-slate-500">{r.note}</span>}{r.warn && <span className="block text-[11px] font-semibold text-amber-700">⚠ {r.warn}</span>}</td>
                     <td className="pr-3">{r.due || '—'}</td>
                     <td className="pr-3">{r.range || '—'}</td>
                     <td className="pr-3">{r.postponed || '—'}</td>

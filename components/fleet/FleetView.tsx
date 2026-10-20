@@ -29,6 +29,7 @@ function PendingLine({ p }: { p: Pending }) {
   return (
     <li className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5 py-1.5 text-sm">
       <span className="font-medium text-slate-800">{p.kind}</span>
+      {p.warn && <span className="basis-full text-xs font-medium text-amber-800">⚠ {p.warn}</span>}
       <span className="text-xs text-slate-600">
         {p.windowStart && p.urgency === 'AKAN DATANG' ? `mulai ${dmy(p.windowStart)} · ` : ''}batas {dmy(p.deadline)} · <span className={`font-semibold ${u.text}`}>{daysLabel(p.days)}</span>
       </span>
@@ -91,6 +92,9 @@ export default function FleetView({ items, currentUserId }: { items: FleetItem[]
                     <span className="font-semibold">{n.kind}</span> · batas {dmy(n.deadline)} ·{' '}
                     <span className={`font-semibold ${u!.text}`}>{daysLabel(n.days)}</span>
                   </p>
+                  {it.pending.filter((p) => p.warn).map((p) => (
+                    <p key={p.kind} className="mt-1 text-xs font-medium text-amber-800">⚠ {p.kind}: {p.warn}</p>
+                  ))}
                   {it.pending.length > 1 && (
                     <details className="mt-2 text-sm">
                       <summary className="cursor-pointer text-xs font-semibold text-teal-700">Semua survei berjalan ({it.pending.length})</summary>

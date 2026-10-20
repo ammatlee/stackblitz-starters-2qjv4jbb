@@ -6,21 +6,21 @@ import { computeSurveyStatus, toDMY } from './surveyStatus';
 import type { Baseline, Ev, StatusRow } from './surveyStatus';
 
 export type VesselInput = Baseline & { id: string; name: string; vessel_type: string | null; owner?: string | null };
-export type AgInput = { vessel_id: string; agenda_no: string; surveys: string[] | null; inspection_start: string | null; inspection_completion: string | null; scenario: string | null; finished_at: string | null };
-export type EvInput = { vessel_id: string; surveys: string[] | null; completion: string; created_at: string };
+export type AgInput = { vessel_id: string; agenda_no: string; plan?: string | null; surveys: string[] | null; inspection_start: string | null; inspection_completion: string | null; scenario: string | null; finished_at: string | null };
+export type EvInput = { vessel_id: string; surveys: string[] | null; completion: string; created_at: string; shaft_plan?: string | null };
 
 /** Agenda yang di-Finish + pembaruan manual milik satu kapal (sama dengan yang dipakai halaman Class Validity). */
 export const buildEvents = (id: string, ags: AgInput[], mev: EvInput[]): Ev[] => [
   ...ags
     .filter((a) => a.vessel_id === id)
-    .map((a) => ({ agenda_no: a.agenda_no, start: a.inspection_start, completion: a.inspection_completion, surveys: a.surveys ?? [], scenario: a.scenario, finished_at: a.finished_at })),
+    .map((a) => ({ agenda_no: a.agenda_no, start: a.inspection_start, completion: a.inspection_completion, surveys: a.surveys ?? [], scenario: a.scenario, finished_at: a.finished_at, shaft_plan: a.plan ?? null })),
   ...mev
     .filter((m) => m.vessel_id === id)
-    .map((m) => ({ agenda_no: 'Manual', start: null, completion: m.completion, surveys: m.surveys ?? [], scenario: null, finished_at: m.created_at })),
+    .map((m) => ({ agenda_no: 'Manual', start: null, completion: m.completion, surveys: m.surveys ?? [], scenario: null, finished_at: m.created_at, shaft_plan: m.shaft_plan ?? null })),
 ];
 
 export type Urgency = 'OVERDUE' | 'DALAM WINDOW' | 'AKAN DATANG';
-export type Pending = { kind: string; urgency: Urgency; deadline: Date; days: number; windowStart: Date | null; note?: string };
+export type Pending = { kind: string; urgency: Urgency; deadline: Date; days: number; windowStart: Date | null; note?: string; warn?: string };
 export type FleetItem = {
   id: string;
   owner: string;
@@ -64,7 +64,7 @@ export function summarizeVessel(v: VesselInput, evs: Ev[], today: Date): FleetIt
       const days = Math.round((+d.deadline - +today) / DAY);
       // lewat batas hanya bila benar-benar sudah melewati tanggalnya (hari-H masih dihitung berjalan)
       const urgency: Urgency = days < 0 ? 'OVERDUE' : days === 0 || r.state !== 'AKAN DATANG' ? 'DALAM WINDOW' : 'AKAN DATANG';
-      pending.push({ kind: r.kind, urgency, deadline: d.deadline, days, windowStart: d.start, note: r.note });
+      pending.push({ kind: r.kind, urgency, deadline: d.deadline, days, windowStart: d.start, note: r.note, warn: r.warn });
     }
     pending.sort((a, b) => +a.deadline - +b.deadline);
   }
