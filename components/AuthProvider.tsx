@@ -16,6 +16,8 @@ type Ctx = {
   signIn: (email: string, password: string) => Promise<Result>;
   signUp: (email: string, password: string) => Promise<Result>;
   signOut: () => Promise<void>;
+  resetPassword: (email: string) => Promise<Result>; // kirim email tautan atur ulang password
+  updatePassword: (password: string) => Promise<Result>; // simpan password baru (setelah membuka tautan email)
 };
 
 const AuthCtx = createContext<Ctx>({
@@ -28,6 +30,8 @@ const AuthCtx = createContext<Ctx>({
   signIn: async () => ({ error: 'Supabase belum dikonfigurasi.' }),
   signUp: async () => ({ error: 'Supabase belum dikonfigurasi.' }),
   signOut: async () => {},
+  resetPassword: async () => ({ error: 'Supabase belum dikonfigurasi.' }),
+  updatePassword: async () => ({ error: 'Supabase belum dikonfigurasi.' }),
 });
 
 export const useAuth = () => useContext(AuthCtx);
@@ -103,9 +107,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signOut = async () => {
     if (supabase) await supabase.auth.signOut();
   };
+  const resetPassword = async (email: string): Promise<Result> => {
+    if (!supabase) return { error: 'Supabase belum dikonfigurasi.' };
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: typeof window !== 'undefined' ? window.location.origin + '/reset-password' : undefined,
+    });
+    return error ? { error: error.message } : { info: 'Jika email terdaftar, tautan atur ulang password sudah dikirim. Cek inbox (dan folder spam).' };
+  };
+  const updatePassword = async (password: string): Promise<Result> => {
+    if (!supabase) return { error: 'Supabase belum dikonfigurasi.' };
+    const { error } = await supabase.auth.updateUser({ password });
+    return error ? { error: error.message } : { info: 'Password berhasil diganti.' };
+  };
 
   return (
-    <AuthCtx.Provider value={{ user, loading: sessionLoading || checking, configured: isConfigured, approved, isAdmin, recheck, signIn, signUp, signOut }}>
+    <AuthCtx.Provider value={{ user, loading: sessionLoading || checking, configured: isConfigured, approved, isAdmin, recheck, signIn, signUp, signOut, resetPassword, updatePassword }}>
       {children}
     </AuthCtx.Provider>
   );
