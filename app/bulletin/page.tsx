@@ -426,12 +426,7 @@ export default function BulletinPage() {
                   <li key={a.path}>
                     <button
                       type="button"
-                      onClick={() => {
-                        const d = new Date();
-                        const pad = (n: number) => String(n).padStart(2, '0');
-                        const stamp = d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes());
-                        setViewing({ att: a, label: (user?.email ?? 'Tamu') + ' · ' + stamp });
-                      }}
+                      onClick={() => setViewing({ att: a, label: 'rdk-class.pages.dev' })}
                       className="flex w-full items-center justify-between gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-left text-sm text-teal-800 hover:border-teal-500"
                     >
                       <span className="min-w-0 truncate">📖 {a.name}</span>
