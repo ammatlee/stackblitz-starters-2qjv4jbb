@@ -10,6 +10,7 @@ import Table from '@tiptap/extension-table';
 import TableRow from '@tiptap/extension-table-row';
 import TableHeader from '@tiptap/extension-table-header';
 import TableCell from '@tiptap/extension-table-cell';
+import { cleanWordHtml } from '../lib/wordPaste';
 
 type Props = { value: string; onChange: (html: string, text: string) => void };
 
@@ -52,7 +53,10 @@ export default function RichEditor({ value, onChange }: Props) {
       TableCell,
     ],
     content: value,
-    editorProps: { attributes: { class: 'rich min-h-[260px] px-3 py-2 focus:outline-none' } },
+    editorProps: {
+      attributes: { class: 'rich min-h-[260px] px-3 py-2 focus:outline-none' },
+      transformPastedHTML: cleanWordHtml,
+    },
     onUpdate: ({ editor: e }: { editor: Editor }) =>
       onChange(e.isEmpty ? '' : e.getHTML(), e.getText({ blockSeparator: '\n' })),
   });
@@ -90,6 +94,7 @@ export default function RichEditor({ value, onChange }: Props) {
           <Btn label="+ Kolom" run={() => c().addColumnAfter().run()} />
           <Btn label="− Baris" run={() => c().deleteRow().run()} />
           <Btn label="− Kolom" run={() => c().deleteColumn().run()} />
+          <Btn label="Baris judul" run={() => c().toggleHeaderRow().run()} />
           <Btn label="Hapus tabel" run={() => c().deleteTable().run()} />
         </div>
       )}
