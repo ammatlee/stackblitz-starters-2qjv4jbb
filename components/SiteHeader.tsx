@@ -25,6 +25,7 @@ export default function SiteHeader() {
     { href: '/bulletin', label: 'Bulletin' },
     { href: '/class-validity', label: 'Class Validity' },
     { href: '/fleet', label: 'Armada' },
+    { href: '/audit', label: 'Riwayat' },
     ...(isAdmin ? [{ href: '/admin', label: pending > 0 ? `Persetujuan (${pending})` : 'Persetujuan' }] : []),
   ];
   return (

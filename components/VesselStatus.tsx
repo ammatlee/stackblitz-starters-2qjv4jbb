@@ -312,6 +312,7 @@ export default function VesselStatus({ refreshKey, vesselName, onApply }: { refr
       {sel && (
         <div className="mt-2 flex flex-wrap gap-2">
           <button onClick={() => openBaseline(false)} className="rounded-lg border border-slate-300 px-3 py-2 text-xs font-semibold hover:bg-slate-50">Edit data kapal &amp; status awal</button>
+          <a href={`/audit?vessel=${sel.id}`} className="rounded-lg border border-slate-300 px-3 py-2 text-xs font-semibold hover:bg-slate-50">Riwayat perubahan</a>
           <button onClick={() => { setPanel(panel === 'manual' ? 'none' : 'manual'); setMsg(null); }} className="rounded-lg bg-slate-900 px-3 py-2 text-xs font-semibold text-white hover:bg-slate-700">Update status (tanpa agenda)</button>
         </div>
       )}
