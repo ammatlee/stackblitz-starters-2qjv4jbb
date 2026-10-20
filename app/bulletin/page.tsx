@@ -5,6 +5,7 @@ import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../components/AuthProvider';
 import DateInput from '../../components/DateInput';
 import RichEditor, { RichView } from '../../components/RichEditor';
+import FileViewer from '../../components/FileViewer';
 import { legacyToHtml } from '../../lib/legacyBody';
 import { uploadAttachment, removeFiles, pathsInHtml, fmtSize, MAX_MB, type Attachment } from '../../lib/uploads';
 
@@ -40,7 +41,6 @@ const VIS_TONE: Record<Visibility, string> = {
 const STATUS_LABEL: Record<Status, string> = { pending: 'Menunggu persetujuan', approved: 'Disetujui', rejected: 'Ditolak' };
 const STATUS_TONE: Record<Status, string> = { pending: 'bg-amber-100 text-amber-900', approved: 'bg-emerald-100 text-emerald-800', rejected: 'bg-rose-100 text-rose-800' };
 // hanya alamat http(s) yang boleh jadi tautan lampiran (mencegah alamat berbahaya dari data yang dibuat manual)
-const safeHref = (u: string) => (/^https?:\/\//i.test(u) ? u : '#');
 const EMPTY = { title: '', kind: 'catatan', category: 'Umum', tags: '', body: '', body_html: '', attachments: [] as Attachment[], visibility: 'private' as Visibility, remind_on: '', pinned: false };
 
 const inp = 'w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-teal-600 focus:outline-none focus:ring-2 focus:ring-teal-600/25';
@@ -172,6 +172,7 @@ export default function BulletinPage() {
   const [fetching, setFetching] = useState(true);
   const [view, setView] = useState<'list' | 'detail' | 'edit'>('list');
   const [cur, setCur] = useState<Entry | null>(null);
+  const [viewing, setViewing] = useState<{ att: Attachment; label: string } | null>(null);
   const [q, setQ] = useState('');
   const [cat, setCat] = useState('');
   const [f, setF] = useState(EMPTY);
@@ -352,7 +353,7 @@ export default function BulletinPage() {
               />
             </div>
             <div>
-              <p className="text-xs font-semibold text-slate-600">Lampiran (PDF, Word, Excel, PowerPoint, TXT, CSV; maks. {MAX_MB} MB)</p>
+              <p className="text-xs font-semibold text-slate-600">Lampiran (PDF atau gambar JPG/PNG/WEBP; maks. {MAX_MB} MB; hanya bisa dibaca di penampil)</p>
               {f.attachments.length > 0 && (
                 <ul className="mt-2 space-y-1.5">
                   {f.attachments.map((a) => (
@@ -366,7 +367,7 @@ export default function BulletinPage() {
               <label className="mt-2 inline-block cursor-pointer rounded-md border border-slate-300 px-3 py-1.5 text-xs font-semibold hover:bg-slate-50">
                 {upBusy ? 'Mengunggah…' : '+ Tambah file'}
                 <input type="file" multiple disabled={upBusy} className="hidden" onChange={addFiles}
-                  accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv" />
+                  accept=".pdf,.jpg,.jpeg,.png,.webp" />
               </label>
             </div>
             <div className="grid grid-cols-2 gap-3">
@@ -403,6 +404,7 @@ export default function BulletinPage() {
   if (view === 'detail' && cur)
     return (
       <main className="mx-auto max-w-3xl px-4 py-6">
+        {viewing && <FileViewer url={viewing.att.url} name={viewing.att.name} type={viewing.att.type} label={viewing.label} onClose={() => setViewing(null)} />}
         <button onClick={() => setView('list')} className="text-sm font-semibold text-teal-700">← Kembali ke daftar</button>
         <article className="mt-3 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
           <div className="flex flex-wrap items-center gap-2 text-[11px] font-semibold">
@@ -422,10 +424,19 @@ export default function BulletinPage() {
               <ul className="mt-2 space-y-1.5">
                 {(cur.attachments ?? []).map((a) => (
                   <li key={a.path}>
-                    <a href={safeHref(a.url)} target="_blank" rel="noopener noreferrer" className="flex items-center justify-between gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-teal-800 hover:border-teal-500">
-                      <span className="min-w-0 truncate">📎 {a.name}</span>
-                      <span className="shrink-0 text-xs text-slate-500">{fmtSize(a.size)}</span>
-                    </a>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const d = new Date();
+                        const pad = (n: number) => String(n).padStart(2, '0');
+                        const stamp = d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+                        setViewing({ att: a, label: (user?.email ?? 'Tamu') + ' · ' + stamp });
+                      }}
+                      className="flex w-full items-center justify-between gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-left text-sm text-teal-800 hover:border-teal-500"
+                    >
+                      <span className="min-w-0 truncate">📖 {a.name}</span>
+                      <span className="shrink-0 text-xs text-slate-500">Buka · {fmtSize(a.size)}</span>
+                    </button>
                   </li>
                 ))}
               </ul>

@@ -7,14 +7,10 @@ export type Attachment = { name: string; path: string; url: string; size: number
 
 const MIME_BY_EXT: Record<string, string> = {
   pdf: 'application/pdf',
-  doc: 'application/msword',
-  docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-  xls: 'application/vnd.ms-excel',
-  xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-  ppt: 'application/vnd.ms-powerpoint',
-  pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-  txt: 'text/plain',
-  csv: 'text/csv',
+  jpg: 'image/jpeg',
+  jpeg: 'image/jpeg',
+  png: 'image/png',
+  webp: 'image/webp',
 };
 
 const newId = () =>
@@ -73,18 +69,24 @@ export async function uploadImage(file: File): Promise<string> {
   return publicUrl(path);
 }
 
-// lampiran: PDF, Word, Excel, PowerPoint, TXT, CSV (maksimal 5 MB)
+// lampiran: PDF atau gambar (maksimal 5 MB), hanya bisa dibaca di penampil
 export async function uploadAttachment(file: File): Promise<Attachment> {
   const ext = (file.name.split('.').pop() || '').toLowerCase();
   const type = MIME_BY_EXT[ext];
-  if (!type) throw new Error('Jenis file tidak didukung: ' + file.name + ' (boleh PDF, Word, Excel, PowerPoint, TXT, CSV).');
-  if (file.size > MAX_MB * 1024 * 1024) throw new Error(file.name + ' terlalu besar (maksimal ' + MAX_MB + ' MB).');
+  if (!type) throw new Error('Jenis file tidak didukung: ' + file.name + ' (boleh PDF, JPG, PNG, atau WEBP). Word/Excel: ubah dulu ke PDF.');
+  if (file.size > MAX_MB * 1024 * 1024 && type === 'application/pdf') throw new Error(file.name + ' terlalu besar (maksimal ' + MAX_MB + ' MB).');
   const uid = await userId();
-  const safe = file.name.replace(/[^a-zA-Z0-9._-]+/g, '_').slice(-80);
+  const isImg = type.startsWith('image/');
+  const blob: Blob = isImg ? await shrink(file, 2400, 0.85) : file;
+  if (blob.size > MAX_MB * 1024 * 1024) throw new Error(file.name + ' terlalu besar (maksimal ' + MAX_MB + ' MB).');
+  const base = file.name.replace(/\.[^.]+$/, '');
+  const finalName = isImg ? base + '.jpg' : file.name;
+  const finalType = isImg ? 'image/jpeg' : type;
+  const safe = finalName.replace(/[^a-zA-Z0-9._-]+/g, '_').slice(-80);
   const path = uid + '/' + newId() + '/' + safe;
-  const { error } = await supabase!.storage.from(BUCKET).upload(path, file, { contentType: type });
+  const { error } = await supabase!.storage.from(BUCKET).upload(path, blob, { contentType: finalType });
   if (error) throw new Error('Gagal mengunggah ' + file.name + ': ' + error.message);
-  return { name: file.name, path, url: publicUrl(path), size: file.size, type };
+  return { name: finalName, path, url: publicUrl(path), size: blob.size, type: finalType };
 }
 
 export async function removeFiles(paths: string[]): Promise<void> {
