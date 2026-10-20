@@ -6,6 +6,7 @@ import { useAuth } from '../../components/AuthProvider';
 import DateInput from '../../components/DateInput';
 import RichEditor, { RichView } from '../../components/RichEditor';
 import { legacyToHtml } from '../../lib/legacyBody';
+import { uploadAttachment, removeFiles, pathsInHtml, fmtSize, MAX_MB, type Attachment } from '../../lib/uploads';
 
 type Visibility = 'private' | 'members' | 'public';
 type Entry = {
@@ -17,6 +18,7 @@ type Entry = {
   tags: string[];
   body: string;
   body_html: string | null;
+  attachments: Attachment[] | null;
   visibility: Visibility;
   remind_on: string | null;
   pinned: boolean;
@@ -32,7 +34,7 @@ const VIS_TONE: Record<Visibility, string> = {
   members: 'bg-sky-100 text-sky-800',
   public: 'bg-emerald-100 text-emerald-800',
 };
-const EMPTY = { title: '', kind: 'catatan', category: 'Umum', tags: '', body: '', body_html: '', visibility: 'private' as Visibility, remind_on: '', pinned: false };
+const EMPTY = { title: '', kind: 'catatan', category: 'Umum', tags: '', body: '', body_html: '', attachments: [] as Attachment[], visibility: 'private' as Visibility, remind_on: '', pinned: false };
 
 const inp = 'w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-teal-600 focus:outline-none focus:ring-2 focus:ring-teal-600/25';
 const dmy = (s: string | null) => (s ? s.slice(0, 10).split('-').reverse().join('.') : '');
@@ -166,6 +168,7 @@ export default function BulletinPage() {
   const [cat, setCat] = useState('');
   const [f, setF] = useState(EMPTY);
   const [busy, setBusy] = useState(false);
+  const [upBusy, setUpBusy] = useState(false);
   const [msg, setMsg] = useState<{ k: 'err' | 'ok'; t: string } | null>(null);
 
   const load = useCallback(async () => {
@@ -216,7 +219,7 @@ export default function BulletinPage() {
   };
   const openEdit = (e: Entry) => {
     setCur(e);
-    setF({ title: e.title, kind: e.kind, category: e.category ?? 'Umum', tags: (e.tags ?? []).join(', '), body: e.body, body_html: e.body_html || legacyToHtml(e.body), visibility: e.visibility, remind_on: e.remind_on ?? '', pinned: e.pinned });
+    setF({ title: e.title, kind: e.kind, category: e.category ?? 'Umum', tags: (e.tags ?? []).join(', '), body: e.body, body_html: e.body_html || legacyToHtml(e.body), attachments: e.attachments ?? [], visibility: e.visibility, remind_on: e.remind_on ?? '', pinned: e.pinned });
     setMsg(null);
     setView('edit');
   };
@@ -238,6 +241,7 @@ export default function BulletinPage() {
       tags: f.tags.split(',').map((s) => s.trim()).filter(Boolean),
       body: f.body,
       body_html: f.body_html || null,
+      attachments: f.attachments,
       visibility: f.visibility,
       remind_on: f.remind_on || null,
       pinned: f.pinned,
@@ -246,6 +250,15 @@ export default function BulletinPage() {
     const r = cur ? await supabase.from('bulletins').update(payload).eq('id', cur.id) : await supabase.from('bulletins').insert({ owner: user.id, ...payload });
     setBusy(false);
     if (r.error) return setMsg({ k: 'err', t: r.error.message + ' (hanya akun admin yang boleh menulis)' });
+    if (cur) {
+      // hapus file yang sudah tidak dipakai lagi (lampiran yang dibuang, gambar yang dihapus dari isi)
+      const keepAtt = f.attachments.map((a) => a.path);
+      const keepImg = pathsInHtml(f.body_html);
+      await removeFiles([
+        ...(cur.attachments ?? []).map((a) => a.path).filter((x) => keepAtt.indexOf(x) < 0),
+        ...pathsInHtml(cur.body_html).filter((x) => keepImg.indexOf(x) < 0),
+      ]);
+    }
     await load();
     setView('list');
     setMsg({ k: 'ok', t: 'Tersimpan.' });
@@ -255,8 +268,32 @@ export default function BulletinPage() {
     if (!supabase || !window.confirm(`Hapus "${e.title}"?`)) return;
     const { error } = await supabase.from('bulletins').delete().eq('id', e.id);
     if (error) return setMsg({ k: 'err', t: error.message });
+    await removeFiles([...(e.attachments ?? []).map((a) => a.path), ...pathsInHtml(e.body_html)]);
     await load();
     setView('list');
+  };
+
+  // lampiran: tambah dan buang file di form
+  const addFiles = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const list = Array.from((e.target.files ?? []) as ArrayLike<File>);
+    e.target.value = '';
+    if (!list.length) return;
+    setUpBusy(true);
+    setMsg(null);
+    for (const file of list) {
+      try {
+        const a = await uploadAttachment(file);
+        setF((p) => ({ ...p, attachments: [...p.attachments, a] }));
+      } catch (err) {
+        setMsg({ k: 'err', t: (err as Error).message });
+      }
+    }
+    setUpBusy(false);
+  };
+  const dropAtt = async (a: Attachment) => {
+    setF((p) => ({ ...p, attachments: p.attachments.filter((x) => x.path !== a.path) }));
+    const saved = (cur?.attachments ?? []).some((x) => x.path === a.path);
+    if (!saved) await removeFiles([a.path]); // yang sudah tersimpan baru dihapus setelah tombol Simpan
   };
 
   const set = (k: keyof typeof EMPTY) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
@@ -291,6 +328,24 @@ export default function BulletinPage() {
                 value={f.body_html}
                 onChange={(html, text) => setF((p) => ({ ...p, body_html: html, body: text }))}
               />
+            </div>
+            <div>
+              <p className="text-xs font-semibold text-slate-600">Lampiran (PDF, Word, Excel, PowerPoint, TXT, CSV; maks. {MAX_MB} MB)</p>
+              {f.attachments.length > 0 && (
+                <ul className="mt-2 space-y-1.5">
+                  {f.attachments.map((a) => (
+                    <li key={a.path} className="flex items-center justify-between gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs">
+                      <span className="min-w-0 truncate">📎 {a.name} <span className="text-slate-400">({fmtSize(a.size)})</span></span>
+                      <button type="button" onClick={() => dropAtt(a)} className="shrink-0 font-semibold text-red-700">Buang</button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              <label className="mt-2 inline-block cursor-pointer rounded-md border border-slate-300 px-3 py-1.5 text-xs font-semibold hover:bg-slate-50">
+                {upBusy ? 'Mengunggah…' : '+ Tambah file'}
+                <input type="file" multiple disabled={upBusy} className="hidden" onChange={addFiles}
+                  accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv" />
+              </label>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <label className="block text-xs font-semibold text-slate-600">Siapa yang boleh baca
@@ -328,6 +383,21 @@ export default function BulletinPage() {
           <h1 className="mt-3 text-xl font-extrabold tracking-tight">{cur.title}</h1>
           <p className="mt-1 text-xs text-slate-500">Diperbarui {dmy(cur.updated_at)}</p>
           <div className="mt-4">{cur.body_html ? <RichView html={cur.body_html} /> : <Body text={cur.body} />}</div>
+          {(cur.attachments ?? []).length > 0 && (
+            <div className="mt-5">
+              <p className="text-xs font-semibold text-slate-600">Lampiran</p>
+              <ul className="mt-2 space-y-1.5">
+                {(cur.attachments ?? []).map((a) => (
+                  <li key={a.path}>
+                    <a href={a.url} target="_blank" rel="noopener noreferrer" className="flex items-center justify-between gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-teal-800 hover:border-teal-500">
+                      <span className="min-w-0 truncate">📎 {a.name}</span>
+                      <span className="shrink-0 text-xs text-slate-500">{fmtSize(a.size)}</span>
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
           {(cur.tags ?? []).length > 0 && (
             <p className="mt-4 text-xs text-slate-500">{cur.tags.map((t) => '#' + t).join('  ')}</p>
           )}
