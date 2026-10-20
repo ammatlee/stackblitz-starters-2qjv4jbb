@@ -3,7 +3,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from './AuthProvider';
-import { fetchOwnerEmails } from '../lib/ownerEmails';
 
 type Snapshot = Record<string, unknown>;
 type VesselRef = { name: string; vessel_type: string | null };
@@ -52,7 +51,6 @@ const TONE: Record<string, string> = {
 
 export default function AgendaPanel({ vesselName, vesselType, yearBuilt, agendaNo, start, completion, snapshot, summary, onRestore, onSaved, anchorNotation, propelled, shaftSystem, onClear }: Props) {
   const { user, configured, loading, isAdmin } = useAuth();
-  const [owners, setOwners] = useState<Record<string, string>>({});
   const [rows, setRows] = useState<Row[]>([]);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ k: 'err' | 'ok'; t: string } | null>(null);
@@ -65,12 +63,8 @@ export default function AgendaPanel({ vesselName, vesselType, yearBuilt, agendaN
       .order('created_at', { ascending: false })
       .limit(50);
     if (error) setMsg({ k: 'err', t: 'Gagal memuat riwayat: ' + error.message });
-    else {
-      const list = (data ?? []) as unknown as Row[];
-      setRows(list);
-      if (isAdmin) setOwners(await fetchOwnerEmails(list.map((r) => r.owner)));
-    }
-  }, [user, isAdmin]);
+    else setRows((data ?? []) as unknown as Row[]);
+  }, [user]);
 
   useEffect(() => {
     load();
@@ -99,9 +93,8 @@ export default function AgendaPanel({ vesselName, vesselType, yearBuilt, agendaN
     }
     const matches = (found.data ?? []) as { id: string; owner: string }[];
     if (matches.length > 1) {
-      const em = await fetchOwnerEmails(matches.map((m) => m.owner));
       setBusy(false);
-      return setMsg({ k: 'err', t: `Ada ${matches.length} kapal bernama "${name}" (${matches.map((m) => em[m.owner] ?? 'akun lain').join(', ')}). Ubah salah satu namanya supaya tidak ambigu.` });
+      return setMsg({ k: 'err', t: `Ada ${matches.length} kapal bernama "${name}" di akun yang berbeda. Ubah salah satu namanya supaya tidak ambigu.` });
     }
     let vesselId = matches[0]?.id;
     let vesselOwner = matches[0]?.owner ?? user.id;
@@ -166,7 +159,7 @@ export default function AgendaPanel({ vesselName, vesselType, yearBuilt, agendaN
     rows.forEach((r) => {
       const v = Array.isArray(r.vessels) ? r.vessels[0] : r.vessels;
       const base = v?.name ?? '(tanpa nama kapal)';
-      const key = isAdmin && owners[r.owner] ? `${base} — ${owners[r.owner]}` : base;
+      const key = isAdmin && r.owner !== user?.id ? `${base} · data akun lain` : base;
       m.set(key, [...(m.get(key) ?? []), r]);
     });
     return Array.from(m.entries())
@@ -197,7 +190,7 @@ export default function AgendaPanel({ vesselName, vesselType, yearBuilt, agendaN
       ) : (
         <div className="mt-2 space-y-2">
           {groups.map(([name, list]) => (
-            <details key={name} open={name.split(' — ')[0].toLowerCase() === vesselName.trim().toLowerCase()} className="group rounded-xl border border-slate-200">
+            <details key={name} open={name.split(' · data akun lain')[0].toLowerCase() === vesselName.trim().toLowerCase()} className="group rounded-xl border border-slate-200">
               <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-3 py-2.5">
                 <span className="text-sm font-bold">{name}</span>
                 <span className="flex items-center gap-2 text-xs text-slate-500">

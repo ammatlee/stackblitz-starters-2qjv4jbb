@@ -3,7 +3,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from './AuthProvider';
-import { fetchOwnerEmails } from '../lib/ownerEmails';
 import DateInput from './DateInput';
 import VesselTypeSelect from './VesselTypeSelect';
 import { isNonPropelled } from '../lib/vesselTypes';
@@ -54,7 +53,6 @@ const evsOf = (id: string, ags: AgRow[], mev: EvRow[]): Ev[] => [
 
 export default function VesselStatus({ refreshKey, vesselName, onApply }: { refreshKey: number; vesselName: string; onApply: (v: ApplyValues) => void }) {
   const { user, configured, isAdmin } = useAuth();
-  const [owners, setOwners] = useState<Record<string, string>>({});
   const [vessels, setVessels] = useState<VesselRow[]>([]);
   const [ags, setAgs] = useState<AgRow[]>([]);
   const [mev, setMev] = useState<EvRow[]>([]);
@@ -87,9 +85,8 @@ export default function VesselStatus({ refreshKey, vesselName, onApply }: { refr
     setVessels(vs);
     setAgs(as);
     setMev(ev);
-    if (isAdmin) setOwners(await fetchOwnerEmails(vs.map((x) => x.owner)));
     return { vs, as, ev };
-  }, [user, isAdmin]);
+  }, [user]);
 
   const emit = useCallback((v: VesselRow, all: AgRow[], evr: EvRow[]) => {
     const r = computeSurveyStatus(v, evsOf(v.id, all, evr), new Date());
@@ -290,7 +287,7 @@ export default function VesselStatus({ refreshKey, vesselName, onApply }: { refr
           <select className={inp} value={selId} onChange={(e) => choose(e.target.value)}>
             <option value="">— pilih kapal —</option>
             {vessels.map((v) => (
-              <option key={v.id} value={v.id}>{v.name}{isAdmin && v.owner !== user?.id ? ` — ${owners[v.owner] ?? 'akun lain'}` : ''}</option>
+              <option key={v.id} value={v.id}>{v.name}{isAdmin && v.owner !== user?.id ? ' · data akun lain' : ''}</option>
             ))}
           </select>
         </div>

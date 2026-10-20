@@ -36,14 +36,14 @@ function PendingLine({ p }: { p: Pending }) {
   );
 }
 
-export default function FleetView({ items, owners }: { items: FleetItem[]; owners?: Record<string, string> }) {
+export default function FleetView({ items, currentUserId }: { items: FleetItem[]; currentUserId?: string }) {
   const [filter, setFilter] = useState<FleetFilter>('all');
   const [q, setQ] = useState('');
   const counts = useMemo(() => countFleet(items), [items]);
   const shown = useMemo(() => {
     const s = q.trim().toLowerCase();
-    return items.filter((i) => matchesFilter(i, filter) && (!s || i.name.toLowerCase().includes(s) || i.type.toLowerCase().includes(s) || (owners?.[i.owner] ?? '').toLowerCase().includes(s)));
-  }, [items, filter, q, owners]);
+    return items.filter((i) => matchesFilter(i, filter) && (!s || i.name.toLowerCase().includes(s) || i.type.toLowerCase().includes(s)));
+  }, [items, filter, q]);
 
   return (
     <div className="space-y-4">
@@ -57,7 +57,7 @@ export default function FleetView({ items, owners }: { items: FleetItem[]; owner
       <input
         value={q}
         onChange={(e) => setQ(e.target.value)}
-        placeholder={owners ? 'Cari nama, jenis kapal, atau pemilik…' : 'Cari nama atau jenis kapal…'}
+        placeholder="Cari nama atau jenis kapal…"
         className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-teal-500"
       />
 
@@ -80,7 +80,7 @@ export default function FleetView({ items, owners }: { items: FleetItem[]; owner
                     {it.type || 'Jenis belum diisi'}
                     {it.expiry ? ` · sertifikat s/d ${dmy(it.expiry)}` : ''}
                   </p>
-                  {owners && it.owner && <p className="text-xs text-slate-400">Pemilik: {owners[it.owner] ?? 'akun lain'}</p>}
+                  {currentUserId && it.owner && it.owner !== currentUserId && <p className="mt-0.5 text-[11px] font-semibold text-violet-700">Data akun lain</p>}
                 </div>
                 {u && <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${u.badge}`}>{u.label}</span>}
               </div>
