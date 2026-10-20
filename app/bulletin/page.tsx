@@ -1,9 +1,11 @@
 'use client';
 
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../components/AuthProvider';
 import DateInput from '../../components/DateInput';
+import RichEditor, { RichView } from '../../components/RichEditor';
+import { legacyToHtml } from '../../lib/legacyBody';
 
 type Visibility = 'private' | 'members' | 'public';
 type Entry = {
@@ -14,6 +16,7 @@ type Entry = {
   category: string | null;
   tags: string[];
   body: string;
+  body_html: string | null;
   visibility: Visibility;
   remind_on: string | null;
   pinned: boolean;
@@ -29,7 +32,7 @@ const VIS_TONE: Record<Visibility, string> = {
   members: 'bg-sky-100 text-sky-800',
   public: 'bg-emerald-100 text-emerald-800',
 };
-const EMPTY = { title: '', kind: 'catatan', category: 'Umum', tags: '', body: '', visibility: 'private' as Visibility, remind_on: '', pinned: false };
+const EMPTY = { title: '', kind: 'catatan', category: 'Umum', tags: '', body: '', body_html: '', visibility: 'private' as Visibility, remind_on: '', pinned: false };
 
 const inp = 'w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-teal-600 focus:outline-none focus:ring-2 focus:ring-teal-600/25';
 const dmy = (s: string | null) => (s ? s.slice(0, 10).split('-').reverse().join('.') : '');
@@ -152,105 +155,6 @@ function Body({ text }: { text: string }) {
   return <div className="space-y-3 text-sm leading-relaxed text-slate-800">{out}</div>;
 }
 
-/* ---------- konversi hasil salin dari Word/Excel/web (HTML) menjadi teks berformat ---------- */
-function htmlToMarkup(html: string): string {
-  const doc = new DOMParser().parseFromString(html, 'text/html');
-  const SKIP = ['style', 'script', 'head', 'title', 'meta', 'xml'];
-  const MARK = /^[\s\u00a0]*[·•o§▪◦‣●○\-–—][\s\u00a0]+/;
-  const out: string[] = [];
-  const blank = () => {
-    if (out.length && out[out.length - 1] !== '') out.push('');
-  };
-  const txt = (n: Node): string => {
-    if (n.nodeType === 3) return (n.textContent ?? '').replace(/[\s\u00a0]+/g, ' ');
-    if (n.nodeType !== 1) return '';
-    const el = n as HTMLElement;
-    const tag = el.tagName.toLowerCase();
-    if (SKIP.includes(tag)) return '';
-    if (tag === 'br') return '\n';
-    if (/mso-list\s*:\s*ignore/i.test(el.getAttribute('style') ?? '')) return ''; // penanda bullet buatan Word
-    const inner = Array.from(el.childNodes).map(txt).join('');
-    return (tag === 'b' || tag === 'strong') && inner.trim() ? '**' + inner.trim() + '**' : inner;
-  };
-  const hasBlock = (el: HTMLElement) => !!el.querySelector('p,div,table,ul,ol,h1,h2,h3,h4,h5,h6');
-
-  const listWalk = (el: HTMLElement, ordered: boolean, depth: number) => {
-    Array.from(el.children).forEach((li) => {
-      if (li.tagName.toLowerCase() !== 'li') return;
-      const own = Array.from(li.childNodes)
-        .filter((c) => !(c.nodeType === 1 && /^(ul|ol)$/i.test((c as HTMLElement).tagName)))
-        .map(txt)
-        .join('')
-        .trim();
-      if (own) out.push('  '.repeat(depth) + (ordered ? '1. ' : '- ') + own);
-      Array.from(li.children).forEach((c) => {
-        const t = c.tagName.toLowerCase();
-        if (t === 'ul' || t === 'ol') listWalk(c as HTMLElement, t === 'ol', depth + 1);
-      });
-    });
-  };
-
-  const walk = (n: Node) => {
-    if (n.nodeType !== 1) {
-      const t = txt(n).trim();
-      if (t) {
-        out.push(t);
-        blank();
-      }
-      return;
-    }
-    const el = n as HTMLElement;
-    const tag = el.tagName.toLowerCase();
-    if (SKIP.includes(tag)) return;
-    if (tag === 'table') {
-      const rows = Array.from(el.querySelectorAll('tr'));
-      rows.forEach((tr, ri) => {
-        const cells = Array.from(tr.children)
-          .filter((c) => /^(td|th)$/i.test(c.tagName))
-          .map((c) => txt(c).replace(/\s+/g, ' ').trim().replace(/\|/g, '/'));
-        if (cells.length === 0) return;
-        out.push('| ' + cells.join(' | ') + ' |');
-        if (ri === 0) out.push('| ' + cells.map(() => '---').join(' | ') + ' |');
-      });
-      blank();
-      return;
-    }
-    if (tag === 'ul' || tag === 'ol') {
-      listWalk(el, tag === 'ol', 0);
-      blank();
-      return;
-    }
-    if (/^h[1-6]$/.test(tag)) {
-      const t = txt(el).trim();
-      if (t) {
-        out.push((tag === 'h1' ? '# ' : '## ') + t);
-        blank();
-      }
-      return;
-    }
-    if (hasBlock(el)) {
-      Array.from(el.childNodes).forEach(walk);
-      return;
-    }
-    const t = txt(el).replace(/[ \t]+\n/g, '\n').trim();
-    if (!t) return;
-    const cls = el.getAttribute('class') ?? '';
-    const st = el.getAttribute('style') ?? '';
-    if (/MsoList/i.test(cls) || /mso-list\s*:\s*l\d/i.test(st)) {
-      const marker = el.querySelector('[style*="mso-list:Ignore" i]')?.textContent ?? '';
-      const ordered = /^\s*\d+[.)]/.test(marker);
-      const lvl = Math.max(0, Number(/level(\d)/i.exec(st)?.[1] ?? '1') - 1);
-      out.push('  '.repeat(lvl) + (ordered ? '1. ' : '- ') + t.replace(MARK, ''));
-    } else {
-      out.push(t);
-      blank();
-    }
-  };
-
-  Array.from(doc.body.childNodes).forEach(walk);
-  return out.join('\n').replace(/\n{3,}/g, '\n\n').trim();
-}
-
 export default function BulletinPage() {
   const { user, configured, loading } = useAuth();
   const [entries, setEntries] = useState<Entry[]>([]);
@@ -263,7 +167,6 @@ export default function BulletinPage() {
   const [f, setF] = useState(EMPTY);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ k: 'err' | 'ok'; t: string } | null>(null);
-  const taRef = useRef<HTMLTextAreaElement>(null);
 
   const load = useCallback(async () => {
     if (!supabase) return;
@@ -313,7 +216,7 @@ export default function BulletinPage() {
   };
   const openEdit = (e: Entry) => {
     setCur(e);
-    setF({ title: e.title, kind: e.kind, category: e.category ?? 'Umum', tags: (e.tags ?? []).join(', '), body: e.body, visibility: e.visibility, remind_on: e.remind_on ?? '', pinned: e.pinned });
+    setF({ title: e.title, kind: e.kind, category: e.category ?? 'Umum', tags: (e.tags ?? []).join(', '), body: e.body, body_html: e.body_html || legacyToHtml(e.body), visibility: e.visibility, remind_on: e.remind_on ?? '', pinned: e.pinned });
     setMsg(null);
     setView('edit');
   };
@@ -334,6 +237,7 @@ export default function BulletinPage() {
       category: f.category || null,
       tags: f.tags.split(',').map((s) => s.trim()).filter(Boolean),
       body: f.body,
+      body_html: f.body_html || null,
       visibility: f.visibility,
       remind_on: f.remind_on || null,
       pinned: f.pinned,
@@ -353,40 +257,6 @@ export default function BulletinPage() {
     if (error) return setMsg({ k: 'err', t: error.message });
     await load();
     setView('list');
-  };
-
-  // tempel dari Word/Excel/web: tabel, judul, poin, dan huruf tebal ikut terbaca
-  const onPaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
-    const html = e.clipboardData.getData('text/html');
-    if (!html || !/<(table|ul|ol|li|h[1-6]|b|strong|p)[\s>]/i.test(html)) return; // teks biasa: tempel seperti biasa
-    e.preventDefault();
-    const md = htmlToMarkup(html);
-    const ta = taRef.current;
-    const v = f.body;
-    const st = ta ? ta.selectionStart : v.length;
-    const en = ta ? ta.selectionEnd : v.length;
-    setF({ ...f, body: v.slice(0, st) + md + v.slice(en) });
-    const pos = st + md.length;
-    requestAnimationFrame(() => {
-      ta?.focus();
-      ta?.setSelectionRange(pos, pos);
-    });
-  };
-
-  // sisipkan format di posisi kursor (tombol di atas kolom isi)
-  const insert = (before: string, after = '', block = false) => {
-    const ta = taRef.current;
-    const v = f.body;
-    const st = ta ? ta.selectionStart : v.length;
-    const en = ta ? ta.selectionEnd : v.length;
-    const pre = block && st > 0 && v[st - 1] !== '\n' ? '\n' + before : before;
-    const picked = v.slice(st, en);
-    setF({ ...f, body: v.slice(0, st) + pre + picked + after + v.slice(en) });
-    const pos = st + pre.length + picked.length + after.length;
-    requestAnimationFrame(() => {
-      ta?.focus();
-      ta?.setSelectionRange(pos, pos);
-    });
   };
 
   const set = (k: keyof typeof EMPTY) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
@@ -415,14 +285,12 @@ export default function BulletinPage() {
               <input className={inp + ' mt-1'} placeholder="mis. anniversary, annual in advance" value={f.tags} onChange={set('tags')} />
             </label>
             <div>
-              <p className="text-xs font-semibold text-slate-600">Isi</p>
-              <div className="mt-1 flex flex-wrap gap-1.5">
-                <button type="button" onClick={() => insert('## ', '', true)} className="rounded-md border border-slate-300 px-2.5 py-1 text-xs font-semibold hover:bg-slate-50">Judul</button>
-                <button type="button" onClick={() => insert('- ', '', true)} className="rounded-md border border-slate-300 px-2.5 py-1 text-xs font-semibold hover:bg-slate-50">• Poin</button>
-                <button type="button" onClick={() => insert('1. ', '', true)} className="rounded-md border border-slate-300 px-2.5 py-1 text-xs font-semibold hover:bg-slate-50">1. Nomor</button>
-                <button type="button" onClick={() => insert('**', '**')} className="rounded-md border border-slate-300 px-2.5 py-1 text-xs font-bold hover:bg-slate-50">Tebal</button>
-              </div>
-              <textarea ref={taRef} onPaste={onPaste} className={inp + ' mt-2 min-h-[240px]'} placeholder={'Tulis atau tempel teks di sini.\nBaris kosong = paragraf baru.\nBullet dari WhatsApp/Word (•, -, 1.) otomatis dikenali.'} value={f.body} onChange={set('body')} />
+              <p className="mb-1 text-xs font-semibold text-slate-600">Isi</p>
+              <RichEditor
+                key={cur ? cur.id : 'baru'}
+                value={f.body_html}
+                onChange={(html, text) => setF((p) => ({ ...p, body_html: html, body: text }))}
+              />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <label className="block text-xs font-semibold text-slate-600">Siapa yang boleh baca
@@ -459,7 +327,7 @@ export default function BulletinPage() {
           </div>
           <h1 className="mt-3 text-xl font-extrabold tracking-tight">{cur.title}</h1>
           <p className="mt-1 text-xs text-slate-500">Diperbarui {dmy(cur.updated_at)}</p>
-          <div className="mt-4"><Body text={cur.body} /></div>
+          <div className="mt-4">{cur.body_html ? <RichView html={cur.body_html} /> : <Body text={cur.body} />}</div>
           {(cur.tags ?? []).length > 0 && (
             <p className="mt-4 text-xs text-slate-500">{cur.tags.map((t) => '#' + t).join('  ')}</p>
           )}
