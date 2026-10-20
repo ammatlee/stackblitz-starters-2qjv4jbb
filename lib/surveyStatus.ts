@@ -93,6 +93,8 @@ const addM = (d: Date, n: number) => mk(d.getUTCFullYear(), d.getUTCMonth() + n,
 export const toDMY = (d: Date | null) =>
   d ? `${String(d.getUTCDate()).padStart(2, '0')}.${String(d.getUTCMonth() + 1).padStart(2, '0')}.${d.getUTCFullYear()}` : '';
 export const toISO = (d: Date) => d.toISOString().slice(0, 10);
+/** Batas paling akhir Extension/Postponed Renewal: 3 bulan setelah expiry (ISO yyyy-mm-dd). */
+export const maxExtension = (expiryISO: string): string => toISO(addM(new Date(expiryISO.slice(0, 10) + 'T00:00:00Z'), 3));
 
 export function roman(n: number): string {
   const t: [number, string][] = [[10, 'X'], [9, 'IX'], [5, 'V'], [4, 'IV'], [1, 'I']];
@@ -254,14 +256,19 @@ export function computeSurveyStatus(b: Baseline, evsAll: Ev[], today: Date): Sta
   const rangeState = (start: Date, end: Date) => (+today > +end ? 'OVERDUE' : +today >= +start ? 'DALAM WINDOW' : 'AKAN DATANG');
   const rows: StatusRow[] = [];
 
-  const effDue = postponed && +postponed > +expiry ? postponed : expiry;
+  // Extension/Postponed Renewal maksimal 3 bulan setelah expiry; lebih dari itu dibatasi di batas 3 bulan.
+  const extMax = addM(expiry, 3);
+  const extCapped = !!postponed && +postponed > +extMax;
+  const extEff = postponed && +postponed > +expiry ? (extCapped ? extMax : postponed) : null;
+  const effDue = extEff ?? expiry;
   rows.push({
     kind: 'Special Survey (Class Renewal)',
     due: toDMY(expiry),
     range: '',
-    postponed: postponed ? toDMY(postponed) : '',
+    postponed: postponed ? toDMY(extEff ?? postponed) : '',
     last: toDMY(lastSpecial),
     state: rangeState(addM(expiry, -3), effDue),
+    note: extCapped ? `Extension dibatasi maks. 3 bulan (diinput ${toDMY(postponed)})` : undefined,
   });
 
   // Intermediate: tetap mengikuti tahun ke-2 dan ke-3 dari anniversary ASLI periode (= tanggal & bulan expiry).
@@ -287,17 +294,28 @@ export function computeSurveyStatus(b: Baseline, evsAll: Ev[], today: Date): Sta
   const inLieu = annualOpen && intSlot !== null && nextIdx === intSlot + 3; // ITS Part A 3.B.1.1.3 (3)
   const lastAnnualTxt = lastAnnual ? `${toDMY(lastAnnual)}${lastAnnualLabel ? ` (${lastAnnualLabel})` : ''}` : '';
   const showA5 = (nextIdx === 5 && annualOpen) || annCount >= 5;
+  // Annual ke-5 ada (dipercepat) dan windownya beririsan dengan jendela Renewal (expiry − 3 bulan) → dapat dikerjakan bersama Renewal
+  const a5WithRen = nextIdx === 5 && annualOpen && +addM(nextAnniv, 3) > +addM(expiry, -3);
   if (nextIdx <= 5 && annualOpen) {
     rows.push({
       kind: inLieu ? `Annual ke-${nextIdx} → dikerjakan sebagai Intermediate` : `Annual Survey ke-${nextIdx}`,
-      note: inLieu ? 'In lieu of Annual (ITS Part A 3.B.1.1.3)' : nextIdx === 5 ? 'Annual dipercepat — Annual ke-5 sebelum jendela Renewal' : undefined,
+      note: inLieu
+        ? 'In lieu of Annual (ITS Part A 3.B.1.1.3)'
+        : a5WithRen
+        ? 'Annual dipercepat — window Annual ke-5 beririsan dengan Renewal, dapat dikerjakan bersama Renewal'
+        : nextIdx === 5
+        ? 'Annual dipercepat — Annual ke-5 sebelum jendela Renewal'
+        : undefined,
       due: '',
       range: `${toDMY(addM(nextAnniv, -3))} s/d ${toDMY(addM(nextAnniv, 3))}`,
       postponed: '',
       last: lastAnnualTxt,
-      state: rangeState(addM(nextAnniv, -3), addM(nextAnniv, 3)),
+      state: a5WithRen ? 'BERSAMA RENEWAL' : rangeState(addM(nextAnniv, -3), addM(nextAnniv, 3)),
     });
-  } else if (nextIdx <= 5) {
+  } else if (nextIdx === 5) {
+    // Annual 1–4 sudah dikerjakan dan anniversary ke-5 jatuh di jendela Renewal → tidak ada Annual ke-5 pada periode ini
+    rows.push({ kind: 'Annual Survey', due: '', range: '', postponed: '', last: lastAnnualTxt, state: 'SELESAI', note: 'Annual 1–4 selesai; tidak ada Annual ke-5 pada periode ini' });
+  } else if (nextIdx < 5) {
     // anniversary berikutnya berimpit dengan jendela Renewal → Annual terakhir digantikan Renewal
     rows.push({ kind: 'Annual Survey', due: '', range: '', postponed: '', last: lastAnnualTxt, state: 'BERSAMA RENEWAL', note: 'Annual berikutnya digantikan Renewal' });
   } else {
@@ -306,12 +324,9 @@ export function computeSurveyStatus(b: Baseline, evsAll: Ev[], today: Date): Sta
 
   // Docking: tidak ada batas paling awal; hanya maksimum 36 bulan sejak Bottom Survey sebelumnya.
   const dockBase = lastDock ?? periodStart;
-  let dockDue = addM(dockBase, 36);
-  let dockNote = 'Maksimum 36 bulan; tidak ada batas paling awal';
-  if (+dockDue > +expiry) {
-    dockDue = expiry;
-    dockNote = 'Bersama Renewal';
-  }
+  // Batas Docking 1 tidak dikaitkan dengan Renewal/expiry: lewat 36 bulan → suspend, lewat 6 bulan berikutnya → withdrawn.
+  const dockDue = addM(dockBase, 36);
+  const dockNote = 'Maksimum 36 bulan dari Docking sebelumnya; tidak ada batas paling awal; terpisah dari Renewal';
   rows.push({
     kind: 'Docking Survey',
     due: toDMY(dockDue),

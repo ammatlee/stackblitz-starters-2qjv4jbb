@@ -6,7 +6,7 @@ import { useAuth } from './AuthProvider';
 import DateInput from './DateInput';
 import VesselTypeSelect from './VesselTypeSelect';
 import { isNonPropelled } from '../lib/vesselTypes';
-import { computeSurveyStatus, roman, toDMY, toISO } from '../lib/surveyStatus';
+import { computeSurveyStatus, maxExtension, roman, toDMY, toISO } from '../lib/surveyStatus';
 import { plansQuery, withPlans, SHAFT_PLAN_OPTS, shaftPlanLabel } from '../lib/shaftPlans';
 import type { PlanRow } from '../lib/shaftPlans';
 import type { Baseline, Ev } from '../lib/surveyStatus';
@@ -191,6 +191,7 @@ export default function VesselStatus({ refreshKey, vesselName, onApply }: { refr
   const saveBaseline = async () => {
     if (!supabase || !user) return;
     if (!f.expiry) return setMsg({ k: 'err', t: 'Isi tanggal expiry sertifikat (dd.mm.yyyy).' });
+    if (f.postponed && f.postponed > maxExtension(f.expiry)) return setMsg({ k: 'err', t: `Extension/Postponed maksimal 3 bulan setelah expiry (paling lambat ${maxExtension(f.expiry).split('-').reverse().join('.')}).` });
     if (!selId && !f.name.trim()) return setMsg({ k: 'err', t: 'Isi nama kapal.' });
     setBusy(true);
     setMsg(null);
