@@ -45,9 +45,10 @@ export function RichView({ html }: { html: string }) {
 const isImg = (f: File) => f.type.startsWith('image/');
 
 export default function RichEditor({ value, onChange }: Props) {
-  const [note, setNote] = useState('');
+  const [note, setNote] = useState<{ k: 'err' | 'ok'; t: string } | null>(null);
   const [uploading, setUploading] = useState(0);
   const fileRef = useRef<HTMLInputElement>(null);
+  const docRef = useRef<HTMLInputElement>(null);
   const edRef = useRef<Editor | null>(null);
   const upRef = useRef<(files: File[]) => void>(() => {});
 
@@ -91,17 +92,37 @@ export default function RichEditor({ value, onChange }: Props) {
   }, [editor]);
 
   upRef.current = async (files: File[]) => {
-    setNote('');
+    setNote(null);
     for (const file of files) {
       setUploading((n) => n + 1);
       try {
         const src = await uploadImage(file);
         edRef.current?.chain().focus().setImage({ src }).run();
       } catch (err) {
-        setNote((err as Error).message);
+        setNote({ k: 'err', t: (err as Error).message });
       }
       setUploading((n) => n - 1);
     }
+  };
+
+  // impor file Word (.docx): isi, tabel, daftar, dan gambar ikut terbaca
+  const importDocx = async (file: File) => {
+    setNote({ k: 'ok', t: 'Membaca ' + file.name + '…' });
+    setUploading((n) => n + 1);
+    try {
+      if (!/\.docx$/i.test(file.name)) throw new Error('Hanya file .docx. Untuk file .doc, simpan ulang dulu sebagai .docx di Word.');
+      const { docxToHtml } = await import('../lib/docxImport');
+      const r = await docxToHtml(file, uploadImage);
+      if (!r.html) throw new Error('Tidak ada isi yang bisa dibaca di file ini.');
+      edRef.current?.chain().focus().insertContent(r.html).run();
+      setNote({
+        k: 'ok',
+        t: 'Selesai. ' + r.images + ' gambar diunggah' + (r.skipped ? ', ' + r.skipped + ' gambar dilewati (format tidak didukung).' : '.'),
+      });
+    } catch (err) {
+      setNote({ k: 'err', t: (err as Error).message });
+    }
+    setUploading((n) => n - 1);
   };
 
   if (!editor) return <div className="min-h-[300px] rounded-lg border border-slate-300 bg-white" />;
@@ -128,6 +149,7 @@ export default function RichEditor({ value, onChange }: Props) {
         <Btn label="1. Nomor" run={() => c().toggleOrderedList().run()} on={editor.isActive('orderedList')} />
         <Btn label="Link" run={setLink} on={editor.isActive('link')} />
         <Btn label={uploading > 0 ? 'Mengunggah…' : 'Gambar'} run={() => fileRef.current?.click()} off={uploading > 0} />
+        <Btn label="Impor Word" run={() => docRef.current?.click()} off={uploading > 0} />
         <Btn label="Tabel" run={() => c().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()} />
         <Btn label="↶" run={() => c().undo().run()} off={!editor.can().undo()} />
         <Btn label="↷" run={() => c().redo().run()} off={!editor.can().redo()} />
@@ -154,7 +176,20 @@ export default function RichEditor({ value, onChange }: Props) {
           if (list.length) upRef.current(list);
         }}
       />
-      {note && <p className="border-b border-slate-200 bg-red-50 px-3 py-1.5 text-xs text-red-700">{note}</p>}
+      <input
+        ref={docRef}
+        type="file"
+        accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        className="hidden"
+        onChange={(e) => {
+          const f = e.target.files && e.target.files[0];
+          e.target.value = '';
+          if (f) importDocx(f);
+        }}
+      />
+      {note && (
+        <p className={'border-b border-slate-200 px-3 py-1.5 text-xs ' + (note.k === 'err' ? 'bg-red-50 text-red-700' : 'bg-teal-50 text-teal-800')}>{note.t}</p>
+      )}
       <EditorContent editor={editor} />
     </div>
   );
