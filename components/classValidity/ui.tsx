@@ -17,7 +17,7 @@ export function Field({ label, hint, children }: { label: string; hint?: string;
 }
 export function Card({ title, sub, right, children }: { title: string; sub?: string; right?: React.ReactNode; children: React.ReactNode }) {
   return (
-    <section className="rounded-2xl border border-slate-200 bg-white shadow-sm">
+    <section className="rounded-2xl border border-slate-200 bg-white shadow-sm print:break-inside-avoid">
       <header className="flex flex-wrap items-start justify-between gap-2 border-b border-slate-100 px-4 py-3 sm:px-5">
         <div>
           <h2 className="text-sm font-bold text-slate-900 sm:text-base">{title}</h2>
@@ -29,9 +29,9 @@ export function Card({ title, sub, right, children }: { title: string; sub?: str
     </section>
   );
 }
-export function Fold({ title, sub, right, children, open }: { title: string; sub?: string; right?: React.ReactNode; children: React.ReactNode; open?: boolean }) {
+export function Fold({ title, sub, right, children, open, noPrint }: { title: string; sub?: string; right?: React.ReactNode; children: React.ReactNode; open?: boolean; noPrint?: boolean }) {
   return (
-    <details open={open} className="group rounded-2xl border border-slate-200 bg-white shadow-sm">
+    <details open={open} className={cx('group rounded-2xl border border-slate-200 bg-white shadow-sm', noPrint && 'print:hidden')}>
       <summary className="flex cursor-pointer list-none flex-wrap items-center justify-between gap-2 px-4 py-3 sm:px-5">
         <div>
           <h2 className="text-sm font-bold text-slate-900 sm:text-base">{title}</h2>
