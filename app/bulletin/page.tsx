@@ -9,6 +9,7 @@ import { legacyToHtml } from '../../lib/legacyBody';
 import { uploadAttachment, removeFiles, pathsInHtml, fmtSize, MAX_MB, type Attachment } from '../../lib/uploads';
 
 type Visibility = 'private' | 'members' | 'public';
+type Status = 'pending' | 'approved' | 'rejected';
 type Entry = {
   id: string;
   owner: string;
@@ -22,6 +23,8 @@ type Entry = {
   visibility: Visibility;
   remind_on: string | null;
   pinned: boolean;
+  status: Status;
+  review_note: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -34,6 +37,10 @@ const VIS_TONE: Record<Visibility, string> = {
   members: 'bg-sky-100 text-sky-800',
   public: 'bg-emerald-100 text-emerald-800',
 };
+const STATUS_LABEL: Record<Status, string> = { pending: 'Menunggu persetujuan', approved: 'Disetujui', rejected: 'Ditolak' };
+const STATUS_TONE: Record<Status, string> = { pending: 'bg-amber-100 text-amber-900', approved: 'bg-emerald-100 text-emerald-800', rejected: 'bg-rose-100 text-rose-800' };
+// hanya alamat http(s) yang boleh jadi tautan lampiran (mencegah alamat berbahaya dari data yang dibuat manual)
+const safeHref = (u: string) => (/^https?:\/\//i.test(u) ? u : '#');
 const EMPTY = { title: '', kind: 'catatan', category: 'Umum', tags: '', body: '', body_html: '', attachments: [] as Attachment[], visibility: 'private' as Visibility, remind_on: '', pinned: false };
 
 const inp = 'w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-teal-600 focus:outline-none focus:ring-2 focus:ring-teal-600/25';
@@ -158,9 +165,10 @@ function Body({ text }: { text: string }) {
 }
 
 export default function BulletinPage() {
-  const { user, configured, loading } = useAuth();
+  const { user, configured, loading, approved, isAdmin } = useAuth();
+  const canWrite = !!user && (approved || isAdmin);
+  const [tab, setTab] = useState<'all' | 'pending' | 'mine'>('all');
   const [entries, setEntries] = useState<Entry[]>([]);
-  const [isAdmin, setIsAdmin] = useState(false);
   const [fetching, setFetching] = useState(true);
   const [view, setView] = useState<'list' | 'detail' | 'edit'>('list');
   const [cur, setCur] = useState<Entry | null>(null);
@@ -188,28 +196,23 @@ export default function BulletinPage() {
     if (!loading) load();
   }, [load, loading, user]);
 
-  useEffect(() => {
-    (async () => {
-      if (!supabase || !user) return setIsAdmin(false);
-      const { data } = await supabase.from('admins').select('user_id').eq('user_id', user.id).maybeSingle();
-      setIsAdmin(!!data);
-    })();
-  }, [user]);
-
   const shown = useMemo(() => {
     const s = q.trim().toLowerCase();
     return entries.filter(
       (e) =>
         (!cat || e.category === cat) &&
+        (tab === 'all' || (tab === 'pending' ? e.status === 'pending' : !!user && e.owner === user.id)) &&
         (!s || e.title.toLowerCase().includes(s) || e.body.toLowerCase().includes(s) || (e.tags ?? []).some((t) => t.toLowerCase().includes(s)))
     );
-  }, [entries, q, cat]);
+  }, [entries, q, cat, tab, user]);
 
   const reminders = useMemo(() => {
     if (!user) return [];
     const limit = new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10);
     return entries.filter((e) => e.owner === user.id && e.remind_on && e.remind_on <= limit).sort((a, b) => (a.remind_on ?? '').localeCompare(b.remind_on ?? ''));
   }, [entries, user]);
+
+  const pendingCount = useMemo(() => entries.filter((e) => e.status === 'pending').length, [entries]);
 
   const openNew = () => {
     setCur(null);
@@ -242,14 +245,17 @@ export default function BulletinPage() {
       body: f.body,
       body_html: f.body_html || null,
       attachments: f.attachments,
-      visibility: f.visibility,
+      // anggota biasa: selalu untuk umum, tidak bisa menyematkan, dan harus disetujui admin dulu (juga dipaksa di database)
+      visibility: isAdmin ? f.visibility : 'public',
       remind_on: f.remind_on || null,
-      pinned: f.pinned,
+      pinned: isAdmin ? f.pinned : false,
       updated_at: new Date().toISOString(),
     };
-    const r = cur ? await supabase.from('bulletins').update(payload).eq('id', cur.id) : await supabase.from('bulletins').insert({ owner: user.id, ...payload });
+    const r = cur
+      ? await supabase.from('bulletins').update(payload).eq('id', cur.id)
+      : await supabase.from('bulletins').insert({ owner: user.id, ...(isAdmin ? {} : { status: 'pending' }), ...payload });
     setBusy(false);
-    if (r.error) return setMsg({ k: 'err', t: r.error.message + ' (hanya akun admin yang boleh menulis)' });
+    if (r.error) return setMsg({ k: 'err', t: r.error.message });
     if (cur) {
       // hapus file yang sudah tidak dipakai lagi (lampiran yang dibuang, gambar yang dihapus dari isi)
       const keepAtt = f.attachments.map((a) => a.path);
@@ -261,7 +267,7 @@ export default function BulletinPage() {
     }
     await load();
     setView('list');
-    setMsg({ k: 'ok', t: 'Tersimpan.' });
+    setMsg({ k: 'ok', t: isAdmin ? 'Tersimpan.' : 'Terkirim — menunggu persetujuan admin sebelum tampil untuk umum.' });
   };
 
   const remove = async (e: Entry) => {
@@ -271,6 +277,22 @@ export default function BulletinPage() {
     await removeFiles([...(e.attachments ?? []).map((a) => a.path), ...pathsInHtml(e.body_html)]);
     await load();
     setView('list');
+  };
+
+  // admin: setujui atau tolak entri anggota
+  const review = async (e: Entry, status: 'approved' | 'rejected') => {
+    if (!supabase || !isAdmin) return;
+    let note: string | null = null;
+    if (status === 'rejected') {
+      const r = window.prompt('Alasan penolakan (opsional):');
+      if (r === null) return;
+      note = r.trim() || null;
+    }
+    const { error } = await supabase.from('bulletins').update({ status, review_note: note }).eq('id', e.id);
+    if (error) return setMsg({ k: 'err', t: error.message });
+    await load();
+    setView('list');
+    setMsg({ k: 'ok', t: status === 'approved' ? 'Disetujui dan tampil untuk umum.' : 'Ditolak.' });
   };
 
   // lampiran: tambah dan buang file di form
@@ -348,17 +370,26 @@ export default function BulletinPage() {
               </label>
             </div>
             <div className="grid grid-cols-2 gap-3">
-              <label className="block text-xs font-semibold text-slate-600">Siapa yang boleh baca
-                <select className={inp + ' mt-1'} value={f.visibility} onChange={set('visibility')}>{VIS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select>
-              </label>
+              {isAdmin && (
+                <label className="block text-xs font-semibold text-slate-600">Siapa yang boleh baca
+                  <select className={inp + ' mt-1'} value={f.visibility} onChange={set('visibility')}>{VIS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select>
+                </label>
+              )}
               <label className="block text-xs font-semibold text-slate-600">Tanggal pengingat (opsional)
                 <div className="mt-1"><DateInput className={inp} value={f.remind_on} onChange={(iso) => setF({ ...f, remind_on: iso })} /></div>
               </label>
             </div>
-            <label className="flex items-center gap-2 text-xs font-semibold text-slate-600">
-              <input type="checkbox" className="h-4 w-4 accent-teal-600" checked={f.pinned} onChange={(e) => setF({ ...f, pinned: e.target.checked })} />
-              Sematkan di atas daftar
-            </label>
+            {isAdmin && (
+              <label className="flex items-center gap-2 text-xs font-semibold text-slate-600">
+                <input type="checkbox" className="h-4 w-4 accent-teal-600" checked={f.pinned} onChange={(e) => setF({ ...f, pinned: e.target.checked })} />
+                Sematkan di atas daftar
+              </label>
+            )}
+            {!isAdmin && (
+              <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-900">
+                Entri ini akan tampil untuk umum setelah disetujui admin.{cur && cur.status === 'approved' ? ' Perubahan akan dikirim ulang untuk persetujuan, dan entri disembunyikan sampai disetujui.' : ''}
+              </p>
+            )}
           </div>
           {msg && <p className={'mt-3 text-sm ' + (msg.k === 'err' ? 'text-red-700' : 'text-emerald-700')}>{msg.t}</p>}
           <button disabled={busy} onClick={save} className="mt-4 w-full rounded-lg bg-teal-600 py-2.5 text-sm font-semibold text-white hover:bg-teal-700 disabled:opacity-50">
@@ -375,6 +406,7 @@ export default function BulletinPage() {
         <button onClick={() => setView('list')} className="text-sm font-semibold text-teal-700">← Kembali ke daftar</button>
         <article className="mt-3 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
           <div className="flex flex-wrap items-center gap-2 text-[11px] font-semibold">
+            {cur.status !== 'approved' && <span className={'rounded-full px-2.5 py-0.5 ' + STATUS_TONE[cur.status]}>{STATUS_LABEL[cur.status]}</span>}
             <span className={'rounded-full px-2.5 py-0.5 ' + VIS_TONE[cur.visibility]}>{VIS.find((v) => v[0] === cur.visibility)?.[1]}</span>
             <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-slate-700">{KINDS.find((k) => k[0] === cur.kind)?.[1]}</span>
             {cur.category && <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-slate-700">{cur.category}</span>}
@@ -382,6 +414,7 @@ export default function BulletinPage() {
           </div>
           <h1 className="mt-3 text-xl font-extrabold tracking-tight">{cur.title}</h1>
           <p className="mt-1 text-xs text-slate-500">Diperbarui {dmy(cur.updated_at)}</p>
+          {cur.status === 'rejected' && cur.review_note && <p className="mt-2 rounded-lg bg-rose-50 px-3 py-2 text-xs text-rose-800">Alasan penolakan: {cur.review_note}</p>}
           <div className="mt-4">{cur.body_html ? <RichView html={cur.body_html} /> : <Body text={cur.body} />}</div>
           {(cur.attachments ?? []).length > 0 && (
             <div className="mt-5">
@@ -389,7 +422,7 @@ export default function BulletinPage() {
               <ul className="mt-2 space-y-1.5">
                 {(cur.attachments ?? []).map((a) => (
                   <li key={a.path}>
-                    <a href={a.url} target="_blank" rel="noopener noreferrer" className="flex items-center justify-between gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-teal-800 hover:border-teal-500">
+                    <a href={safeHref(a.url)} target="_blank" rel="noopener noreferrer" className="flex items-center justify-between gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-teal-800 hover:border-teal-500">
                       <span className="min-w-0 truncate">📎 {a.name}</span>
                       <span className="shrink-0 text-xs text-slate-500">{fmtSize(a.size)}</span>
                     </a>
@@ -401,8 +434,10 @@ export default function BulletinPage() {
           {(cur.tags ?? []).length > 0 && (
             <p className="mt-4 text-xs text-slate-500">{cur.tags.map((t) => '#' + t).join('  ')}</p>
           )}
-          {user && cur.owner === user.id && isAdmin && (
-            <div className="mt-5 flex gap-2">
+          {user && (isAdmin || (canWrite && cur.owner === user.id)) && (
+            <div className="mt-5 flex flex-wrap gap-2">
+              {isAdmin && cur.status !== 'approved' && <button onClick={() => review(cur, 'approved')} className="rounded-lg bg-teal-600 px-4 py-2 text-sm font-semibold text-white hover:bg-teal-700">Setujui</button>}
+              {isAdmin && cur.status === 'pending' && <button onClick={() => review(cur, 'rejected')} className="rounded-lg border border-rose-300 px-4 py-2 text-sm font-semibold text-rose-700 hover:bg-rose-50">Tolak</button>}
               <button onClick={() => openEdit(cur)} className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold hover:bg-slate-50">Ubah</button>
               <button onClick={() => remove(cur)} className="rounded-lg px-4 py-2 text-sm font-semibold text-red-700 hover:bg-red-50">Hapus</button>
             </div>
@@ -416,7 +451,7 @@ export default function BulletinPage() {
     <main className="mx-auto max-w-3xl px-4 py-6">
       <div className="flex items-center justify-between gap-2">
         <h1 className="text-2xl font-extrabold tracking-tight text-slate-900">Bulletin</h1>
-        {isAdmin && <button onClick={openNew} className="rounded-lg bg-teal-600 px-4 py-2 text-sm font-semibold text-white hover:bg-teal-700">+ Tulis baru</button>}
+        {canWrite && <button onClick={openNew} className="rounded-lg bg-teal-600 px-4 py-2 text-sm font-semibold text-white hover:bg-teal-700">+ Tulis baru</button>}
       </div>
       <p className="mt-1 text-sm text-slate-600">Catatan, materi, dan pengingat.{!user && ' Masuk untuk melihat entri anggota.'}</p>
       {msg && <p className={'mt-2 text-sm ' + (msg.k === 'err' ? 'text-red-700' : 'text-emerald-700')}>{msg.t}</p>}
@@ -432,6 +467,14 @@ export default function BulletinPage() {
             ))}
           </ul>
         </section>
+      )}
+
+      {canWrite && (
+        <div className="mt-4 flex gap-2 text-xs font-semibold">
+          {([['all', 'Semua'], ...(isAdmin ? [['pending', `Menunggu persetujuan${pendingCount ? ` (${pendingCount})` : ''}`]] : []), ['mine', 'Milik saya']] as [string, string][]).map(([k, l]) => (
+            <button key={k} onClick={() => setTab(k as 'all' | 'pending' | 'mine')} className={'rounded-full px-3 py-1.5 ' + (tab === k ? 'bg-teal-600 text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200')}>{l}</button>
+          ))}
+        </div>
       )}
 
       <div className="mt-4 flex gap-2">
@@ -453,6 +496,7 @@ export default function BulletinPage() {
               <button onClick={() => openDetail(e)} className="w-full rounded-2xl border border-slate-200 bg-white p-4 text-left shadow-sm hover:border-teal-500">
                 <div className="flex flex-wrap items-center gap-2 text-[11px] font-semibold">
                   {e.pinned && <span>📌</span>}
+                  {e.status !== 'approved' && <span className={'rounded-full px-2.5 py-0.5 ' + STATUS_TONE[e.status]}>{STATUS_LABEL[e.status]}</span>}
                   <span className={'rounded-full px-2.5 py-0.5 ' + VIS_TONE[e.visibility]}>{VIS.find((v) => v[0] === e.visibility)?.[1]}</span>
                   <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-slate-700">{KINDS.find((k) => k[0] === e.kind)?.[1]}</span>
                   {e.category && <span className="text-slate-500">{e.category}</span>}
