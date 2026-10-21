@@ -16,7 +16,7 @@ import { isNonPropelled } from '../../lib/vesselTypes';
 import type { ApplyValues } from '../../components/VesselStatus';
 
 import type { Conn, OpenCfg, PlanKey } from '../../lib/shaftRules';
-import { cx, fmt, parseD } from '../../lib/classValidity/dateUtils';
+import { cx, fmt, num, parseD } from '../../lib/classValidity/dateUtils';
 import { SURVEYS, DMIN0, SHAFT0 } from '../../lib/classValidity/surveyRules';
 import type { SurveyKey, Status, VType, Item, DminCfg, ShaftRow, ShaftSys, Sel } from '../../lib/classValidity/surveyRules';
 
@@ -29,11 +29,14 @@ import ReportDocsModule, { DOCS0 } from '../../components/classValidity/ReportDo
 import type { DocsState } from '../../components/classValidity/ReportDocsModule';
 import VisitsModule, { META0, VISIT0 } from '../../components/classValidity/VisitsModule';
 import type { Visit, VisitMeta } from '../../components/classValidity/VisitsModule';
+import MemoModule from '../../components/classValidity/MemoModule';
+import { MEMO0 } from '../../lib/memo';
+import type { MemoCtx, MemoState } from '../../lib/memo';
 import { Badge } from '../../components/classValidity/ui';
 import { useAuth } from '../../components/AuthProvider';
 
 export default function Page() {
-  const [tab, setTab] = useState<1 | 2 | 3 | 4>(1);
+  const [tab, setTab] = useState<1 | 2 | 3 | 4 | 5>(1);
   // StatusModule memakai tipe tab lama (1 | 2 | 3)
   const goTab = (v: SetStateAction<1 | 2 | 3>) => setTab(typeof v === 'function' ? v(tab as 1 | 2 | 3) : v);
 
@@ -69,6 +72,7 @@ export default function Page() {
   const [docs, setDocs] = useState<DocsState>(DOCS0);
   const [visits, setVisits] = useState<Visit[]>([]); // kunjungan survey agenda ini
   const [vmeta, setVmeta] = useState<VisitMeta>(META0); // isian cetak Daftar Kunjungan Survey
+  const [memo, setMemo] = useState<MemoState>(MEMO0); // memorandum awal survei untuk owner (tab Memo)
   const [reportDone, setReportDone] = useState(''); // tanggal laporan selesai (pengingat 7 hari hilang bila terisi)
   const [finished, setFinished] = useState(false); // agenda yang sedang dibuka sudah di-Finish (deadline laporan baru berlaku setelah ini)
 
@@ -119,7 +123,7 @@ export default function Page() {
   }, [visits]);
 
   // ---- Simpan / buka agenda (Supabase) ----
-  const snapshot = { name, agenda, vType, yearBuilt, expiry, annivD, annivM, extension, startDate, compDate, sel, notation, lastNo, recDue, recDone, recAssess, checks, shaftSys, propConn, openCfg, shaftPlan, shaftCond, shafts, dmin, wd, anchor, chain, rudder, docs, visits, reportDone, vmeta };
+  const snapshot = { name, agenda, vType, yearBuilt, expiry, annivD, annivM, extension, startDate, compDate, sel, notation, lastNo, recDue, recDone, recAssess, checks, shaftSys, propConn, openCfg, shaftPlan, shaftCond, shafts, dmin, wd, anchor, chain, rudder, docs, visits, reportDone, vmeta, memo };
   const agendaSummary = {
     status: A.overall as string,
     scenario: A.c ? A.caseTitle[A.c] : null,
@@ -156,13 +160,14 @@ export default function Page() {
     setReportDone(typeof d.reportDone === 'string' ? d.reportDone : '');
     setFinished(d.finished === true);
     setVmeta(d.vmeta && typeof d.vmeta === 'object' ? { ...META0, ...(d.vmeta as Partial<VisitMeta>) } : META0);
+    setMemo(d.memo && typeof d.memo === 'object' ? { ...MEMO0, ...(d.memo as Partial<MemoState>) } : MEMO0);
     setVisits(Array.isArray(d.visits) ? (d.visits as Partial<Visit>[]).map((x) => ({ ...VISIT0, ...x })) : []);
     setDocs(d.docs && typeof d.docs === 'object' ? { ...DOCS0, ...(d.docs as Partial<DocsState>) } : DOCS0);
     setTab(1);
   };
 
   // ---- Draf otomatis (disimpan di browser ini; dihapus setelah agenda berhasil disimpan ke Supabase) ----
-  type Draft = { savedAt: string; tab: 1 | 2 | 3 | 4; data: Record<string, unknown> };
+  type Draft = { savedAt: string; tab: 1 | 2 | 3 | 4 | 5; data: Record<string, unknown> };
   const { user: draftUser } = useAuth();
   const draftKey = draftUser ? `rdk-draft-v1:${draftUser.id}` : null;
   const [draftPrompt, setDraftPrompt] = useState<Draft | null>(null);
@@ -257,6 +262,7 @@ export default function Page() {
     setReportDone('');
     setFinished(false);
     setVmeta(META0);
+    setMemo(MEMO0);
     setTab(1);
   };
   // DATA KAPAL (tahun dibangun, expiry, anniversary, jenis, dll.): terisi otomatis dari database saat kapal tersimpan dipilih
@@ -297,13 +303,26 @@ export default function Page() {
     }
     return true;
   };
-  const tabs: [1 | 2 | 3 | 4, string, string][] = [
+  const memoActive = A.active.renewal || A.active.docking || A.active.shaft;
+  const memoCtx: MemoCtx = useMemo(
+    () => ({
+      vesselName: name, vType, age: A.age, rnNo: A.rn, renewal: A.active.renewal, docking: A.active.docking, shaft: A.active.shaft, propelled,
+      shaftSys, propConn, openCfg, shaftPlan,
+      shaftD: shafts.map((r) => num(r.l ?? '') ?? num(r.d)),
+      rudderD: rudder.map((r) => num(r.d)),
+      anchorO: num(anchor.o), chainO: num(chain.o), segels: num(memo.segels),
+    }),
+    [name, vType, A.age, A.rn, A.active.renewal, A.active.docking, A.active.shaft, propelled, shaftSys, propConn, openCfg, shaftPlan, shafts, rudder, anchor.o, chain.o, memo.segels]
+  );
+  const surveyorDefault = [...visits].sort((a, b) => (a.ds + a.ts).localeCompare(b.ds + b.ts))[0]?.surveyor || '';
+  const tabs: [1 | 2 | 3 | 4 | 5, string, string][] = [
     [1, 'Status', 'Validity class'],
     [2, 'Scope', 'Checklist survei'],
-    ...(propActive ? ([[3, 'Propulsi', [showClear ? 'Clearance' : '', showDmin ? 'Dimensi minimum' : '', showAnchor ? 'Jangkar' : ''].filter(Boolean).join(' · ')]] as [1 | 2 | 3 | 4, string, string][]) : []),
+    ...(propActive ? ([[3, 'Propulsi', [showClear ? 'Clearance' : '', showDmin ? 'Dimensi minimum' : '', showAnchor ? 'Jangkar' : ''].filter(Boolean).join(' · ')]] as [1 | 2 | 3 | 4 | 5, string, string][]) : []),
     [4, 'Laporan', 'Kunjungan · form · lampiran'],
+    ...(memoActive ? ([[5, 'Memo', 'Memorandum owner']] as [1 | 2 | 3 | 4 | 5, string, string][]) : []),
   ];
-  const shownTab = tab === 3 && !propActive ? 1 : tab;
+  const shownTab = (tab === 3 && !propActive) || (tab === 5 && !memoActive) ? 1 : tab;
 
   // saat cetak: buka semua panel lipat dan isi tanggal cetak (berlaku juga untuk Ctrl+P / menu cetak browser)
   useEffect(() => {
@@ -402,7 +421,10 @@ export default function Page() {
             <ReportDocsModule vType={vType} sel={sel} name={name} agenda={agenda} docs={docs} setDocs={setDocs} />
           </>
         )}
-        <p className="pb-6 text-center text-[11px] text-slate-500">Alat bantu perhitungan; keputusan akhir mengacu pada aturan BKI dan penilaian Surveyor. · Versi 2026.10.18-a</p>
+        {shownTab === 5 && (
+          <MemoModule ctx={memoCtx} memo={memo} setMemo={setMemo} ownerDefault={vmeta.owner} surveyorDefault={surveyorDefault} anchor={anchor} setAnchor={setAnchor} chain={chain} setChain={setChain} />
+        )}
+        <p className="pb-6 text-center text-[11px] text-slate-500">Alat bantu perhitungan; keputusan akhir mengacu pada aturan BKI dan penilaian Surveyor. · Versi 2026.10.21-a</p>
       </main>
     </div>
   );
