@@ -270,6 +270,9 @@ export function rudderMax(item: 'Neck Bearing' | 'Pintle Bearing', d: number | n
   return Math.min(0.01 * d + 4, 6);
 }
 export type Verdict = 'COMPLIANT' | 'NON-COMPLIANT' | '';
+/** Batas minimum jangkar dan rantai jangkar terhadap nilai asli (dipakai modul Propulsi dan Memorandum). */
+export const ANCHOR_MIN_RATIO = 0.88; // berat jangkar
+export const CHAIN_MIN_RATIO = 0.9; // diameter rantai jangkar
 
 /* ============================================================================
  * 6. UI PRIMITIVES

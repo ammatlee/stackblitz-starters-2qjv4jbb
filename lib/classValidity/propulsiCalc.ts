@@ -1,6 +1,6 @@
 /** Kalkulasi Modul 3 (Propulsi): clearance poros, diameter minimum, rudder, jangkar & rantai. Fungsi murni, tanpa React. */
 import { num } from './dateUtils';
-import { minDiameter, shaftLimits, rudderMax } from './surveyRules';
+import { minDiameter, shaftLimits, rudderMax, ANCHOR_MIN_RATIO, CHAIN_MIN_RATIO } from './surveyRules';
 import type { DminCfg, ShaftRow, ShaftSys, Verdict } from './surveyRules';
 
 export type PropulsiInput = {
@@ -40,8 +40,8 @@ export function computePropulsi(input: PropulsiInput) {
   const wdA = num(wd.a), wdT = num(wd.then), wdN = num(wd.now);
   const wdFinal = wdA !== null && wdT !== null && wdN !== null ? wdA + (wdN - wdT) : null;
   const ao = num(anchor.o), aa = num(anchor.a), co2 = num(chain.o), ca = num(chain.a);
-  const anchorMin = ao !== null ? ao * 0.88 : null;
-  const chainMin = co2 !== null ? co2 * 0.9 : null;
+  const anchorMin = ao !== null ? ao * ANCHOR_MIN_RATIO : null;
+  const chainMin = co2 !== null ? co2 * CHAIN_MIN_RATIO : null;
   const anchorV: Verdict = aa !== null && anchorMin !== null ? (aa >= anchorMin ? 'COMPLIANT' : 'NON-COMPLIANT') : '';
   const chainV: Verdict = ca !== null && chainMin !== null ? (ca >= chainMin ? 'COMPLIANT' : 'NON-COMPLIANT') : '';
   const rudderRes = (['Neck Bearing', 'Pintle Bearing'] as const).map((item, i) => {
