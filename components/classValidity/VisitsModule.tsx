@@ -3,7 +3,7 @@ import type { Dispatch, SetStateAction } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../AuthProvider';
 import DateInput from '../DateInput';
-import { Card, Field, inputCls } from './ui';
+import { Card, Field, Fold, inputCls } from './ui';
 import { cx } from '../../lib/classValidity/dateUtils';
 import type { Sel } from '../../lib/classValidity/surveyRules';
 
@@ -199,16 +199,16 @@ export default function VisitsModule({ visits, setVisits, vesselName, agenda, co
   return (
     <>
     {!finished && visits.length > 0 && (
-      <Card
+      <Fold open
         title="Survei berjalan"
         sub={`Kunjungan terakhir ${dmy(compDate)} · deadline laporan (${REPORT_DAYS} hari) baru dihitung setelah agenda di-Finish.`}
         right={<span className="rounded-full bg-sky-100 px-3 py-1 text-xs font-bold text-sky-800">On Progress</span>}
       >
         <p className="text-[11px] text-slate-500">Tanggal completion mengikuti kunjungan terakhir dan bisa bergeser bila ada kunjungan baru. Saat Finish, tanggal itu dikunci dan pengingat laporan mulai berjalan.</p>
-      </Card>
+      </Fold>
     )}
     {due && (
-      <Card
+      <Fold open={!reportDone}
         title="Pengingat laporan"
         sub={`Batas ${dmy(due.dueISO)} · ${REPORT_DAYS} hari setelah inspeksi selesai (${dmy(compDate)}).`}
         right={<span className={cx('rounded-full px-3 py-1 text-xs font-bold', reportDone ? 'bg-emerald-100 text-emerald-800' : dueTone(due.days))}>{reportDone ? '✓ Laporan selesai' : dueLabel(due.days)}</span>}
@@ -227,9 +227,9 @@ export default function VisitsModule({ visits, setVisits, vesselName, agenda, co
           </div>
         )}
         <p className="mt-2 text-[11px] text-slate-500">Setelah tanggal diisi, tekan <b>Simpan agenda</b>; pengingat di Riwayat hilang.</p>
-      </Card>
+      </Fold>
     )}
-    <Card
+    <Fold open
       title="Kunjungan Survey"
       sub={`${vesselName || 'Kapal'}${agenda ? ' · Agenda ' + agenda : ''}`}
       right={visits.length > 0 ? <span className={cx('rounded-full px-3 py-1 text-xs font-bold', pending ? 'bg-amber-100 text-amber-900' : 'bg-emerald-100 text-emerald-800')}>{visits.length} kunjungan · {pending ? `${pending} belum di web BKI` : 'semua sudah di web BKI'}</span> : undefined}
@@ -292,7 +292,7 @@ export default function VisitsModule({ visits, setVisits, vesselName, agenda, co
       </div>
       <button type="button" onClick={add} className="mt-3 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">+ Tambah kunjungan</button>
       <p className="mt-2 text-[11px] text-slate-500">Ingat menekan <b>Simpan agenda</b> di tab Status agar kunjungan tersimpan.</p>
-    </Card>
+    </Fold>
     {visits.length > 0 && (
       <Card title="Cetak Daftar Kunjungan Survey" sub="Format FQ.088-2014/Rev.0 dari kunjungan di atas; kolom tanda tangan OS/Crew dikosongkan">
         <div className="space-y-3">
