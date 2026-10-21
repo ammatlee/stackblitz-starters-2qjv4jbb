@@ -7,6 +7,10 @@ import SiteHeader from '../components/SiteHeader';
 export const metadata: Metadata = {
   title: 'RDK — Class Validity',
   description: 'Vessel survey status dan class scope management.',
+  manifest: '/manifest.webmanifest',
+  themeColor: '#0d9488',
+  icons: { icon: '/icon-192.png', apple: '/icon-512.png' },
+  appleWebApp: { capable: true, title: 'RDK', statusBarStyle: 'default' },
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
