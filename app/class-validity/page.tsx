@@ -11,6 +11,7 @@
  */
 
 import { useEffect, useMemo, useState } from 'react';
+import type { SetStateAction } from 'react';
 import { isNonPropelled } from '../../lib/vesselTypes';
 import type { ApplyValues } from '../../components/VesselStatus';
 
@@ -24,10 +25,14 @@ import { computeStatus } from '../../lib/classValidity/statusCalc';
 import StatusModule from '../../components/classValidity/StatusModule';
 import ScopeModule from '../../components/classValidity/ScopeModule';
 import PropulsiModule from '../../components/classValidity/PropulsiModule';
+import ReportDocsModule, { DOCS0 } from '../../components/classValidity/ReportDocsModule';
+import type { DocsState } from '../../components/classValidity/ReportDocsModule';
 import { Badge } from '../../components/classValidity/ui';
 
 export default function Page() {
-  const [tab, setTab] = useState<1 | 2 | 3>(1);
+  const [tab, setTab] = useState<1 | 2 | 3 | 4>(1);
+  // StatusModule memakai tipe tab lama (1 | 2 | 3)
+  const goTab = (v: SetStateAction<1 | 2 | 3>) => setTab(typeof v === 'function' ? v(tab as 1 | 2 | 3) : v);
 
   /* ---- Modul 1 ---- */
   const [name, setName] = useState('');
@@ -56,6 +61,9 @@ export default function Page() {
   /* ---- Modul 2 ---- */
   const [checks, setChecks] = useState<Record<string, string>>({});
   const setCheck = (id: string, v: string) => setChecks((c) => ({ ...c, [id]: v }));
+
+  /* ---- Modul 4: form & lampiran laporan ---- */
+  const [docs, setDocs] = useState<DocsState>(DOCS0);
 
   /* ---- Modul 3 ---- */
   const [shaftSys, setShaftSys] = useState<ShaftSys>('open');
@@ -95,7 +103,7 @@ export default function Page() {
   );
 
   // ---- Simpan / buka agenda (Supabase) ----
-  const snapshot = { name, agenda, vType, yearBuilt, expiry, annivD, annivM, extension, startDate, compDate, sel, notation, lastNo, recDue, recDone, recAssess, checks, shaftSys, propConn, openCfg, shaftPlan, shaftCond, shafts, dmin, wd, anchor, chain, rudder };
+  const snapshot = { name, agenda, vType, yearBuilt, expiry, annivD, annivM, extension, startDate, compDate, sel, notation, lastNo, recDue, recDone, recAssess, checks, shaftSys, propConn, openCfg, shaftPlan, shaftCond, shafts, dmin, wd, anchor, chain, rudder, docs };
   const agendaSummary = {
     status: A.overall as string,
     scenario: A.c ? A.caseTitle[A.c] : null,
@@ -129,6 +137,7 @@ export default function Page() {
     if (d.anchor && typeof d.anchor === 'object') setAnchor(d.anchor as typeof anchor);
     if (d.chain && typeof d.chain === 'object') setChain(d.chain as typeof chain);
     if (Array.isArray(d.rudder)) setRudder(d.rudder as typeof rudder);
+    setDocs(d.docs && typeof d.docs === 'object' ? { ...DOCS0, ...(d.docs as Partial<DocsState>) } : DOCS0);
     setTab(1);
   };
 
@@ -158,6 +167,7 @@ export default function Page() {
     setRecDue(''); setRecDone(''); setRecAssess(''); setChecks({});
     setShaftPlan(''); setShaftCond('max'); setShafts([SHAFT0]); setDmin(DMIN0); setWd({ a: '', then: '', now: '' });
     setAnchor({ o: '', a: '' }); setChain({ o: '', a: '' }); setRudder([{ d: '', a: '' }, { d: '', a: '' }]);
+    setDocs(DOCS0);
     setTab(1);
   };
   // DATA KAPAL (tahun dibangun, expiry, anniversary, jenis, dll.): terisi otomatis dari database saat kapal tersimpan dipilih
@@ -197,10 +207,11 @@ export default function Page() {
     }
     return true;
   };
-  const tabs: [1 | 2 | 3, string, string][] = [
+  const tabs: [1 | 2 | 3 | 4, string, string][] = [
     [1, 'Status', 'Validity class'],
     [2, 'Scope', 'Checklist survei'],
-    ...(propActive ? ([[3, 'Propulsi', [showClear ? 'Clearance' : '', showDmin ? 'Dimensi minimum' : '', showAnchor ? 'Jangkar' : ''].filter(Boolean).join(' · ')]] as [1 | 2 | 3, string, string][]) : []),
+    ...(propActive ? ([[3, 'Propulsi', [showClear ? 'Clearance' : '', showDmin ? 'Dimensi minimum' : '', showAnchor ? 'Jangkar' : ''].filter(Boolean).join(' · ')]] as [1 | 2 | 3 | 4, string, string][]) : []),
+    [4, 'Laporan', 'Form & lampiran'],
   ];
   const shownTab = tab === 3 && !propActive ? 1 : tab;
 
@@ -257,7 +268,7 @@ export default function Page() {
       <main className="mx-auto max-w-5xl space-y-4 px-3 py-5 sm:px-4">
         {shownTab === 1 && (
           <StatusModule
-            A={A} agenda={agenda} setAgenda={setAgenda} agendaSummary={agendaSummary} snapshot={snapshot} restoreAgenda={restoreAgenda} applyVessel={applyVessel} changeName={changeName} clearAll={clearAll} chipVisible={chipVisible} refreshKey={refreshKey} setRefreshKey={setRefreshKey} name={name} vType={vType} setVType={setVType} yearBuilt={yearBuilt} setYearBuilt={setYearBuilt} expiry={expiry} setExpiry={setExpiry} setAnnivD={setAnnivD} setAnnivM={setAnnivM} extension={extension} setExtension={setExtension} startDate={startDate} setStartDate={setStartDate} compDate={compDate} setCompDate={setCompDate} sel={sel} setSel={setSel} notation={notation} setNotation={setNotation} propelled={propelled} propelledFlag={propelledFlag} setPropelledFlag={setPropelledFlag} lastNo={lastNo} setLastNo={setLastNo} recDue={recDue} setRecDue={setRecDue} recDone={recDone} setRecDone={setRecDone} recAssess={recAssess} setRecAssess={setRecAssess} shaftSys={shaftSys} statusInfo={statusInfo} setTab={setTab}
+            A={A} agenda={agenda} setAgenda={setAgenda} agendaSummary={agendaSummary} snapshot={snapshot} restoreAgenda={restoreAgenda} applyVessel={applyVessel} changeName={changeName} clearAll={clearAll} chipVisible={chipVisible} refreshKey={refreshKey} setRefreshKey={setRefreshKey} name={name} vType={vType} setVType={setVType} yearBuilt={yearBuilt} setYearBuilt={setYearBuilt} expiry={expiry} setExpiry={setExpiry} setAnnivD={setAnnivD} setAnnivM={setAnnivM} extension={extension} setExtension={setExtension} startDate={startDate} setStartDate={setStartDate} compDate={compDate} setCompDate={setCompDate} sel={sel} setSel={setSel} notation={notation} setNotation={setNotation} propelled={propelled} propelledFlag={propelledFlag} setPropelledFlag={setPropelledFlag} lastNo={lastNo} setLastNo={setLastNo} recDue={recDue} setRecDue={setRecDue} recDone={recDone} setRecDone={setRecDone} recAssess={recAssess} setRecAssess={setRecAssess} shaftSys={shaftSys} statusInfo={statusInfo} setTab={goTab}
           />
         )}
         {shownTab === 2 && (
@@ -277,6 +288,7 @@ export default function Page() {
             anchor={anchor} setAnchor={setAnchor} chain={chain} setChain={setChain} rudder={rudder} setRudder={setRudder}
           />
         )}
+        {shownTab === 4 && <ReportDocsModule vType={vType} sel={sel} name={name} agenda={agenda} docs={docs} setDocs={setDocs} />}
         <p className="pb-6 text-center text-[11px] text-slate-500">Alat bantu perhitungan; keputusan akhir mengacu pada aturan BKI dan penilaian Surveyor. · Versi 2026.10.18-a</p>
       </main>
     </div>
