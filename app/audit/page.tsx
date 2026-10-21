@@ -50,7 +50,7 @@ export default function AuditPage() {
           <p className="text-xs font-semibold uppercase tracking-widest text-teal-700">Class &amp; Technical</p>
           <h1 className="mt-1 text-2xl font-extrabold text-slate-900">Riwayat Perubahan</h1>
           <p className="mt-1 text-sm text-slate-600">
-            {isAdmin ? 'Semua perubahan data kapal dan pembaruan manual, terbaru di atas.' : 'Perubahan pada data kapal milikmu, terbaru di atas.'}
+            {isAdmin ? 'Semua perubahan data kapal, agenda, dan pembaruan manual, terbaru di atas.' : 'Perubahan pada data kapal dan agenda milikmu, terbaru di atas.'}
           </p>
         </div>
         <div className="flex gap-2">
@@ -76,7 +76,7 @@ export default function AuditPage() {
           <p className="p-6 text-center text-sm text-slate-500">Memuat riwayat…</p>
         ) : (
           <>
-            <AuditView rows={rows} vesselFilterName={filterName} />
+            <AuditView rows={rows} vesselFilterName={filterName} isAdmin={isAdmin} userId={user?.id} />
             {rows.length >= limit && (
               <button onClick={() => setLimit(limit + PAGE)} disabled={busy} className="mt-4 w-full rounded-xl border border-slate-300 bg-white py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50">
                 Muat lebih banyak

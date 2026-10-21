@@ -41,8 +41,15 @@ const LABEL: Record<string, string> = {
   open_config: 'Konfigurasi poros open',
   surveys: 'Survei',
   completion: 'Tanggal selesai',
+  agenda_no: 'Nomor agenda',
+  inspection_start: 'Inspeksi mulai',
+  inspection_completion: 'Inspeksi selesai',
+  status: 'Status agenda',
+  scenario: 'Skenario',
+  finished: 'Ditandai selesai',
+  finished_at: 'Waktu ditandai selesai',
 };
-const HIDDEN = new Set(['id', 'owner', 'vessel_id', 'created_at', 'updated_at', 'baseline_at']);
+const HIDDEN = new Set(['id', 'owner', 'vessel_id', 'created_at', 'updated_at', 'baseline_at', 'data']);
 const SURVEY_NAME: Record<string, string> = { PS: 'Propeller Shaft', A1: 'Annual 1', A2: 'Annual 2', A3: 'Annual 3', A4: 'Annual 4', A5: 'Annual 5', INT: 'Intermediate', D1: 'Docking', REN: 'Renewal + Docking 2' };
 const EXT_NAME: Record<string, string> = { E25: '2,5 tahun', E1: '1 tahun', E3: '3 bulan' };
 const SHAFT_SYS: Record<string, string> = { open: 'Open loop', oil: 'Closed loop — oil', fw: 'Closed loop — fresh water' };
@@ -69,11 +76,13 @@ export function fmtVal(key: string, v: unknown): string {
 export type ChangeLine = { label: string; from?: string; to?: string };
 
 export function describeAudit(r: AuditRow): { title: string; lines: ChangeLine[] } {
-  const isVessel = r.tbl === 'vessels';
-  const title =
-    r.op === 'INSERT' ? (isVessel ? 'Kapal dibuat' : 'Pembaruan manual ditambahkan')
-    : r.op === 'DELETE' ? (isVessel ? 'Kapal dihapus' : 'Pembaruan manual dihapus')
-    : isVessel ? 'Data kapal diubah' : 'Pembaruan manual diubah';
+  // [dibuat, diubah, dihapus] menurut tabelnya; tabel lain dianggap pembaruan manual
+  const T: Record<string, [string, string, string]> = {
+    vessels: ['Kapal dibuat', 'Data kapal diubah', 'Kapal dihapus'],
+    agendas: ['Agenda dibuat', 'Agenda diubah', 'Agenda dihapus'],
+  };
+  const t = T[r.tbl] ?? ['Pembaruan manual ditambahkan', 'Pembaruan manual diubah', 'Pembaruan manual dihapus'];
+  const title = r.op === 'INSERT' ? t[0] : r.op === 'DELETE' ? t[2] : t[1];
 
   const keys = (d: Record<string, unknown> | null) => Object.keys(d ?? {}).filter((k) => !HIDDEN.has(k));
   const lines: ChangeLine[] = [];
@@ -87,6 +96,16 @@ export function describeAudit(r: AuditRow): { title: string; lines: ChangeLine[]
     for (const k of ks.slice(0, 8)) lines.push({ label: LABEL[k] ?? k, to: fmtVal(k, d?.[k]) });
   }
   return { title, lines };
+}
+
+/**
+ * Nama pelaku yang ditampilkan. Admin melihat email; anggota biasa hanya melihat "Anda" atau "Admin"
+ * (anggota hanya bisa melihat riwayat datanya sendiri, jadi pelaku selain dirinya pasti admin).
+ */
+export function actorLabel(r: AuditRow, viewer: { isAdmin: boolean; userId?: string | null }): string {
+  if (viewer.isAdmin) return r.actor_email ?? 'sistem / SQL Editor';
+  if (!r.actor) return 'Sistem';
+  return r.actor === viewer.userId ? 'Anda' : 'Admin';
 }
 
 export const fmtWhen = (iso: string) => {

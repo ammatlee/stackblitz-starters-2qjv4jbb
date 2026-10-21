@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useMemo, useState } from 'react';
-import { describeAudit, fmtWhen } from '../../lib/audit';
+import { actorLabel, describeAudit, fmtWhen } from '../../lib/audit';
 import type { AuditRow } from '../../lib/audit';
 
 const OP_TONE: Record<string, string> = {
@@ -11,13 +11,13 @@ const OP_TONE: Record<string, string> = {
 };
 const OP_LABEL: Record<string, string> = { INSERT: 'BARU', UPDATE: 'DIUBAH', DELETE: 'DIHAPUS' };
 
-export default function AuditView({ rows, vesselFilterName }: { rows: AuditRow[]; vesselFilterName?: string }) {
+export default function AuditView({ rows, vesselFilterName, isAdmin = false, userId }: { rows: AuditRow[]; vesselFilterName?: string; isAdmin?: boolean; userId?: string | null }) {
   const [q, setQ] = useState('');
-  const [kind, setKind] = useState<'all' | 'vessels' | 'vessel_events'>('all');
+  const [kind, setKind] = useState<'all' | 'vessels' | 'agendas' | 'vessel_events'>('all');
   const shown = useMemo(() => {
     const s = q.trim().toLowerCase();
-    return rows.filter((r) => (kind === 'all' || r.tbl === kind) && (!s || (r.vessel_name ?? '').toLowerCase().includes(s) || (r.actor_email ?? '').toLowerCase().includes(s)));
-  }, [rows, q, kind]);
+    return rows.filter((r) => (kind === 'all' || r.tbl === kind) && (!s || (r.vessel_name ?? '').toLowerCase().includes(s) || (isAdmin && (r.actor_email ?? '').toLowerCase().includes(s))));
+  }, [rows, q, kind, isAdmin]);
 
   const chip = (k: typeof kind, label: string) => (
     <button
@@ -36,12 +36,13 @@ export default function AuditView({ rows, vesselFilterName }: { rows: AuditRow[]
       <div className="flex flex-wrap gap-2">
         {chip('all', 'Semua')}
         {chip('vessels', 'Data kapal')}
+        {chip('agendas', 'Agenda')}
         {chip('vessel_events', 'Pembaruan manual')}
       </div>
       <input
         value={q}
         onChange={(e) => setQ(e.target.value)}
-        placeholder="Cari nama kapal atau email pelaku…"
+        placeholder={isAdmin ? 'Cari nama kapal atau email pelaku…' : 'Cari nama kapal…'}
         className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-teal-500"
       />
 
@@ -61,7 +62,7 @@ export default function AuditView({ rows, vesselFilterName }: { rows: AuditRow[]
                 <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${OP_TONE[r.op] ?? 'bg-slate-100 text-slate-700'}`}>{OP_LABEL[r.op] ?? r.op}</span>
               </div>
               <p className="mt-0.5 text-xs text-slate-500">
-                {fmtWhen(r.at)} · {r.actor_email ?? 'sistem / SQL Editor'}
+                {fmtWhen(r.at)} · {actorLabel(r, { isAdmin, userId })}
               </p>
               <p className="mt-2 text-sm font-medium text-slate-800">{d.title}</p>
               {d.lines.length > 0 && (
