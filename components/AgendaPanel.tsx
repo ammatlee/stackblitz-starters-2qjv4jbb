@@ -2,6 +2,7 @@
 
 import React, { useCallback, useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
+import { downloadBackup } from '../lib/backup';
 import { useAuth } from './AuthProvider';
 import { dueLabel, dueTone, reportDue, todayISO } from './classValidity/VisitsModule';
 
@@ -67,6 +68,8 @@ export default function AgendaPanel({ vesselName, vesselType, yearBuilt, agendaN
   const [openRows, setOpenRows] = useState<Row[]>([]); // agenda yang belum di-Finish
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ k: 'err' | 'ok'; t: string } | null>(null);
+  const [bkBusy, setBkBusy] = useState(false);
+  const [bkMsg, setBkMsg] = useState<{ k: 'err' | 'ok'; t: string } | null>(null);
 
   const load = useCallback(async () => {
     if (!supabase || !user) return;
@@ -168,6 +171,18 @@ export default function AgendaPanel({ vesselName, vesselType, yearBuilt, agendaN
     load();
     onSaved?.();
     onClear?.();
+  };
+
+  const backup = async () => {
+    setBkBusy(true);
+    setBkMsg(null);
+    try {
+      const c = await downloadBackup();
+      setBkMsg({ k: 'ok', t: `Cadangan diunduh: ${c.vessels} kapal, ${c.agendas} agenda, ${c.vessel_events} pembaruan manual.` });
+    } catch (e) {
+      setBkMsg({ k: 'err', t: e instanceof Error ? e.message : 'Gagal membuat cadangan.' });
+    }
+    setBkBusy(false);
   };
 
   const remove = async (r: Row) => {
@@ -337,6 +352,14 @@ export default function AgendaPanel({ vesselName, vesselType, yearBuilt, agendaN
           ))}
         </div>
       )}
+
+      <div className="mt-5 flex flex-wrap items-center gap-3 border-t border-slate-100 pt-3 print:hidden">
+        <button type="button" disabled={bkBusy} onClick={backup} className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50">
+          {bkBusy ? 'Menyiapkan…' : 'Unduh cadangan data (JSON)'}
+        </button>
+        <span className="text-[11px] text-slate-500">Isi: kapal, agenda (beserta kunjungan), dan pembaruan manual. Simpan file ini di tempat aman, misalnya Google Drive.</span>
+      </div>
+      {bkMsg && <p className={'mt-1 text-xs ' + (bkMsg.k === 'err' ? 'text-red-700' : 'text-emerald-700')}>{bkMsg.t}</p>}
     </div>
   );
 }
