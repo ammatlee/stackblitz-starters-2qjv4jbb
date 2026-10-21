@@ -1,5 +1,7 @@
-import React, { useMemo } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import type { Dispatch, SetStateAction } from 'react';
+import { supabase } from '../../lib/supabase';
+import { useAuth } from '../AuthProvider';
 import { Card, Fold, Field, inputCls } from './ui';
 import { cx } from '../../lib/classValidity/dateUtils';
 import { SURVEYS } from '../../lib/classValidity/surveyRules';
@@ -48,6 +50,62 @@ export default function ReportDocsModule({ vType, sel, name, agenda, docs, setDo
   const auto = categoryOfType(vType);
   const cat = docs.cat || auto || '';
   const catInfo = CATEGORIES.find((c) => c.id === cat) ?? null;
+  const { user } = useAuth();
+
+  // N/A permanen: tersimpan per akun + jenis kapal + jenis survei, berlaku untuk agenda berikutnya
+  const [prefs, setPrefs] = useState<Set<string>>(new Set());
+  const [showHidden, setShowHidden] = useState(false);
+  const [err, setErr] = useState('');
+  const canSave = !!(supabase && user && vType);
+
+  useEffect(() => {
+    let dead = false;
+    setPrefs(new Set());
+    if (!supabase || !user || !vType) return;
+    (async () => {
+      const { data, error } = await supabase!.from('report_na').select('col,item').eq('owner', user.id).eq('vessel_type', vType);
+      if (dead) return;
+      if (error) {
+        setErr('N/A tersimpan belum bisa dimuat: ' + error.message);
+        return;
+      }
+      setErr('');
+      setPrefs(new Set(((data ?? []) as { col: string; item: string }[]).map((r) => r.col + '|' + r.item)));
+    })();
+    return () => {
+      dead = true;
+    };
+  }, [user, vType]);
+
+  const savePref = useCallback(
+    async (cs: Col[], item: string, on: boolean) => {
+      if (!supabase || !user || !vType || cs.length === 0) return;
+      setPrefs((p) => {
+        const n = new Set(p);
+        cs.forEach((c) => (on ? n.add(c + '|' + item) : n.delete(c + '|' + item)));
+        return n;
+      });
+      if (on) {
+        const { error } = await supabase.from('report_na').upsert(cs.map((c) => ({ owner: user.id, vessel_type: vType, col: c, item })), { onConflict: 'owner,vessel_type,col,item' });
+        if (error) setErr('Gagal menyimpan N/A: ' + error.message);
+      } else {
+        const { error } = await supabase.from('report_na').delete().eq('owner', user.id).eq('vessel_type', vType).eq('item', item).in('col', cs);
+        if (error) setErr('Gagal memperbarui N/A: ' + error.message);
+      }
+    },
+    [user, vType]
+  );
+
+  const resetPrefs = async () => {
+    if (!supabase || !user || !vType) return;
+    if (!window.confirm(`Reset semua N/A tersimpan untuk jenis kapal ${vType}? Semua form dan lampiran akan muncul kembali seperti awal.`)) return;
+    const { error } = await supabase.from('report_na').delete().eq('owner', user.id).eq('vessel_type', vType);
+    if (error) return setErr('Gagal reset: ' + error.message);
+    setErr('');
+    setPrefs(new Set());
+    setShowHidden(false);
+    setDocs((d) => ({ ...d, done: Object.fromEntries(Object.entries(d.done).filter(([, v]) => v !== 'na')) as Record<string, Mark> }));
+  };
 
   // jenis survey yang dipilih di agenda → kolom di standar (+ EC/OS yang ditambahkan manual)
   const cols = useMemo(() => {
@@ -58,8 +116,22 @@ export default function ReportDocsModule({ vType, sel, name, agenda, docs, setDo
     return COLS.map((c) => c.key).filter((k) => s.has(k));
   }, [sel, docs.extraCols]);
 
-  const mark = (k: string): Mark => docs.done[k] ?? '';
-  const tap = (k: string) => setDocs((d) => ({ ...d, done: { ...d.done, [k]: NEXT[d.done[k] ?? ''] } }));
+  // cs = kolom survei yang menuntut item ini; kosong (lampiran umum) = semua survei yang dipilih
+  const eff = (cs: Col[]) => (cs.length ? cs : cols);
+  const hidden = (k: string, cs: Col[]) => {
+    const e = eff(cs);
+    return e.length > 0 && e.every((c) => prefs.has(c + '|' + k));
+  };
+  const mark = (k: string, cs: Col[] = []): Mark => (hidden(k, cs) ? 'na' : docs.done[k] ?? '');
+  const tap = (k: string, cs: Col[] = []) => {
+    const cur = mark(k, cs);
+    const nxt = NEXT[cur];
+    // hanya form (f:) dan lampiran inti (a:) yang N/A-nya diingat untuk agenda berikutnya
+    const persist = k.startsWith('f:') || k.startsWith('a:');
+    if (persist && nxt === 'na') savePref(eff(cs), k, true);
+    if (persist && cur === 'na') savePref(eff(cs), k, false);
+    setDocs((d) => ({ ...d, done: { ...d.done, [k]: nxt } }));
+  };
   const labelOf = (c: Col) => COLS.find((x) => x.key === c)?.label ?? c;
 
   // form: gabungan semua kolom terpilih (satu kali per kode, dengan keterangan survey yang memerlukannya)
@@ -92,9 +164,12 @@ export default function ReportDocsModule({ vType, sel, name, agenda, docs, setDo
     return out;
   }, [cols]);
 
-  const keys = [...forms.map((f) => 'f:' + f.row.code), ...atts.map((x) => 'a:' + x.a.id)];
-  const relevant = keys.filter((k) => mark(k) !== 'na');
-  const ready = relevant.filter((k) => mark(k) === 'ok').length;
+  const keys: { k: string; cs: Col[] }[] = [...forms.map((f) => ({ k: 'f:' + f.row.code, cs: f.cols })), ...atts.map((x) => ({ k: 'a:' + x.a.id, cs: x.cols }))];
+  const relevant = keys.filter((x) => mark(x.k, x.cs) !== 'na');
+  const ready = relevant.filter((x) => mark(x.k, x.cs) === 'ok').length;
+  const hiddenCount = keys.filter((x) => hidden(x.k, x.cs)).length;
+  const showForm = (f: { row: FormRow; cols: Col[] }) => showHidden || !hidden('f:' + f.row.code, f.cols);
+  const showAtt = (x: { a: Att; cols: Col[] }) => showHidden || !hidden('a:' + x.a.id, x.cols);
   const pct = relevant.length ? Math.round((ready / relevant.length) * 100) : 0;
   const tagOf = (cs: Col[]) => (cs.length ? cs.join(' · ') : '');
 
@@ -141,14 +216,37 @@ export default function ReportDocsModule({ vType, sel, name, agenda, docs, setDo
           </Field>
         </div>
         {catInfo && <p className="mt-2 text-[11px] text-slate-500">Tabel {catInfo.id}: {catInfo.label}</p>}
-        <p className="mt-3 text-[11px] text-slate-500">Ketuk tombol di kiri tiap item: Belum → ✓ Siap → N/A (tidak berlaku).</p>
+        <p className="mt-3 text-[11px] text-slate-500">Ketuk tombol di kiri tiap item: Belum → ✓ Siap → N/A (tidak berlaku). N/A pada form dan lampiran inti diingat untuk jenis kapal dan jenis survei yang sama, dan disembunyikan di agenda berikutnya.</p>
       </Card>
+
+      {err && <p className="rounded-xl bg-rose-50 p-3 text-xs text-rose-800">{err}</p>}
+      {cols.length > 0 && (hiddenCount > 0 || prefs.size > 0 || !canSave) && (
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl bg-slate-50 px-3 py-2 text-[11px] text-slate-600 print:hidden">
+          {!canSave ? (
+            <span>{vType ? 'Masuk ke akun agar N/A bisa diingat untuk agenda berikutnya.' : 'Pilih jenis kapal agar N/A bisa diingat untuk agenda berikutnya.'}</span>
+          ) : (
+            <>
+              <span>{hiddenCount} item disembunyikan (N/A tersimpan untuk {vType})</span>
+              {hiddenCount > 0 && (
+                <button type="button" onClick={() => setShowHidden((v) => !v)} className="font-semibold text-teal-700 underline">
+                  {showHidden ? 'Sembunyikan lagi' : 'Tampilkan'}
+                </button>
+              )}
+              {prefs.size > 0 && (
+                <button type="button" onClick={resetPrefs} className="font-semibold text-red-700 underline">
+                  Reset N/A jenis kapal ini
+                </button>
+              )}
+            </>
+          )}
+        </div>
+      )}
 
       {cols.length > 0 && cat && (
         <Card title="Form yang harus diunggah" sub={`${forms.length} form sesuai jenis kapal dan survei`}>
           <ul className="divide-y divide-slate-100">
-            {forms.map(({ row, cols: cs, extra }) => (
-              <Row key={row.code} label={`${row.code} — ${row.title}`} sub={row.note} tags={(extra ? 'Form tambahan · ' : '') + tagOf(cs)} mark={mark('f:' + row.code)} onTap={() => tap('f:' + row.code)} />
+            {forms.filter((f) => showForm({ row: f.row, cols: f.cols })).map(({ row, cols: cs, extra }) => (
+              <Row key={row.code} label={`${row.code} — ${row.title}`} sub={row.note} tags={(extra ? 'Form tambahan · ' : '') + tagOf(cs)} mark={mark('f:' + row.code, cs)} onTap={() => tap('f:' + row.code, cs)} />
             ))}
           </ul>
         </Card>
@@ -159,8 +257,8 @@ export default function ReportDocsModule({ vType, sel, name, agenda, docs, setDo
       {atts.length > 0 && (
         <Card title="Dokumen lampiran pendukung" sub="Lampiran umum + tambahan menurut jenis survei">
           <ul className="divide-y divide-slate-100">
-            {atts.map(({ a, cols: cs }) => (
-              <Row key={a.id} label={a.label} sub={a.cond} tags={cs.length ? tagOf(cs) : 'Umum'} mark={mark('a:' + a.id)} onTap={() => tap('a:' + a.id)} />
+            {atts.filter((x) => showAtt(x)).map(({ a, cols: cs }) => (
+              <Row key={a.id} label={a.label} sub={a.cond} tags={cs.length ? tagOf(cs) : 'Umum'} mark={mark('a:' + a.id, cs)} onTap={() => tap('a:' + a.id, cs)} />
             ))}
           </ul>
         </Card>
