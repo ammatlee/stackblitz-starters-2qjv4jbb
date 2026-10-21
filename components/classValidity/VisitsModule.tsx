@@ -123,6 +123,7 @@ type Props = {
   vesselName: string;
   agenda: string;
   compDate: string;
+  finished: boolean;
   reportDone: string;
   setReportDone: (v: string) => void;
   sel: Sel;
@@ -130,8 +131,8 @@ type Props = {
   setMeta: Dispatch<SetStateAction<VisitMeta>>;
 };
 
-export default function VisitsModule({ visits, setVisits, vesselName, agenda, compDate, reportDone, setReportDone, sel, meta, setMeta }: Props) {
-  const due = reportDue(compDate, reportDone);
+export default function VisitsModule({ visits, setVisits, vesselName, agenda, compDate, finished, reportDone, setReportDone, sel, meta, setMeta }: Props) {
+  const due = finished ? reportDue(compDate, reportDone) : null;
   const { user } = useAuth();
   const saved = String((user?.user_metadata as Record<string, unknown> | undefined)?.surveyor_name ?? '');
   const [nm, setNm] = useState(saved);
@@ -197,10 +198,19 @@ export default function VisitsModule({ visits, setVisits, vesselName, agenda, co
 
   return (
     <>
+    {!finished && visits.length > 0 && (
+      <Card
+        title="Survei berjalan"
+        sub={`Kunjungan terakhir ${dmy(compDate)} · deadline laporan (${REPORT_DAYS} hari) baru dihitung setelah agenda di-Finish.`}
+        right={<span className="rounded-full bg-sky-100 px-3 py-1 text-xs font-bold text-sky-800">On Progress</span>}
+      >
+        <p className="text-[11px] text-slate-500">Tanggal completion mengikuti kunjungan terakhir dan bisa bergeser bila ada kunjungan baru. Saat Finish, tanggal itu dikunci dan pengingat laporan mulai berjalan.</p>
+      </Card>
+    )}
     {due && (
       <Card
         title="Pengingat laporan"
-        sub={`Batas ${dmy(due.dueISO)} · ${REPORT_DAYS} hari setelah inspeksi selesai (${dmy(compDate)}). Berlaku setelah agenda di-Finish.`}
+        sub={`Batas ${dmy(due.dueISO)} · ${REPORT_DAYS} hari setelah inspeksi selesai (${dmy(compDate)}).`}
         right={<span className={cx('rounded-full px-3 py-1 text-xs font-bold', reportDone ? 'bg-emerald-100 text-emerald-800' : dueTone(due.days))}>{reportDone ? '✓ Laporan selesai' : dueLabel(due.days)}</span>}
       >
         {reportDone ? (
