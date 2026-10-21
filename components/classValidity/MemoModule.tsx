@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import type { Dispatch, SetStateAction } from 'react';
 import { Card, Field, inputCls } from './ui';
 import { cx } from '../../lib/classValidity/dateUtils';
-import { buildMemo, dateLong, memoHtml, memoSubject, memoText, resolveMemo } from '../../lib/memo';
+import { buildMemo, dateLong, memoSubject, memoText, resolveMemo } from '../../lib/memo';
 import type { MemoCtx, MemoItem, MemoState } from '../../lib/memo';
 import { useAuth } from '../AuthProvider';
 
@@ -51,17 +51,23 @@ export default function MemoModule({ ctx, memo, setMemo, ownerDefault, surveyorD
       setMsg('Gagal menyalin; pilih teks pada pratinjau lalu salin manual.');
     }
   };
-  const download = () => {
-    const blob = new Blob(['\ufeff', memoHtml(ctx, eff, resolved)], { type: 'application/msword' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `Memorandum_${(ctx.vesselName || 'kapal').replace(/[^A-Za-z0-9]+/g, '_')}.doc`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
-    setMsg('File Word diunduh. Lampirkan ke email Anda.');
+  const download = async () => {
+    try {
+      setMsg('Menyiapkan file Word…');
+      const { memoDocxBlob } = await import('../../lib/memoDocx');
+      const blob = await memoDocxBlob(ctx, eff, resolved);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `Memorandum_${(ctx.vesselName || 'kapal').replace(/[^A-Za-z0-9]+/g, '_')}.docx`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      setMsg('File Word (.docx) diunduh. Lampirkan ke email Anda.');
+    } catch {
+      setMsg('Gagal membuat file Word. Coba lagi.');
+    }
   };
   const mail = () => {
     const body = `Kepada Yth ${eff.to || ''},\n\nTerlampir ${subject.replace('Memorandum Awal', 'memorandum awal')}. Mohon item pada lampiran dapat dipersiapkan.\n\nHormat kami,\n${eff.surveyor}`;
@@ -141,7 +147,7 @@ export default function MemoModule({ ctx, memo, setMemo, ownerDefault, surveyorD
 
           <Card title="Pratinjau & Kirim" sub="Memo dikirim dari email kantor Anda sendiri; web tidak mengirim email.">
             <div className="flex flex-wrap gap-2">
-              <button type="button" onClick={download} className="rounded-lg bg-teal-600 px-4 py-2 text-xs font-semibold text-white hover:bg-teal-700">Unduh Word (.doc)</button>
+              <button type="button" onClick={download} className="rounded-lg bg-teal-600 px-4 py-2 text-xs font-semibold text-white hover:bg-teal-700">Unduh Word (.docx)</button>
               <button type="button" onClick={copy} className="rounded-lg border border-slate-300 px-4 py-2 text-xs font-semibold hover:bg-slate-50">Salin teks</button>
               <button type="button" onClick={mail} className="rounded-lg border border-slate-300 px-4 py-2 text-xs font-semibold hover:bg-slate-50">Buka di email</button>
               <button type="button" onClick={resetEdits} className="rounded-lg border border-slate-300 px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50">Kembalikan ke otomatis</button>
