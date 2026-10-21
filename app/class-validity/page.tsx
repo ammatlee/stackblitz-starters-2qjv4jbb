@@ -30,6 +30,7 @@ import type { DocsState } from '../../components/classValidity/ReportDocsModule'
 import VisitsModule, { META0, VISIT0 } from '../../components/classValidity/VisitsModule';
 import type { Visit, VisitMeta } from '../../components/classValidity/VisitsModule';
 import { Badge } from '../../components/classValidity/ui';
+import { useAuth } from '../../components/AuthProvider';
 
 export default function Page() {
   const [tab, setTab] = useState<1 | 2 | 3 | 4>(1);
@@ -160,6 +161,71 @@ export default function Page() {
     setTab(1);
   };
 
+  // ---- Draf otomatis (disimpan di browser ini; dihapus setelah agenda berhasil disimpan ke Supabase) ----
+  type Draft = { savedAt: string; tab: 1 | 2 | 3 | 4; data: Record<string, unknown> };
+  const { user: draftUser } = useAuth();
+  const draftKey = draftUser ? `rdk-draft-v1:${draftUser.id}` : null;
+  const [draftPrompt, setDraftPrompt] = useState<Draft | null>(null);
+  const [draftReady, setDraftReady] = useState(false);
+  const hasContent = Boolean(agenda.trim() || visits.length > 0);
+  const snapJson = JSON.stringify({ ...snapshot, finished, master: { vType, yearBuilt, notation, propelledFlag } });
+
+  useEffect(() => {
+    if (!draftKey) return;
+    try {
+      const raw = localStorage.getItem(draftKey);
+      if (raw) {
+        const d = JSON.parse(raw) as Draft;
+        if (d && d.data && typeof d.data === 'object') {
+          setDraftPrompt(d);
+          return;
+        }
+      }
+    } catch {
+      /* draf rusak: abaikan */
+    }
+    setDraftReady(true);
+  }, [draftKey]);
+
+  useEffect(() => {
+    if (!draftKey || !draftReady || !hasContent) return;
+    const t = setTimeout(() => {
+      try {
+        localStorage.setItem(draftKey, JSON.stringify({ savedAt: new Date().toISOString(), tab, data: JSON.parse(snapJson) }));
+      } catch {
+        /* penyimpanan penuh / diblokir: abaikan */
+      }
+    }, 1000);
+    return () => clearTimeout(t);
+  }, [draftKey, draftReady, hasContent, snapJson, tab]);
+
+  const discardDraft = () => {
+    if (!draftKey) return;
+    try {
+      localStorage.removeItem(draftKey);
+    } catch {
+      /* abaikan */
+    }
+  };
+  const resumeDraft = () => {
+    if (!draftPrompt) return;
+    const d = draftPrompt.data;
+    restoreAgenda(d);
+    const m = (d.master && typeof d.master === 'object' ? d.master : {}) as Record<string, unknown>;
+    if (typeof m.vType === 'string') setVType(m.vType as VType);
+    if (typeof m.yearBuilt === 'string') setYearBuilt(m.yearBuilt);
+    setNotation(m.notation === true);
+    setPropelledFlag(typeof m.propelledFlag === 'boolean' ? m.propelledFlag : null);
+    setTab(draftPrompt.tab);
+    setDraftPrompt(null);
+    setDraftReady(true);
+  };
+  const dropDraft = () => {
+    discardDraft();
+    setDraftPrompt(null);
+    setDraftReady(true);
+  };
+
   const applyVessel = (v: ApplyValues) => {
     setName(v.name);
     if (v.type) setVType(v.type);
@@ -210,6 +276,7 @@ export default function Page() {
   };
   // setelah agenda tersimpan / di-Finish: semua isian dikosongkan; data kapal dimuat lagi otomatis saat nama kapal dipilih
   const clearAll = () => {
+    discardDraft();
     clearAgenda();
     clearMaster();
     setName('');
@@ -287,6 +354,24 @@ export default function Page() {
           ))}
         </nav>
       </header>
+
+      {draftPrompt && (
+        <div className="px-3 pt-3 print:hidden">
+          <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-2 rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+            <span>
+              <b>Ada draf yang belum disimpan</b>
+              {typeof draftPrompt.data.name === 'string' && draftPrompt.data.name ? ` · ${draftPrompt.data.name}` : ''}
+              {typeof draftPrompt.data.agenda === 'string' && draftPrompt.data.agenda ? ` · Agenda ${draftPrompt.data.agenda}` : ''}
+              {Array.isArray(draftPrompt.data.visits) ? ` · ${draftPrompt.data.visits.length} kunjungan` : ''}
+              {' · '}{new Date(draftPrompt.savedAt).toLocaleString('id-ID', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
+            </span>
+            <span className="flex gap-2">
+              <button type="button" onClick={resumeDraft} className="rounded-lg bg-teal-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-teal-700">Lanjutkan</button>
+              <button type="button" onClick={dropDraft} className="rounded-lg border border-amber-400 bg-white px-3 py-1.5 text-xs font-semibold text-amber-900 hover:bg-amber-100">Buang</button>
+            </span>
+          </div>
+        </div>
+      )}
 
       <main className="mx-auto max-w-5xl space-y-4 px-3 py-5 sm:px-4">
         {shownTab === 1 && (
