@@ -52,9 +52,19 @@ const TONE: Record<string, string> = {
   WITHDRAWN: 'bg-red-100 text-red-800',
 };
 
+const AGENDA_COLS = 'id,owner,vessel_id,agenda_no,surveys,inspection_start,inspection_completion,status,scenario,finished,data,vessels(name,vessel_type)';
+const STALE_DAYS = 14; // agenda On Progress tanpa kunjungan baru selama ini diberi penanda "belum di-Finish?"
+const daysSince = (iso: string) => {
+  const [y, m, d] = iso.split('-').map(Number);
+  const n = new Date();
+  return Math.round((new Date(n.getFullYear(), n.getMonth(), n.getDate()).getTime() - new Date(y, m - 1, d).getTime()) / 86400000);
+};
+
 export default function AgendaPanel({ vesselName, vesselType, yearBuilt, agendaNo, start, completion, snapshot, summary, onRestore, onSaved, anchorNotation, propelled, shaftSystem, onClear }: Props) {
   const { user, configured, loading, isAdmin } = useAuth();
   const [rows, setRows] = useState<Row[]>([]);
+  const [finRows, setFinRows] = useState<Row[]>([]); // semua agenda yang sudah di-Finish (untuk pengingat laporan; tidak dibatasi 50 terbaru)
+  const [openRows, setOpenRows] = useState<Row[]>([]); // agenda yang belum di-Finish
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ k: 'err' | 'ok'; t: string } | null>(null);
 
@@ -67,6 +77,10 @@ export default function AgendaPanel({ vesselName, vesselType, yearBuilt, agendaN
       .limit(50);
     if (error) setMsg({ k: 'err', t: 'Gagal memuat riwayat: ' + error.message });
     else setRows((data ?? []) as unknown as Row[]);
+    const fin = await supabase.from('agendas').select(AGENDA_COLS).eq('finished', true).order('inspection_completion', { ascending: false }).limit(300);
+    if (!fin.error) setFinRows((fin.data ?? []) as unknown as Row[]);
+    const opn = await supabase.from('agendas').select(AGENDA_COLS).or('finished.is.null,finished.eq.false').order('created_at', { ascending: false }).limit(100);
+    if (!opn.error) setOpenRows((opn.data ?? []) as unknown as Row[]);
   }, [user]);
 
   useEffect(() => {
@@ -113,7 +127,11 @@ export default function AgendaPanel({ vesselName, vesselType, yearBuilt, agendaN
     let vesselId = matches[0]?.id;
     let vesselOwner = matches[0]?.owner ?? user.id;
     if (vesselId) {
-      await supabase.from('vessels').update(vinfo).eq('id', vesselId);
+      const upd = await supabase.from('vessels').update(vinfo).eq('id', vesselId);
+      if (upd.error) {
+        setBusy(false);
+        return setMsg({ k: 'err', t: 'Gagal memperbarui data kapal: ' + upd.error.message });
+      }
     } else {
       const ins = await supabase.from('vessels').insert({ owner: user.id, name, ...vinfo }).select('id').single();
       if (ins.error) {
@@ -184,13 +202,20 @@ export default function AgendaPanel({ vesselName, vesselType, yearBuilt, agendaN
   };
   const vname = (r: Row) => (Array.isArray(r.vessels) ? r.vessels[0] : r.vessels)?.name ?? '(tanpa nama kapal)';
   // agenda selesai (Finish) yang laporannya belum selesai; paling mendesak di atas
-  const pendingReports = rows
-    .filter((r) => r.finished && !reportDoneOf(r.data))
+  const pendingReports = finRows
+    .filter((r) => !reportDoneOf(r.data))
     .map((r) => ({ r, info: reportDue(r.inspection_completion, null) }))
     .filter((x): x is { r: Row; info: NonNullable<ReturnType<typeof reportDue>> } => x.info !== null)
     // agenda lama (tanpa kunjungan dan selesai lebih dari ±5 minggu lalu) dianggap sudah dilaporkan, agar daftar tidak penuh
     .filter((x) => nVisits(x.r.data) > 0 || x.info.days >= -30)
     .sort((a, b) => a.info.days - b.info.days);
+
+  // agenda On Progress yang kunjungan terakhirnya sudah lama: kemungkinan lupa di-Finish
+  const staleOpen = openRows
+    .filter((r) => nVisits(r.data) > 0 && !!r.inspection_completion && /^\d{4}-\d{2}-\d{2}$/.test(r.inspection_completion))
+    .map((r) => ({ r, ago: daysSince(r.inspection_completion as string) }))
+    .filter((x) => x.ago >= STALE_DAYS)
+    .sort((x, y) => y.ago - x.ago);
 
   // kelompokkan per kapal; agenda terbaru di atas
   const groups: [string, Row[]][] = (() => {
@@ -236,6 +261,23 @@ export default function AgendaPanel({ vesselName, vesselType, yearBuilt, agendaN
                   <span className={'rounded-full px-2.5 py-0.5 text-[11px] font-bold ' + dueTone(info.days)}>{dueLabel(info.days)}</span>
                   <button onClick={() => markReport(r)} className="rounded-md border border-slate-300 bg-white px-2.5 py-1 text-xs font-semibold hover:bg-slate-50">Laporan selesai</button>
                 </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {staleOpen.length > 0 && (
+        <div className="mt-4 rounded-xl border border-sky-300 bg-sky-50 p-3">
+          <p className="text-xs font-bold uppercase tracking-wide text-sky-900">Belum di-Finish? ({staleOpen.length})</p>
+          <p className="mt-0.5 text-[11px] text-sky-900/80">Agenda On Progress tanpa kunjungan baru ≥ {STALE_DAYS} hari. Pengingat laporan baru jalan setelah Finish.</p>
+          <ul className="mt-2 space-y-2">
+            {staleOpen.map(({ r, ago }) => (
+              <li key={r.id} className="flex flex-wrap items-center justify-between gap-2 text-sm">
+                <span className="min-w-0">
+                  <span className="font-semibold">{vname(r)}</span> · {r.agenda_no} · kunjungan terakhir {dmy(r.inspection_completion)} ({ago} hari lalu)
+                </span>
+                <button onClick={() => r.data && onRestore({ ...r.data, finished: false })} className="rounded-md border border-slate-300 bg-white px-2.5 py-1 text-xs font-semibold hover:bg-slate-50">Buka</button>
               </li>
             ))}
           </ul>
