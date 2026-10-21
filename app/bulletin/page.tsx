@@ -7,7 +7,7 @@ import DateInput from '../../components/DateInput';
 import RichEditor, { RichView } from '../../components/RichEditor';
 import FileViewer from '../../components/FileViewer';
 import { legacyToHtml } from '../../lib/legacyBody';
-import { uploadAttachment, uploadImage, removeFiles, pathsInHtml, fmtSize, MAX_MB, type Attachment } from '../../lib/uploads';
+import { uploadAttachment, uploadImage, removeFiles, removeAttachments, attachmentUrl, pathsInHtml, fmtSize, MAX_MB, type Attachment } from '../../lib/uploads';
 
 type Visibility = 'private' | 'members' | 'public';
 type Status = 'pending' | 'approved' | 'rejected';
@@ -265,8 +265,8 @@ export default function BulletinPage() {
       // hapus file yang sudah tidak dipakai lagi (lampiran yang dibuang, gambar yang dihapus dari isi)
       const keepAtt = f.attachments.map((a) => a.path);
       const keepImg = pathsInHtml(f.body_html);
+      await removeAttachments((cur.attachments ?? []).filter((a) => keepAtt.indexOf(a.path) < 0));
       await removeFiles([
-        ...(cur.attachments ?? []).map((a) => a.path).filter((x) => keepAtt.indexOf(x) < 0),
         ...pathsInHtml(cur.body_html).filter((x) => keepImg.indexOf(x) < 0),
         ...pathsInHtml(cur.cover_url).filter((x) => pathsInHtml(f.cover_url).indexOf(x) < 0),
       ]);
@@ -280,7 +280,8 @@ export default function BulletinPage() {
     if (!supabase || !window.confirm(`Hapus "${e.title}"?`)) return;
     const { error } = await supabase.from('bulletins').delete().eq('id', e.id);
     if (error) return setMsg({ k: 'err', t: error.message });
-    await removeFiles([...(e.attachments ?? []).map((a) => a.path), ...pathsInHtml(e.body_html), ...pathsInHtml(e.cover_url)]);
+    await removeAttachments(e.attachments ?? []);
+    await removeFiles([...pathsInHtml(e.body_html), ...pathsInHtml(e.cover_url)]);
     await load();
     setView('list');
   };
@@ -318,10 +319,19 @@ export default function BulletinPage() {
     }
     setUpBusy(false);
   };
+  // buka lampiran di penampil; lampiran di bucket privat memakai tautan bertanda waktu
+  const openAtt = async (a: Attachment) => {
+    try {
+      const url = await attachmentUrl(a);
+      setViewing({ att: { ...a, url }, label: 'RDK · Class & Technical' });
+    } catch (err) {
+      setMsg({ k: 'err', t: (err as Error).message });
+    }
+  };
   const dropAtt = async (a: Attachment) => {
     setF((p) => ({ ...p, attachments: p.attachments.filter((x) => x.path !== a.path) }));
     const saved = (cur?.attachments ?? []).some((x) => x.path === a.path);
-    if (!saved) await removeFiles([a.path]); // yang sudah tersimpan baru dihapus setelah tombol Simpan
+    if (!saved) await removeAttachments([a]); // yang sudah tersimpan baru dihapus setelah tombol Simpan
   };
 
   // foto sampul kartu (opsional)
@@ -476,7 +486,7 @@ export default function BulletinPage() {
                   <li key={a.path}>
                     <button
                       type="button"
-                      onClick={() => setViewing({ att: a, label: 'RDK · Class & Technical' })}
+                      onClick={() => openAtt(a)}
                       className="flex w-full items-center justify-between gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-left text-sm text-teal-800 hover:border-teal-500"
                     >
                       <span className="min-w-0 truncate">📖 {a.name}</span>
