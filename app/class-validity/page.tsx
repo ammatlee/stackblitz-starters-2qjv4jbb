@@ -69,6 +69,7 @@ export default function Page() {
   const [visits, setVisits] = useState<Visit[]>([]); // kunjungan survey agenda ini
   const [vmeta, setVmeta] = useState<VisitMeta>(META0); // isian cetak Daftar Kunjungan Survey
   const [reportDone, setReportDone] = useState(''); // tanggal laporan selesai (pengingat 7 hari hilang bila terisi)
+  const [finished, setFinished] = useState(false); // agenda yang sedang dibuka sudah di-Finish (deadline laporan baru berlaku setelah ini)
 
   /* ---- Modul 3 ---- */
   const [shaftSys, setShaftSys] = useState<ShaftSys>('open');
@@ -152,6 +153,7 @@ export default function Page() {
     if (d.chain && typeof d.chain === 'object') setChain(d.chain as typeof chain);
     if (Array.isArray(d.rudder)) setRudder(d.rudder as typeof rudder);
     setReportDone(typeof d.reportDone === 'string' ? d.reportDone : '');
+    setFinished(d.finished === true);
     setVmeta(d.vmeta && typeof d.vmeta === 'object' ? { ...META0, ...(d.vmeta as Partial<VisitMeta>) } : META0);
     setVisits(Array.isArray(d.visits) ? (d.visits as Partial<Visit>[]).map((x) => ({ ...VISIT0, ...x })) : []);
     setDocs(d.docs && typeof d.docs === 'object' ? { ...DOCS0, ...(d.docs as Partial<DocsState>) } : DOCS0);
@@ -187,6 +189,7 @@ export default function Page() {
     setDocs(DOCS0);
     setVisits([]);
     setReportDone('');
+    setFinished(false);
     setVmeta(META0);
     setTab(1);
   };
@@ -310,7 +313,7 @@ export default function Page() {
         )}
         {shownTab === 4 && (
           <>
-            <VisitsModule visits={visits} setVisits={setVisits} vesselName={name} agenda={agenda} compDate={compDate} reportDone={reportDone} setReportDone={setReportDone} sel={sel} meta={vmeta} setMeta={setVmeta} />
+            <VisitsModule visits={visits} setVisits={setVisits} vesselName={name} agenda={agenda} compDate={compDate} finished={finished} reportDone={reportDone} setReportDone={setReportDone} sel={sel} meta={vmeta} setMeta={setVmeta} />
             <ReportDocsModule vType={vType} sel={sel} name={name} agenda={agenda} docs={docs} setDocs={setDocs} />
           </>
         )}
