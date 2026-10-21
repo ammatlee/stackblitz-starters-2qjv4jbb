@@ -170,15 +170,22 @@ export function applicability(a: string, g: Item['g'], vt: VType, age: number | 
 }
 
 export type TRow = { id: string; cat: string; item: string; scope: string; note: string };
-export function renewalTables(rn: number, age: number | null) {
+/** Jenis kapal tanpa tangki FO di cargo length area (Tabel 3.3 baris "Cargo Length Area" tidak berlaku). */
+const NO_CARGO_FO = ['Tugboat', 'Anchor Handling Tug', 'Pontoon', 'Oil Barge'];
+export function renewalTables(rn: number, age: number | null, vt?: string) {
   const none = 'NONE';
   const tanks: TRow[] = [
     { id: 'T1', cat: 'Internal', item: 'Ballast-water, Forepeak & Afterpeak Tanks', scope: 'ALL', note: 'Berlaku di setiap Renewal.' },
     { id: 'T2', cat: 'Internal', item: 'FO Tank di Engine Room', scope: rn <= 2 ? none : 'ONE', note: 'Renewal I–II: tidak ada; III & IV+: satu tangki.' },
-    { id: 'T3', cat: 'Internal', item: 'FO Tank di Cargo Length Area', scope: 'N/A', note: 'Tidak berlaku untuk Tugboat, Pontoon, Oil Barge.' },
-    { id: 'T4', cat: 'Internal', item: 'FO Tank Tambahan di luar Engine Room', scope: rn === 1 ? none : rn <= 3 ? 'ONE' : 'TWO', note: 'I: tidak ada; II–III: satu; IV+: dua.' },
+    {
+      id: 'T3', cat: 'Internal', item: 'FO Tank di Cargo Length Area',
+      scope: !vt || NO_CARGO_FO.includes(vt) ? 'N/A' : rn === 1 ? none : rn === 2 ? 'ONE' : rn === 3 ? 'TWO' : 'HALF, MIN. 2',
+      note: 'I: tidak ada; II: satu; III: dua; IV+: setengah, minimum 2 (bila ada tangki FO di area ini).' + (rn >= 3 ? ' Termasuk satu deep tank FO bila ada (catatan 4).' : ''),
+    },
+    { id: 'T4', cat: 'Internal', item: 'FO Tank Tambahan di luar Engine Room', scope: rn === 1 ? none : rn <= 3 ? 'ONE' : 'TWO', note: 'Hanya bila tidak ada tangki FO di Cargo Length Area. I: tidak ada; II–III: satu; IV+: dua.' },
     { id: 'T5', cat: 'Internal', item: 'Lube-Oil Tank', scope: rn === 4 ? 'ONE' : none, note: 'I–III: tidak ada; IV+: satu.' },
     { id: 'T6', cat: 'Internal', item: 'Fresh-Water Tank', scope: rn === 1 ? none : rn === 2 ? 'ONE' : 'ALL', note: 'I: tidak ada; II: satu; III & IV+: semua.' },
+    { id: 'T9', cat: 'Internal', item: 'Structural Downflooding & Ventilation Ducts', scope: rn >= 3 ? 'REQUIRED' : none, note: 'Renewal III dan seterusnya; bila ada.' },
     { id: 'T7', cat: 'Pressure Test', item: 'Ballast', scope: 'REQUIRED', note: 'Pressure test batas tangki ballast.' },
     { id: 'T8', cat: 'Pressure Test', item: 'FO / LO / Fresh-Water Tanks', scope: 'SURVEYOR DECISION', note: 'Pertimbangan khusus Surveyor.' },
   ];
@@ -224,8 +231,8 @@ export const K_OPTS: Record<ShaftKind, { id: string; k: number; label: string }[
 };
 export type DminCfg = { kind: ShaftKind; kId: string; f: string; mat: 'cmn' | 'alloy'; rm: string };
 export const DMIN0: DminCfg = { kind: 'prop', kId: 'p122', f: '100', mat: 'cmn', rm: '' };
-export type ShaftRow = { d: string; a: string; m: string; p: string; n: string; b: string };
-export const SHAFT0: ShaftRow = { d: '', a: '', m: '', p: '', n: '', b: '' };
+export type ShaftRow = { d: string; a: string; m: string; p: string; n: string; b: string; l?: string };
+export const SHAFT0: ShaftRow = { d: '', a: '', m: '', p: '', n: '', b: '', l: '' };
 
 export function minDiameter(cfg: DminCfg, da: number | null, pw: number | null, n: number | null, di: number | null) {
   // batas Rm untuk perhitungan Cw (Rules B.1): propeller shaft 600; carbon/CMn selain propeller 760; alloy selain propeller 800
@@ -249,11 +256,11 @@ export const SHAFT_SYS: [ShaftSys, string][] = [
   ['oil', 'Closed loop — oil'],
   ['fw', 'Closed loop — fresh water'],
 ];
-/** Open loop = rumus Water Lubricated; Closed loop oil = rumus Oil Lubricated; Closed loop fresh water = batas dari manual pabrikan. */
+/** D = diameter LINER (bukan diameter poros) bila poros berliner. Open loop = rumus Water Lubricated; Closed loop oil = rumus Oil Lubricated; Closed loop fresh water = batas dari manual pabrikan. */
 export function shaftLimits(sys: ShaftSys, cond: 'new' | 'max', d: number | null): { lo: number | null; hi: number | null } {
   if (d === null || sys === 'fw') return { lo: null, hi: null };
   if (sys === 'open') return cond === 'new' ? { lo: 0.003 * d + 0.2, hi: 0.004 * d + 0.5 } : { lo: null, hi: 0.01 * d + 2.5 };
-  return cond === 'new' ? { lo: 0.001 * d + 0.03, hi: 0.001 * d + 0.5 } : { lo: null, hi: 0.0015 * d + 0.65 };
+  return cond === 'new' ? { lo: 0.001 * d + 0.3, hi: 0.001 * d + 0.5 } : { lo: null, hi: 0.0015 * d + 0.65 };
 }
 export function rudderMax(item: 'Neck Bearing' | 'Pintle Bearing', d: number | null): number | null {
   if (d === null) return null;

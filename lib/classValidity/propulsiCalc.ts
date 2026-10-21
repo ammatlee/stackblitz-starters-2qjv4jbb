@@ -28,7 +28,7 @@ export function computePropulsi(input: PropulsiInput) {
     return { ...m, da, v };
   });
   const shaftRes = shafts.map((r) => {
-    const d = num(r.d);
+    const d = num(r.l ?? '') ?? num(r.d); // D = diameter liner bila diisi, kalau tidak diameter poros
     const a = num(r.a);
     const { lo, hi: hiRule } = shaftLimits(shaftSys, shaftCond, d);
     const manual = num(r.m ?? ''); // ITS Part A 1.10.2: instruksi pabrikan boleh menggantikan batas Rules
