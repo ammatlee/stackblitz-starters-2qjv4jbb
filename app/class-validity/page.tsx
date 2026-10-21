@@ -303,7 +303,7 @@ export default function Page() {
     }
     return true;
   };
-  const memoActive = A.active.renewal || A.active.docking || A.active.shaft;
+  const memoActive = A.active.renewal; // memorandum hanya untuk Renewal (docking dan poros ikut bila dipilih bersama Renewal)
   const memoCtx: MemoCtx = useMemo(
     () => ({
       vesselName: name, vType, age: A.age, rnNo: A.rn, renewal: A.active.renewal, docking: A.active.docking, shaft: A.active.shaft, propelled,
