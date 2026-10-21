@@ -95,6 +95,7 @@ export default function PropulsiModule(p: PropulsiProps) {
                 </Field>
               </div>
             )}
+            {shaftSys === 'oil' && <p className="mt-3 rounded-lg bg-amber-50 p-3 text-xs text-amber-900">Pengingat (oil lubricated, ITS Part A 1.10.2 iii): toleransi aus maksimum shaft liner adalah 25% dari tebal liner di area bearing dan 50% di area packing. Ukur dan catat pada laporan.</p>}
             {shaftSys === 'fw' && <p className="mt-3 rounded-lg bg-slate-50 p-3 text-xs text-slate-600">Closed loop fresh water: batas maksimum clearance mengikuti manual pabrikan (ITS Part A 1.10.3). Isi nilainya pada kolom di tiap poros.</p>}
 
             <div className="mt-4 grid gap-4 md:grid-cols-2">
@@ -108,8 +109,11 @@ export default function PropulsiModule(p: PropulsiProps) {
                     <Badge v={r.v || 'BELUM DIUKUR'} />
                   </div>
                   <div className="mt-3 grid grid-cols-2 gap-3">
-                    <Field label="Diameter (mm)">{numIn(shafts[i].d, (v) => setShaftRow(i, 'd', v))}</Field>
-                    <Field label="Actual (mm)">{numIn(shafts[i].a, (v) => setShaftRow(i, 'a', v))}</Field>
+                    <Field label="Diameter poros (mm)">{numIn(shafts[i].d, (v) => setShaftRow(i, 'd', v))}</Field>
+                    <Field label="Diameter liner D (mm)" hint="D pada rumus clearance = diameter liner. Kosongkan bila tanpa liner: dipakai diameter poros.">{numIn(shafts[i].l ?? '', (v) => setShaftRow(i, 'l', v))}</Field>
+                  </div>
+                  <div className="mt-3 max-w-[50%]">
+                    <Field label="Actual clearance (mm)">{numIn(shafts[i].a, (v) => setShaftRow(i, 'a', v))}</Field>
                   </div>
                   <div className="mt-3">
                     <Field

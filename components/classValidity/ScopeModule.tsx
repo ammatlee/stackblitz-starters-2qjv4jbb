@@ -37,7 +37,7 @@ export default function ScopeModule(p: ScopeProps) {
   const { A, checks, setCheck, setChecks, name, vType, sel, expiry, extension, yearBuilt, lastNo, shaftSys, setShaftSys, shaftPlan, setShaftPlan, propConn, setPropConn, openCfg, setOpenCfg } = p;
   const age = A.age;
   const rn = A.rn ?? 4;
-  const t = renewalTables(Math.min(rn, 4), age); // tabel scope: IV dan seterusnya memakai aturan yang sama
+  const t = renewalTables(Math.min(rn, 4), age, vType); // tabel scope: IV dan seterusnya memakai aturan yang sama
   const val = (id: string) => checks[id] ?? 'NOT CHECKED';
   const prog = (ids: string[]) => ({ total: ids.length, done: ids.filter((i) => val(i) !== 'NOT CHECKED').length, def: ids.filter((i) => val(i) === 'DEFICIENCY').length });
   const P = ({ ids }: { ids: string[] }) => {
@@ -122,6 +122,7 @@ export default function ScopeModule(p: ScopeProps) {
         <>
           <Fold title={`Renewal — Tangki (${A.rnLabel})`} sub="Pemeriksaan internal & pressure test" right={<P ids={tank.ids} />} open>
             {tblUi(tank.live)}{hiddenNote(tank.hidden)}
+            <p className="mt-2 text-[11px] text-slate-500">Peak tank (semua jenis) diperiksa internal di setiap Renewal. Bila hanya sebagian tangki FO/LO/FW yang dipilih, tangki yang diperiksa harus bergantian dari Renewal ke Renewal (Tabel 3.3, catatan 2). Tabel berlaku untuk tangki tipe integral/struktural.</p>
           </Fold>
           <Fold title={`Renewal — UT Thickness (${A.rnLabel})`} sub="Lokasi pengukuran minimum" right={<P ids={ut.ids} />} open>
             {tblUi(ut.live)}{hiddenNote(ut.hidden)}
