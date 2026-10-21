@@ -2,8 +2,11 @@ import { supabase } from './supabase';
 
 export const BUCKET = 'bulletin-files';
 export const MAX_MB = 5;
+// lampiran (PDF/foto) disimpan di bucket PRIVAT dan dibuka lewat tautan bertanda waktu; gambar di isi/sampul tetap di bucket publik
+export const PRIVATE_BUCKET = 'bulletin-private';
 
-export type Attachment = { name: string; path: string; url: string; size: number; type: string };
+// bucket kosong = lampiran lama di bucket publik (pakai url tersimpan); bucket terisi = bucket privat (url dibuat saat dibuka)
+export type Attachment = { name: string; path: string; url: string; size: number; type: string; bucket?: string };
 
 const MIME_BY_EXT: Record<string, string> = {
   pdf: 'application/pdf',
@@ -84,9 +87,32 @@ export async function uploadAttachment(file: File): Promise<Attachment> {
   const finalType = isImg ? 'image/jpeg' : type;
   const safe = finalName.replace(/[^a-zA-Z0-9._-]+/g, '_').slice(-80);
   const path = uid + '/' + newId() + '/' + safe;
-  const { error } = await supabase!.storage.from(BUCKET).upload(path, blob, { contentType: finalType });
-  if (error) throw new Error('Gagal mengunggah ' + file.name + ': ' + error.message);
-  return { name: finalName, path, url: publicUrl(path), size: blob.size, type: finalType };
+  const { error } = await supabase!.storage.from(PRIVATE_BUCKET).upload(path, blob, { contentType: finalType });
+  if (error) throw new Error('Gagal mengunggah ' + file.name + ': ' + error.message + (/not found|bucket/i.test(error.message) ? ' (bucket privat belum dibuat di Supabase)' : ''));
+  return { name: finalName, path, url: '', size: blob.size, type: finalType, bucket: PRIVATE_BUCKET };
+}
+
+// alamat untuk membuka lampiran: lampiran lama pakai url tersimpan, lampiran baru memakai tautan bertanda waktu (1 jam)
+export async function attachmentUrl(a: Attachment): Promise<string> {
+  if (!a.bucket) return a.url;
+  if (!supabase) throw new Error('Supabase belum dikonfigurasi.');
+  const { data, error } = await supabase.storage.from(a.bucket).createSignedUrl(a.path, 3600);
+  if (error || !data) throw new Error('Lampiran tidak bisa dibuka: ' + (error?.message ?? 'tidak ada akses') + '. Masuk dulu bila belum.');
+  return data.signedUrl;
+}
+
+// hapus lampiran dari bucket masing-masing (lama = publik, baru = privat)
+export async function removeAttachments(list: Attachment[]): Promise<void> {
+  if (!supabase || list.length === 0) return;
+  const by = new Map<string, string[]>();
+  list.forEach((a) => by.set(a.bucket ?? BUCKET, [...(by.get(a.bucket ?? BUCKET) ?? []), a.path]));
+  for (const [bucket, paths] of Array.from(by.entries())) {
+    try {
+      await supabase.storage.from(bucket).remove(paths);
+    } catch {
+      /* abaikan: file yatim tidak mengganggu tampilan */
+    }
+  }
 }
 
 export async function removeFiles(paths: string[]): Promise<void> {
