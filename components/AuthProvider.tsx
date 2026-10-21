@@ -36,6 +36,25 @@ const AuthCtx = createContext<Ctx>({
 
 export const useAuth = () => useContext(AuthCtx);
 
+const isOffline = () => typeof navigator !== 'undefined' && navigator.onLine === false;
+
+// Sesi login disimpan Supabase di HP; dibaca hanya untuk tampilan saat tidak ada sinyal (data tetap dilindungi aturan database).
+function storedUser(): User | null {
+  try {
+    for (let i = 0; i < localStorage.length; i += 1) {
+      const k = localStorage.key(i);
+      if (k && /^sb-.*-auth-token$/.test(k)) {
+        const v = JSON.parse(localStorage.getItem(k) || 'null') as { user?: User } | null;
+        if (v && v.user && v.user.id) return v.user;
+      }
+    }
+  } catch {
+    /* abaikan */
+  }
+  return null;
+}
+const authKey = (id: string) => `rdk-auth-v1:${id}`;
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [sessionLoading, setSessionLoading] = useState(true);
@@ -49,11 +68,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return;
     }
     supabase.auth.getSession().then(({ data }) => {
-      setUser(data.session?.user ?? null);
+      setUser(data.session?.user ?? (isOffline() ? storedUser() : null));
       setSessionLoading(false);
     });
-    const { data } = supabase.auth.onAuthStateChange((_event, session) => setUser(session?.user ?? null));
+    const { data } = supabase.auth.onAuthStateChange((event, session) => {
+      if (!session && event !== 'SIGNED_OUT' && isOffline()) return; // tanpa sinyal: pertahankan tampilan login
+      setUser(session?.user ?? null);
+    });
     return () => data.subscription.unsubscribe();
+  }, []);
+
+  // aplikasi offline (service worker): hanya di versi produksi agar tidak mengganggu saat mengedit
+  useEffect(() => {
+    if (process.env.NODE_ENV === 'production' && typeof navigator !== 'undefined' && 'serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/sw.js').catch(() => {});
+    }
   }, []);
 
   // status persetujuan: admin otomatis disetujui; anggota lain menunggu persetujuan admin
@@ -61,12 +90,38 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const runCheck = useCallback(async (id: string, silent: boolean) => {
     if (!supabase) return;
     if (!silent) setChecking(true);
-    const a = await supabase.from('admins').select('user_id').eq('user_id', id).maybeSingle();
-    const adm = !!a.data;
-    let ok = adm;
-    if (!adm) {
-      const p = await supabase.from('profiles').select('approved').eq('user_id', id).maybeSingle();
-      ok = !!(p.data as { approved: boolean } | null)?.approved;
+    let adm = false;
+    let ok = false;
+    let failed = false;
+    try {
+      const a = await supabase.from('admins').select('user_id').eq('user_id', id).maybeSingle();
+      adm = !!a.data;
+      ok = adm;
+      if (!adm) {
+        const p = await supabase.from('profiles').select('approved').eq('user_id', id).maybeSingle();
+        ok = !!(p.data as { approved: boolean } | null)?.approved;
+        failed = !!a.error && !!p.error;
+      }
+    } catch {
+      failed = true;
+    }
+    if (failed) {
+      // gagal menghubungi server (mis. tanpa sinyal): pakai status terakhir yang tersimpan di HP
+      try {
+        const c = JSON.parse(localStorage.getItem(authKey(id)) || 'null') as { adm: boolean; ok: boolean } | null;
+        if (c) {
+          adm = !!c.adm;
+          ok = !!c.ok;
+        }
+      } catch {
+        /* abaikan */
+      }
+    } else {
+      try {
+        localStorage.setItem(authKey(id), JSON.stringify({ adm, ok, at: Date.now() }));
+      } catch {
+        /* abaikan */
+      }
     }
     setIsAdmin(adm);
     setApproved(ok);
