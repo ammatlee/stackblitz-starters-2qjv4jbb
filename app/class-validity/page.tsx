@@ -27,6 +27,8 @@ import ScopeModule from '../../components/classValidity/ScopeModule';
 import PropulsiModule from '../../components/classValidity/PropulsiModule';
 import ReportDocsModule, { DOCS0 } from '../../components/classValidity/ReportDocsModule';
 import type { DocsState } from '../../components/classValidity/ReportDocsModule';
+import VisitsModule, { META0, VISIT0 } from '../../components/classValidity/VisitsModule';
+import type { Visit, VisitMeta } from '../../components/classValidity/VisitsModule';
 import { Badge } from '../../components/classValidity/ui';
 
 export default function Page() {
@@ -64,6 +66,9 @@ export default function Page() {
 
   /* ---- Modul 4: form & lampiran laporan ---- */
   const [docs, setDocs] = useState<DocsState>(DOCS0);
+  const [visits, setVisits] = useState<Visit[]>([]); // kunjungan survey agenda ini
+  const [vmeta, setVmeta] = useState<VisitMeta>(META0); // isian cetak Daftar Kunjungan Survey
+  const [reportDone, setReportDone] = useState(''); // tanggal laporan selesai (pengingat 7 hari hilang bila terisi)
 
   /* ---- Modul 3 ---- */
   const [shaftSys, setShaftSys] = useState<ShaftSys>('open');
@@ -102,8 +107,17 @@ export default function Page() {
     [shaftSys, shaftCond, shafts, dmin, wd, anchor, chain, rudder, propelled, showShaft, showRudder, showAnchor, showDmin]
   );
 
+  // tanggal inspeksi mengikuti kunjungan: mulai = kunjungan pertama, selesai = kunjungan terakhir
+  useEffect(() => {
+    if (visits.length === 0) return;
+    const st = visits.map((v) => v.ds).filter(Boolean).sort();
+    const en = visits.map((v) => v.de || v.ds).filter(Boolean).sort();
+    if (st.length) setStartDate(st[0]);
+    if (en.length) setCompDate(en[en.length - 1]);
+  }, [visits]);
+
   // ---- Simpan / buka agenda (Supabase) ----
-  const snapshot = { name, agenda, vType, yearBuilt, expiry, annivD, annivM, extension, startDate, compDate, sel, notation, lastNo, recDue, recDone, recAssess, checks, shaftSys, propConn, openCfg, shaftPlan, shaftCond, shafts, dmin, wd, anchor, chain, rudder, docs };
+  const snapshot = { name, agenda, vType, yearBuilt, expiry, annivD, annivM, extension, startDate, compDate, sel, notation, lastNo, recDue, recDone, recAssess, checks, shaftSys, propConn, openCfg, shaftPlan, shaftCond, shafts, dmin, wd, anchor, chain, rudder, docs, visits, reportDone, vmeta };
   const agendaSummary = {
     status: A.overall as string,
     scenario: A.c ? A.caseTitle[A.c] : null,
@@ -137,6 +151,9 @@ export default function Page() {
     if (d.anchor && typeof d.anchor === 'object') setAnchor(d.anchor as typeof anchor);
     if (d.chain && typeof d.chain === 'object') setChain(d.chain as typeof chain);
     if (Array.isArray(d.rudder)) setRudder(d.rudder as typeof rudder);
+    setReportDone(typeof d.reportDone === 'string' ? d.reportDone : '');
+    setVmeta(d.vmeta && typeof d.vmeta === 'object' ? { ...META0, ...(d.vmeta as Partial<VisitMeta>) } : META0);
+    setVisits(Array.isArray(d.visits) ? (d.visits as Partial<Visit>[]).map((x) => ({ ...VISIT0, ...x })) : []);
     setDocs(d.docs && typeof d.docs === 'object' ? { ...DOCS0, ...(d.docs as Partial<DocsState>) } : DOCS0);
     setTab(1);
   };
@@ -168,6 +185,9 @@ export default function Page() {
     setShaftPlan(''); setShaftCond('max'); setShafts([SHAFT0]); setDmin(DMIN0); setWd({ a: '', then: '', now: '' });
     setAnchor({ o: '', a: '' }); setChain({ o: '', a: '' }); setRudder([{ d: '', a: '' }, { d: '', a: '' }]);
     setDocs(DOCS0);
+    setVisits([]);
+    setReportDone('');
+    setVmeta(META0);
     setTab(1);
   };
   // DATA KAPAL (tahun dibangun, expiry, anniversary, jenis, dll.): terisi otomatis dari database saat kapal tersimpan dipilih
@@ -211,7 +231,7 @@ export default function Page() {
     [1, 'Status', 'Validity class'],
     [2, 'Scope', 'Checklist survei'],
     ...(propActive ? ([[3, 'Propulsi', [showClear ? 'Clearance' : '', showDmin ? 'Dimensi minimum' : '', showAnchor ? 'Jangkar' : ''].filter(Boolean).join(' · ')]] as [1 | 2 | 3 | 4, string, string][]) : []),
-    [4, 'Laporan', 'Form & lampiran'],
+    [4, 'Laporan', 'Kunjungan · form · lampiran'],
   ];
   const shownTab = tab === 3 && !propActive ? 1 : tab;
 
@@ -288,7 +308,12 @@ export default function Page() {
             anchor={anchor} setAnchor={setAnchor} chain={chain} setChain={setChain} rudder={rudder} setRudder={setRudder}
           />
         )}
-        {shownTab === 4 && <ReportDocsModule vType={vType} sel={sel} name={name} agenda={agenda} docs={docs} setDocs={setDocs} />}
+        {shownTab === 4 && (
+          <>
+            <VisitsModule visits={visits} setVisits={setVisits} vesselName={name} agenda={agenda} compDate={compDate} reportDone={reportDone} setReportDone={setReportDone} sel={sel} meta={vmeta} setMeta={setVmeta} />
+            <ReportDocsModule vType={vType} sel={sel} name={name} agenda={agenda} docs={docs} setDocs={setDocs} />
+          </>
+        )}
         <p className="pb-6 text-center text-[11px] text-slate-500">Alat bantu perhitungan; keputusan akhir mengacu pada aturan BKI dan penilaian Surveyor. · Versi 2026.10.18-a</p>
       </main>
     </div>
