@@ -69,7 +69,7 @@ export default function MemoModule({ ctx, memo, setMemo, ownerDefault, surveyorD
     setMsg('Email dibuka di aplikasi surat Anda. Lampiran file Word dipasang manual.');
   };
 
-  const none = !ctx.renewal && !ctx.docking && !ctx.shaft;
+  const none = !ctx.renewal;
   const numIn = (v: string, set: (s: string) => void) => <input inputMode="decimal" className={cx(inputCls, 'bg-yellow-50')} value={v} onChange={(e) => set(e.target.value)} />;
 
   const row = (it: MemoItem, sub: boolean) => {
@@ -96,7 +96,7 @@ export default function MemoModule({ ctx, memo, setMemo, ownerDefault, surveyorD
     <>
       <Card title="Memorandum untuk Owner" sub={subject}>
         {none ? (
-          <p className="text-sm text-slate-600">Pilih survei Renewal, Docking, atau Propeller Shaft di tab Status agar daftar item memorandum dapat dibuat.</p>
+          <p className="text-sm text-slate-600">Pilih survei Renewal di tab Status agar daftar item memorandum dapat dibuat.</p>
         ) : (
           <>
             <p className="text-xs text-slate-600">Daftar item dibuat otomatis dari jenis survei, nomor Renewal, umur kapal, dan data di tab Propulsi. Hilangkan centang untuk membuang butir, atau ubah teksnya langsung.</p>
