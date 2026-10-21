@@ -3,6 +3,7 @@ import type { Metadata } from 'next';
 import type { ReactNode } from 'react';
 import { AuthProvider } from '../components/AuthProvider';
 import SiteHeader from '../components/SiteHeader';
+import OfflineBanner from '../components/OfflineBanner';
 
 export const metadata: Metadata = {
   title: 'RDK — Class Validity',
@@ -20,6 +21,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         <AuthProvider>
           <SiteHeader />
           {children}
+          <OfflineBanner />
         </AuthProvider>
       </body>
     </html>
