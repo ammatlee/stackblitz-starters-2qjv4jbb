@@ -81,6 +81,17 @@ export default function AgendaPanel({ vesselName, vesselType, yearBuilt, agendaN
       setMsg({ k: 'err', t: 'Isi Nama Kapal dan No. Agenda terlebih dahulu.' });
       return;
     }
+    if (finish) {
+      // Finish mengunci tanggal completion (= kunjungan terakhir) sebagai awal hitungan deadline laporan
+      const due = reportDue(completion, null);
+      if (!due) {
+        return setMsg({ k: 'err', t: 'Tanggal Inspection Completion masih kosong. Tambahkan kunjungan (tab Laporan) atau isi tanggalnya dulu sebelum Finish.' });
+      }
+      const ok = window.confirm(
+        `Finish agenda ${no}?\n\nCompletion (kunjungan terakhir): ${dmy(completion)}\nDeadline laporan: ${dmy(due.dueISO)} (${dueLabel(due.days)})\n\nPastikan semua kunjungan sudah tercatat.`
+      );
+      if (!ok) return;
+    }
     setBusy(true);
     setMsg(null);
     const yb = parseInt(yearBuilt, 10);
@@ -269,7 +280,7 @@ export default function AgendaPanel({ vesselName, vesselType, yearBuilt, agendaN
                       </div>
                       <div className="flex items-center gap-2">
                         {r.status && <span className={'rounded-full px-2.5 py-0.5 text-[11px] font-semibold ' + (TONE[r.status] ?? 'bg-slate-100 text-slate-600')}>{r.status}</span>}
-                        <button onClick={() => r.data && onRestore(r.data)} className="rounded-md border border-slate-300 px-2.5 py-1 text-xs font-semibold hover:bg-slate-50">
+                        <button onClick={() => r.data && onRestore({ ...r.data, finished: r.finished })} className="rounded-md border border-slate-300 px-2.5 py-1 text-xs font-semibold hover:bg-slate-50">
                           Buka
                         </button>
                         <button onClick={() => remove(r)} className="rounded-md px-2 py-1 text-xs font-semibold text-red-700 hover:bg-red-50">
