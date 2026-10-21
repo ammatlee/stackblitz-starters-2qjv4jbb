@@ -172,6 +172,13 @@ export default function ReportDocsModule({ vType, sel, name, agenda, docs, setDo
   const showAtt = (x: { a: Att; cols: Col[] }) => showHidden || !hidden('a:' + x.a.id, x.cols);
   const pct = relevant.length ? Math.round((ready / relevant.length) * 100) : 0;
   const tagOf = (cs: Col[]) => (cs.length ? cs.join(' · ') : '');
+  // badge progres per bagian (tetap terlihat saat bagian diminimize)
+  const progBadge = (prefix: string) => {
+    const rel = relevant.filter((x) => x.k.startsWith(prefix));
+    if (rel.length === 0) return undefined;
+    const ok = rel.filter((x) => mark(x.k, x.cs) === 'ok').length;
+    return <span className={cx('rounded-full px-3 py-1 text-xs font-bold', ok === rel.length ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-900')}>{ok} / {rel.length} siap</span>;
+  };
 
   const toggleExtra = (c: Col) => setDocs((d) => ({ ...d, extraCols: d.extraCols.includes(c) ? d.extraCols.filter((x) => x !== c) : [...d.extraCols, c] }));
   const toggleSpecial = (id: string) => setDocs((d) => ({ ...d, specials: d.specials.includes(id) ? d.specials.filter((x) => x !== id) : [...d.specials, id] }));
@@ -186,7 +193,7 @@ export default function ReportDocsModule({ vType, sel, name, agenda, docs, setDo
 
   return (
     <>
-      <Card
+      <Fold open
         title="Form & Lampiran Laporan"
         sub={name ? `${name}${vType ? ' · ' + vType : ''}${agenda ? ' · Agenda ' + agenda : ''}` : 'Pilih kapal dan jenis survei di tab Status'}
         right={relevant.length > 0 ? <span className="rounded-full bg-teal-100 px-3 py-1 text-xs font-bold text-teal-800">{ready} / {relevant.length} siap · {pct}%</span> : undefined}
@@ -217,7 +224,7 @@ export default function ReportDocsModule({ vType, sel, name, agenda, docs, setDo
         </div>
         {catInfo && <p className="mt-2 text-[11px] text-slate-500">Tabel {catInfo.id}: {catInfo.label}</p>}
         <p className="mt-3 text-[11px] text-slate-500">Ketuk tombol di kiri tiap item: Belum → ✓ Siap → N/A (tidak berlaku). N/A pada form dan lampiran inti diingat untuk jenis kapal dan jenis survei yang sama, dan disembunyikan di agenda berikutnya.</p>
-      </Card>
+      </Fold>
 
       {err && <p className="rounded-xl bg-rose-50 p-3 text-xs text-rose-800">{err}</p>}
       {cols.length > 0 && (hiddenCount > 0 || prefs.size > 0 || !canSave) && (
@@ -243,25 +250,25 @@ export default function ReportDocsModule({ vType, sel, name, agenda, docs, setDo
       )}
 
       {cols.length > 0 && cat && (
-        <Card title="Form yang harus diunggah" sub={`${forms.length} form sesuai jenis kapal dan survei`}>
+        <Fold title="Form yang harus diunggah" sub={`${forms.length} form sesuai jenis kapal dan survei`} right={progBadge('f:')}>
           <ul className="divide-y divide-slate-100">
             {forms.filter((f) => showForm({ row: f.row, cols: f.cols })).map(({ row, cols: cs, extra }) => (
               <Row key={row.code} label={`${row.code} — ${row.title}`} sub={row.note} tags={(extra ? 'Form tambahan · ' : '') + tagOf(cs)} mark={mark('f:' + row.code, cs)} onTap={() => tap('f:' + row.code, cs)} />
             ))}
           </ul>
-        </Card>
+        </Fold>
       )}
 
       {cols.length > 0 && !cat && <p className="rounded-xl bg-amber-50 p-4 text-sm text-amber-900">Pilih kategori kapal di atas untuk melihat daftar form.</p>}
 
       {atts.length > 0 && (
-        <Card title="Dokumen lampiran pendukung" sub="Lampiran umum + tambahan menurut jenis survei">
+        <Fold title="Dokumen lampiran pendukung" sub="Lampiran umum + tambahan menurut jenis survei" right={progBadge('a:')}>
           <ul className="divide-y divide-slate-100">
             {atts.filter((x) => showAtt(x)).map(({ a, cols: cs }) => (
               <Row key={a.id} label={a.label} sub={a.cond} tags={cs.length ? tagOf(cs) : 'Umum'} mark={mark('a:' + a.id, cs)} onTap={() => tap('a:' + a.id, cs)} />
             ))}
           </ul>
-        </Card>
+        </Fold>
       )}
 
       {cols.length > 0 && (
