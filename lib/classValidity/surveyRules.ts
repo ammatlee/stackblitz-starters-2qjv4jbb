@@ -171,8 +171,11 @@ export function applicability(a: string, g: Item['g'], vt: VType, age: number | 
 
 export type TRow = { id: string; cat: string; item: string; scope: string; note: string };
 /** Jenis kapal tanpa tangki FO di cargo length area (Tabel 3.3 baris "Cargo Length Area" tidak berlaku). */
+/** Jenis kapal dengan hatch cover & coaming palka kargo (UT wajib mulai Renewal III). Tanker/gas carrier tidak masuk: tidak punya palka kargo. */
+export const HATCH_TYPES = ['General Cargo', 'Bulk Carrier', 'Container Ship'];
 const NO_CARGO_FO = ['Tugboat', 'Anchor Handling Tug', 'Pontoon', 'Oil Barge'];
-export function renewalTables(rn: number, age: number | null, vt?: string) {
+export function renewalTables(rnIn: number, age: number | null, vt?: string) {
+  const rn = Math.min(rnIn, 4); // Renewal IV dan seterusnya memakai aturan yang sama (tabel hanya sampai IV)
   const none = 'NONE';
   const tanks: TRow[] = [
     { id: 'T1', cat: 'Internal', item: 'Ballast-water, Forepeak & Afterpeak Tanks', scope: 'ALL', note: 'Berlaku di setiap Renewal.' },
@@ -191,10 +194,10 @@ export function renewalTables(rn: number, age: number | null, vt?: string) {
   ];
   const ut: TRow[] = [
     { id: 'U1', cat: 'UT', item: 'Suspect Areas', scope: 'REQUIRED', note: 'Area yang tampak/diduga mengalami deteriorasi.' },
-    { id: 'U2', cat: 'UT', item: 'Transverse Sections of Deck Plating (0,5L midship)', scope: rn === 1 ? none : rn === 2 ? 'ONE SECTION' : rn === 3 ? 'TWO SECTIONS' : 'THREE SECTIONS', note: 'Bertambah menurut nomor Renewal.' },
-    { id: 'U3', cat: 'UT', item: 'Cargo Hold Hatch Covers & Coamings', scope: 'N/A', note: 'Tidak berlaku untuk tipe kapal ini.' },
-    { id: 'U4', cat: 'UT', item: 'Forepeak & Afterpeak Ballast Tanks (internal)', scope: rn >= 3 ? 'REQUIRED' : none, note: 'Berlaku mulai Renewal III.' },
-    { id: 'U5', cat: 'UT', item: 'Exposed Main Deck Plating', scope: rn === 4 ? 'REQUIRED' : none, note: 'Renewal IV ke atas.' },
+    { id: 'U2', cat: 'UT', item: 'Transverse Sections of Deck Plating (0,5L midship)', scope: rn === 1 ? none : rn === 2 ? 'ONE SECTION' : rn === 3 ? 'TWO SECTIONS' : 'THREE SECTIONS', note: 'Bertambah menurut nomor Renewal. Kapal < 100 m boleh dikurangi: 1 penampang (Renewal III), 2 penampang (IV+) — catatan 3.' },
+    { id: 'U3', cat: 'UT', item: 'Cargo Hold Hatch Covers & Coamings', scope: !vt || !HATCH_TYPES.includes(vt) ? 'N/A' : rn >= 3 ? 'REQUIRED' : none, note: 'Renewal III dan seterusnya (pelat dan stiffener); hanya kapal dengan hatch cover palka kargo (Tabel 3.1 butir 3). Hatch cover desain approved yang strukturnya tidak punya akses ke internal: ukur bagian yang dapat diakses (catatan 5).' },
+    { id: 'U4', cat: 'UT', item: 'Forepeak & Afterpeak Ballast Tanks (internal)', scope: rn >= 3 ? 'REQUIRED' : none, note: 'Berlaku mulai Renewal III. Pengukuran internal dapat dipertimbangkan khusus oleh Surveyor bila hard coating dalam kondisi GOOD (catatan 2).' },
+    { id: 'U5', cat: 'UT', item: 'Exposed Main Deck Plating', scope: rn === 4 ? 'REQUIRED' : none, note: 'Renewal IV ke atas. Kapal > 100 m pada Renewal III: pengukuran geladak terbuka pada 0,5L tengah kapal dapat dipersyaratkan (catatan 4).' },
     { id: 'U6', cat: 'UT', item: 'Exposed Superstructure Deck Plating', scope: rn === 4 ? 'REQUIRED' : none, note: 'Renewal IV ke atas.' },
     { id: 'U7', cat: 'UT', item: 'Transverse Bulkheads in Cargo Spaces', scope: rn === 4 ? 'REQUIRED' : none, note: 'Renewal IV+ bila ruang kargo ada.' },
     { id: 'U8', cat: 'UT', item: 'Wind & Water Strakes', scope: rn === 4 ? 'REQUIRED' : none, note: 'Port & starboard, full length.' },
@@ -242,8 +245,10 @@ export function minDiameter(cfg: DminCfg, da: number | null, pw: number | null, 
   const capped = rmIn !== null && rmIn > cap;
   const cw = 560 / (rm + 160); // formula (2)
   const opt = K_OPTS[cfg.kind].find((o) => o.id === cfg.kId) ?? K_OPTS[cfg.kind][0];
-  const F = cfg.kind === 'prop' ? 100 : Number(cfg.f);
-  if (da === null || pw === null || n === null || pw <= 0 || n <= 0) return { dmin: null as number | null, rm, cw, capped, k: opt.k, F, cap };
+  const Fn = cfg.kind === 'prop' ? 100 : num(cfg.f);
+  const F = Fn ?? 0;
+  // F kosong / bukan angka / ≤ 0 → tidak dinilai (dmin null), jangan dianggap 0 yang membuat semua poros COMPLIANT
+  if (da === null || pw === null || n === null || pw <= 0 || n <= 0 || Fn === null || Fn <= 0) return { dmin: null as number | null, rm, cw, capped, k: opt.k, F, cap };
   const ratio = di !== null && da > 0 ? di / da : 0;
   const bore = ratio <= 0.4 ? 1 : 1 - Math.pow(ratio, 4); // bore ≤ 0,4·da → suku bore dianggap 1,0
   const dmin = F * opt.k * Math.cbrt((pw / (n * bore)) * cw); // formula (1)

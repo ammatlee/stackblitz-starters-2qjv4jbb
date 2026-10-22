@@ -55,6 +55,7 @@ const words = (scope: string): string => {
 const utWords: Record<string, (r: TRow) => string> = {
   U1: () => 'Area suspect / yang diduga mengalami deteriorasi;',
   U2: (r) => `${r.scope === 'ONE SECTION' ? 'Minimal satu' : r.scope === 'TWO SECTIONS' ? 'Minimal dua' : 'Minimal tiga'} penampang melintang pada 0,5L bagian tengah kapal;`,
+  U3: () => 'Seluruh hatch cover dan coaming palka kargo (pelat dan stiffener);',
   U4: () => 'Internal tangki ceruk haluan dan buritan;',
   U5: () => 'Seluruh pelat geladak utama terbuka sepanjang kapal;',
   U6: () => 'Pelat geladak bangunan atas terbuka yang mewakili (geladak buritan, anjungan, dan haluan);',
