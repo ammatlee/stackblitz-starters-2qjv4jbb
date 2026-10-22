@@ -1,7 +1,7 @@
 /** Utilitas tanggal (UTC, perilaku EDATE seperti Excel) dan helper kecil untuk halaman Class Validity. */
 export const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
 /** Terima 'yyyy-mm-dd' (bagian setelah 10 karakter pertama diabaikan, mis. timestamp). Tanggal tidak valid (30 Feb) → null, tidak digeser. */
-export const parseD = (s: string): Date | null => {
+export const parseD = (s: string | null | undefined): Date | null => {
   if (!s) return null;
   const t = s.slice(0, 10);
   if (!/^\d{4}-\d{2}-\d{2}$/.test(t)) return null;

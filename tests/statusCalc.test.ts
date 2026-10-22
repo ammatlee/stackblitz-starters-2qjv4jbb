@@ -5,7 +5,9 @@ import { BASE, CASES, REAL_CASES } from './fixtures/cases';
 
 const iso = (d: Date | null | undefined) => (d ? d.toISOString().slice(0, 10) : null);
 
-describe.each<[string, typeof CASES]>([['sintetis', CASES], ['nyata', REAL_CASES]])('computeStatus — kasus %s', (_n, list) => {
+// Grup kosong dilewati: vitest menganggap describe tanpa tes sebagai error (REAL_CASES sengaja kosong sampai kasus nyata diisi).
+const GROUPS: [string, typeof CASES][] = [['sintetis', CASES], ['nyata', REAL_CASES]];
+describe.each(GROUPS.filter(([, l]) => l.length > 0))('computeStatus — kasus %s', (_n, list) => {
   for (const c of list) {
     it(`${c.id}: ${c.title}`, () => {
       const r = computeStatus({ ...BASE, ...c.input });
@@ -34,6 +36,8 @@ describe.each<[string, typeof CASES]>([['sintetis', CASES], ['nyata', REAL_CASES
     });
   }
 });
+
+it.todo('isi REAL_CASES di tests/fixtures/cases.ts dengan kasus kapal nyata (hasil yang sudah diverifikasi)');
 
 describe('computeStatus — window survei (kapal rekaan, expiry 15 Mar 2028)', () => {
   const w = computeStatus({ ...BASE, compDate: '2024-02-05', startDate: '2024-02-01' }).win;
