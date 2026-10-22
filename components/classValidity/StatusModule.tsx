@@ -143,7 +143,10 @@ export default function StatusModule(p: StatusProps) {
             <span className="mb-1 block text-xs font-semibold text-slate-600">Jenis Kapal</span>
             <VesselTypeSelect className={inputCls} value={vType} onChange={(v, info) => { setVType(v); setPropelledFlag(info?.propelled ?? null); }} />
           </div>
-          <Field label="Year Built"><input className={inputCls} inputMode="numeric" value={yearBuilt} onChange={(e) => setYearBuilt(e.target.value)} /></Field>
+          <Field label="Year Built">
+            <input className={inputCls} inputMode="numeric" value={yearBuilt} onChange={(e) => setYearBuilt(e.target.value)} />
+            {A.ageInvalid && <span className="mt-1 block text-xs font-semibold text-red-600">Year Built harus lebih kecil dari tahun expiry. Periksa kembali isian Year Built dan Certificate Expiry.</span>}
+          </Field>
           <Field label="Certificate Expiry">{dateIn(expiry, setExpiry)}</Field>
           <Field label="Inspection Start">{dateIn(startDate, setStartDate)}</Field>
           <Field label="Inspection Completion">{dateIn(compDate, setCompDate)}</Field>

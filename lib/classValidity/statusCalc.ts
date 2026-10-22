@@ -33,11 +33,14 @@ export function computeStatus(input: StatusInput) {
 
   const ad = annivD ?? (exp ? exp.getUTCDate() : 1);
   const am = annivM ?? (exp ? exp.getUTCMonth() + 1 : 1);
-  const age = exp && yb ? exp.getUTCFullYear() - yb : null;
+  const ageRaw = exp && yb ? exp.getUTCFullYear() - yb : null;
+  // Tahun bangun ≥ tahun expiry mustahil (kapal baru pun berumur 5 pada expiry pertamanya) → salah input, jangan ditebak.
+  const ageInvalid = ageRaw !== null && ageRaw <= 0;
+  const age = ageInvalid ? null : ageRaw;
   // Nomor Renewal = yang lebih besar antara hitungan umur kapal (per 5 tahun) dan Renewal terakhir + 1.
   const rnAge = age === null || age <= 0 ? null : Math.max(1, Math.ceil(age / 5));
   const rnPrev = lastNo !== null ? lastNo + 1 : null;
-  const rn = rnAge === null ? rnPrev : rnPrev === null ? rnAge : Math.max(rnAge, rnPrev);
+  const rn = ageInvalid ? null : rnAge === null ? rnPrev : rnPrev === null ? rnAge : Math.max(rnAge, rnPrev);
   const rnBumped = rnAge !== null && rnPrev !== null && rnPrev > rnAge;
   const rnLabel = rn === null ? 'INPUT REQUIRED' : `RENEWAL ${roman(rn)}`;
   const prev = exp ? addM(exp, -60) : null;
@@ -236,7 +239,7 @@ export function computeStatus(input: StatusInput) {
     machinery: sel.REN || c === 'C' || c === 'D',
   };
 
-  return { exp, st, co, age, rn, rnBumped, rnLabel, prev, ad, am, win, rows, recSt, c, caseTitle, action, scopeLbl, why, basis, overall, implied, reinst, trigger, newPeriod, shift, active, limit,
+  return { exp, st, co, age, ageInvalid, rn, rnBumped, rnLabel, prev, ad, am, win, rows, recSt, c, caseTitle, action, scopeLbl, why, basis, overall, implied, reinst, trigger, newPeriod, shift, active, limit,
     a5Applicable, anniversaryAuto: annivD === null && annivM === null };
 }
 

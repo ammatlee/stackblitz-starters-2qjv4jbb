@@ -5,6 +5,7 @@
  */
 
 import { isNonPropelled } from './vesselTypes';
+import { parseD as parse, mk, addM } from './classValidity/dateUtils';
 
 export type Baseline = {
   vessel_type?: string | null;
@@ -78,18 +79,7 @@ const EXT_LABEL: Record<string, string> = { E25: '2,5 tahun', E1: '1 tahun', E3:
 const majorPlans = (sys: string | null, conn: string | null): string[] =>
   sys === 'oil' && conn === 'keyless' ? ['M1', 'M2'] : sys === 'fw' ? ['M1'] : sys === 'open' && conn === 'keyless' ? ['M4'] : [];
 
-/* ---------- tanggal (UTC, perilaku EDATE) ---------- */
-const parse = (s: string | null | undefined): Date | null => {
-  if (!s) return null;
-  const d = new Date(s.slice(0, 10) + 'T00:00:00Z');
-  return isNaN(d.getTime()) ? null : d;
-};
-const dim = (y: number, m: number) => new Date(Date.UTC(y, m + 1, 0)).getUTCDate();
-const mk = (y: number, m: number, d: number) => {
-  const t = new Date(Date.UTC(y, m, 1));
-  return new Date(Date.UTC(t.getUTCFullYear(), t.getUTCMonth(), Math.min(d, dim(t.getUTCFullYear(), t.getUTCMonth()))));
-};
-const addM = (d: Date, n: number) => mk(d.getUTCFullYear(), d.getUTCMonth() + n, d.getUTCDate());
+/* ---------- tanggal (UTC, perilaku EDATE): satu sumber di classValidity/dateUtils ---------- */
 export const toDMY = (d: Date | null) =>
   d ? `${String(d.getUTCDate()).padStart(2, '0')}.${String(d.getUTCMonth() + 1).padStart(2, '0')}.${d.getUTCFullYear()}` : '';
 export const toISO = (d: Date) => d.toISOString().slice(0, 10);
@@ -138,9 +128,11 @@ export function computeSurveyStatus(b: Baseline, evsAll: Ev[], today: Date): Sta
 
   // Nomor Renewal terakhir yang selesai (default: menurut umur pada expiry periode sebelumnya)
   let lastNo: number | null = b.last_renewal_no;
-  if (lastNo === null && yb) lastNo = ageNo(expiry.getUTCFullYear() - 5 - yb);
+  if (lastNo === null && yb && expiry.getUTCFullYear() - yb > 0) lastNo = ageNo(expiry.getUTCFullYear() - 5 - yb); // 0 = belum ada Renewal sebelumnya (kapal baru)
   const nextNoOf = (exp: Date, last: number | null) => {
-    const a = yb ? ageNo(exp.getUTCFullYear() - yb) : null;
+    const age = yb ? exp.getUTCFullYear() - yb : null;
+    if (age !== null && age <= 0) return null; // tahun bangun ≥ tahun expiry: salah input, nomor tidak ditebak
+    const a = age === null ? null : ageNo(age);
     const p = last !== null ? last + 1 : null;
     return a === null ? p : p === null ? a : Math.max(a, p); // naik bila periode melewati hitungan umur
   };
@@ -324,7 +316,7 @@ export function computeSurveyStatus(b: Baseline, evsAll: Ev[], today: Date): Sta
 
   // Docking: tidak ada batas paling awal; hanya maksimum 36 bulan sejak Bottom Survey sebelumnya.
   const dockBase = lastDock ?? periodStart;
-  // Batas Docking 1 tidak dikaitkan dengan Renewal/expiry: lewat 36 bulan → suspend, lewat 6 bulan berikutnya → withdrawn.
+  // Batas Docking 1 tidak dikaitkan dengan Renewal/expiry: lewat 36 bulan → suspend (tidak pernah withdrawn selama DOCKING_CAN_WITHDRAW = false di surveyRules.ts).
   const dockDue = addM(dockBase, 36);
   const dockNote = 'Maksimum 36 bulan dari Docking sebelumnya; tidak ada batas paling awal; terpisah dari Renewal';
   rows.push({
