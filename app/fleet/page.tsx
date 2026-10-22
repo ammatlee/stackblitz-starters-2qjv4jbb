@@ -6,6 +6,7 @@ import { useAuth } from '../../components/AuthProvider';
 import FleetView from '../../components/fleet/FleetView';
 import { buildFleet, todayUTC } from '../../lib/fleet';
 import { plansQuery, withPlans } from '../../lib/shaftPlans';
+import { fetchAllRows } from '../../lib/fetchAll';
 import type { PlanRow } from '../../lib/shaftPlans';
 import type { AgInput, EvInput, FleetItem, VesselInput } from '../../lib/fleet';
 
@@ -20,10 +21,11 @@ export default function FleetPage() {
     if (!supabase || !user) return;
     setBusy(true);
     setErr('');
-    const v = await supabase.from('vessels').select('*').order('name');
-    const a = await supabase.from('agendas').select('vessel_id,agenda_no,surveys,inspection_start,inspection_completion,scenario,finished_at').eq('finished', true);
-    const m = await supabase.from('vessel_events').select('*');
-    const pl = await supabase.from('agendas').select(plansQuery).eq('finished', true);
+    const sb = supabase;
+    const v = await fetchAllRows((f, t) => sb.from('vessels').select('*').order('name').order('id').range(f, t));
+    const a = await fetchAllRows((f, t) => sb.from('agendas').select('vessel_id,agenda_no,surveys,inspection_start,inspection_completion,scenario,finished_at').eq('finished', true).order('id').range(f, t));
+    const m = await fetchAllRows((f, t) => sb.from('vessel_events').select('*').order('id').range(f, t));
+    const pl = await fetchAllRows((f, t) => sb.from('agendas').select(plansQuery).eq('finished', true).order('id').range(f, t));
     if (v.error) {
       setErr('Gagal memuat kapal: ' + v.error.message);
       setBusy(false);

@@ -7,6 +7,7 @@ import DateInput from './DateInput';
 import VesselTypeSelect from './VesselTypeSelect';
 import { isNonPropelled } from '../lib/vesselTypes';
 import { todayUTC } from '../lib/fleet';
+import { fetchAllRows } from '../lib/fetchAll';
 import { computeSurveyStatus, maxExtension, roman, toDMY, toISO } from '../lib/surveyStatus';
 import { plansQuery, withPlans, SHAFT_PLAN_OPTS, shaftPlanLabel } from '../lib/shaftPlans';
 import type { PlanRow } from '../lib/shaftPlans';
@@ -75,10 +76,11 @@ export default function VesselStatus({ refreshKey, vesselName, onApply }: { refr
 
   const load = useCallback(async () => {
     if (!supabase || !user) return null;
-    const v = await supabase.from('vessels').select('*').order('name');
-    const a = await supabase.from('agendas').select('vessel_id,agenda_no,surveys,inspection_start,inspection_completion,scenario,finished_at').eq('finished', true);
-    const m = await supabase.from('vessel_events').select('*').order('completion', { ascending: false });
-    const pl = await supabase.from('agendas').select(plansQuery).eq('finished', true);
+    const sb = supabase;
+    const v = await fetchAllRows((f, t) => sb.from('vessels').select('*').order('name').order('id').range(f, t));
+    const a = await fetchAllRows((f, t) => sb.from('agendas').select('vessel_id,agenda_no,surveys,inspection_start,inspection_completion,scenario,finished_at').eq('finished', true).order('id').range(f, t));
+    const m = await fetchAllRows((f, t) => sb.from('vessel_events').select('*').order('completion', { ascending: false }).order('id').range(f, t));
+    const pl = await fetchAllRows((f, t) => sb.from('agendas').select(plansQuery).eq('finished', true).order('id').range(f, t));
     if (v.error) {
       setMsg({ k: 'err', t: 'Gagal memuat kapal: ' + v.error.message });
       return null;
