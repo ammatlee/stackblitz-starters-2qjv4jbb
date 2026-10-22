@@ -6,6 +6,7 @@ import { useAuth } from './AuthProvider';
 import DateInput from './DateInput';
 import VesselTypeSelect from './VesselTypeSelect';
 import { isNonPropelled } from '../lib/vesselTypes';
+import { todayUTC } from '../lib/fleet';
 import { computeSurveyStatus, maxExtension, roman, toDMY, toISO } from '../lib/surveyStatus';
 import { plansQuery, withPlans, SHAFT_PLAN_OPTS, shaftPlanLabel } from '../lib/shaftPlans';
 import type { PlanRow } from '../lib/shaftPlans';
@@ -92,7 +93,7 @@ export default function VesselStatus({ refreshKey, vesselName, onApply }: { refr
   }, [user]);
 
   const emit = useCallback((v: VesselRow, all: AgRow[], evr: EvRow[]) => {
-    const r = computeSurveyStatus(v, evsOf(v.id, all, evr), new Date());
+    const r = computeSurveyStatus(v, evsOf(v.id, all, evr), todayUTC());
     const auto = r ? r.ad === r.expiry.getUTCDate() && r.am === r.expiry.getUTCMonth() + 1 : true;
     applyRef.current({
       name: v.name,
@@ -126,7 +127,7 @@ export default function VesselStatus({ refreshKey, vesselName, onApply }: { refr
   }, [load, emit, refreshKey]);
 
   const sel = vessels.find((x) => x.id === selId) ?? null;
-  const result = useMemo(() => (sel ? computeSurveyStatus(sel, evsOf(sel.id, ags, mev), new Date()) : null), [sel, ags, mev]);
+  const result = useMemo(() => (sel ? computeSurveyStatus(sel, evsOf(sel.id, ags, mev), todayUTC()) : null), [sel, ags, mev]);
   const selEvents = useMemo(() => mev.filter((m) => m.vessel_id === selId), [mev, selId]);
 
   const choose = (id: string) => {

@@ -104,6 +104,9 @@ export default function AgendaPanel({ vesselName, vesselType, yearBuilt, agendaN
       if (!due) {
         return setMsg({ k: 'err', t: 'Tanggal Inspection Completion masih kosong. Tambahkan kunjungan (tab Laporan) atau isi tanggalnya dulu sebelum Finish.' });
       }
+      if (summary.surveys.includes('PS') && !snapshot.shaftPlan) {
+        return setMsg({ k: 'err', t: 'Pilih Method atau extension Propeller Shaft dulu (tab Scope) sebelum Finish. Tanpa itu, jatuh tempo poros bisa salah hitung.' });
+      }
       const ok = window.confirm(
         `Finish agenda ${no}?\n\nCompletion (kunjungan terakhir): ${dmy(completion)}\nDeadline laporan: ${dmy(due.dueISO)} (${dueLabel(due.days)})\n\nPastikan semua kunjungan sudah tercatat.`
       );

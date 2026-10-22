@@ -125,6 +125,7 @@ export function computeSurveyStatus(b: Baseline, evsAll: Ev[], today: Date): Sta
   let postponed = parse(b.postponed_until);
   let annCount = 0; // jumlah survei periodik (Annual/Intermediate) yang sudah dikreditkan pada periode ini
   let intSlot: number | null = null; // urutan survei periodik tempat Intermediate dikerjakan
+  const shaftNotes: string[] = []; // catatan agenda poros yang tidak bisa dihitung
 
   // Nomor Renewal terakhir yang selesai (default: menurut umur pada expiry periode sebelumnya)
   let lastNo: number | null = b.last_renewal_no;
@@ -201,6 +202,9 @@ export function computeSurveyStatus(b: Baseline, evsAll: Ev[], today: Date): Sta
       const plan = e.shaft_plan ?? '';
       if (EXT_MONTHS[plan]) {
         shaftExts.push(plan); // extension menunda jatuh tempo; bukan survei poros penuh
+      } else if (!plan && shaftExts.length > 0) {
+        // Method/extension tidak diisi padahal ada extension berjalan: jangan dianggap survei penuh (akan menghapus extension)
+        shaftNotes.push(`Agenda ${e.agenda_no}: Propeller Shaft dipilih tanpa Method/extension, jadi tidak dihitung. Buka agenda itu dan pilih Method atau extension-nya.`);
       } else {
         // survei penuh: selesai dalam 3 bulan sebelum jatuh tempo → periode berikutnya dihitung dari tanggal jatuh tempo
         const prev = shaftDueNow();
@@ -338,7 +342,7 @@ export function computeSurveyStatus(b: Baseline, evsAll: Ev[], today: Date): Sta
     const raw = extRaw();
     const extMonths = Math.min(extCap, raw);
     const due = addM(baseDue, extMonths);
-    const warnings: string[] = [];
+    const warnings: string[] = [...shaftNotes];
     const cnt = (k: string) => shaftExts.filter((x) => x === k).length;
     const lastIdx = (k: string) => shaftExts.lastIndexOf(k);
     if (shSys === 'open') {

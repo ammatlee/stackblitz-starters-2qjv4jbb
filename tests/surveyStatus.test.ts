@@ -125,3 +125,18 @@ describe('Nomor Renewal: hitungan umur konsisten di semua tempat', () => {
 describe('Parser tanggal baseline', () => {
   it('parseD dan tanggal baseline dari database (timestamp) sama hasilnya', () => expect(iso(parseD('2028-03-15T00:00:00+00:00')!)).toBe('2028-03-15'));
 });
+
+describe('Propeller Shaft — agenda tanpa Method/extension', () => {
+  const withExt: Baseline = { ...B, last_shaft: '2023-03-15', shaft_exts: ['E1'] };
+  it('extension berjalan tidak terhapus; jatuh tempo tetap; ada peringatan', () => {
+    const before = computeSurveyStatus(withExt, [], TODAY)!;
+    const r = computeSurveyStatus(withExt, [ev({ agenda_no: 'X1', completion: '2026-05-01', surveys: ['PS'], shaft_plan: null })], TODAY)!;
+    expect(iso(r.shaft!.due)).toBe(iso(before.shaft!.due));
+    expect(r.shaft!.exts).toEqual(['E1']);
+    expect(r.shaft!.warnings.some((w) => w.includes('X1'))).toBe(true);
+  });
+  it('tanpa extension berjalan: perilaku lama (dianggap survei penuh) tetap', () => {
+    const r = computeSurveyStatus({ ...B, last_shaft: '2023-03-15' }, [ev({ completion: '2026-05-01', surveys: ['PS'] })], TODAY)!;
+    expect(iso(r.shaft!.due)).toBe('2031-05-01');
+  });
+});
