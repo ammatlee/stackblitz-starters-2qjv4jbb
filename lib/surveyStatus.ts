@@ -321,8 +321,14 @@ export function computeSurveyStatus(b: Baseline, evsAll: Ev[], today: Date): Sta
   // Docking: tidak ada batas paling awal; hanya maksimum 36 bulan sejak Bottom Survey sebelumnya.
   const dockBase = lastDock ?? periodStart;
   // Batas Docking 1 tidak dikaitkan dengan Renewal/expiry: lewat 36 bulan → suspend (tidak pernah withdrawn selama DOCKING_CAN_WITHDRAW = false di surveyRules.ts).
-  const dockDue = addM(dockBase, 36);
-  const dockNote = 'Maksimum 36 bulan dari Docking sebelumnya; tidak ada batas paling awal; terpisah dari Renewal';
+  // Bila 36 bulan dari Docking sebelumnya melewati jatuh tempo Special Survey, Docking berikutnya dikerjakan bersama Special Survey:
+  // jatuh tempo = tanggal Special Survey (mis. Docking 1 sudah selesai → Docking 2 jatuh tempo sama dengan Special Survey).
+  const dock36 = addM(dockBase, 36);
+  const dockAtSpecial = +dock36 > +expiry;
+  const dockDue = dockAtSpecial ? expiry : dock36;
+  const dockNote = dockAtSpecial
+    ? 'Dikerjakan bersama Special Survey (36 bulan dari Docking sebelumnya melewati jatuh tempo Special Survey)'
+    : 'Maksimum 36 bulan dari Docking sebelumnya; tidak ada batas paling awal';
   rows.push({
     kind: 'Docking Survey',
     due: toDMY(dockDue),

@@ -60,11 +60,15 @@ export function computeStatus(input: StatusInput) {
     // Intermediate tetap mengikuti anniversary asli (tanggal & bulan expiry); pergeseran Annual tidak memengaruhinya.
     const anI = (n: number) => mk(prev.getUTCFullYear() + n, exp.getUTCMonth(), exp.getUTCDate());
     win.INT = { start: addM(anI(2), -3), end: addM(anI(3), 3) };
-    // Docking: maksimum 36 bulan dari Docking/Renewal terakhir (bukan dari anniversary)
-    const dockBase = statusInfo?.lastDock ? new Date(statusInfo.lastDock + 'T00:00:00Z') : prev;
-    win.D1 = { start: addM(dockBase, 24), end: addM(dockBase, 36) };
     const lim3 = addM(exp, 3);
-    win.REN = { start: addM(exp, -3), end: ext && +ext > +exp ? (+ext < +lim3 ? ext : lim3) : exp };
+    const renWin = { start: addM(exp, -3), end: ext && +ext > +exp ? (+ext < +lim3 ? ext : lim3) : exp };
+    win.REN = renWin;
+    // Docking: maksimum 36 bulan dari Docking/Renewal terakhir (bukan dari anniversary).
+    // Bila 36 bulan itu melewati akhir jendela Renewal, Docking dikerjakan bersama Special Survey: batas akhirnya = akhir jendela Renewal.
+    const dockBase = statusInfo?.lastDock ? new Date(statusInfo.lastDock + 'T00:00:00Z') : prev;
+    const d1End = +addM(dockBase, 36) > +renWin.end ? renWin.end : addM(dockBase, 36);
+    const d1Start = +addM(dockBase, 24) > +d1End ? d1End : addM(dockBase, 24);
+    win.D1 = { start: d1Start, end: d1End };
   }
 
   // Annual ke-5 hanya ada bila anniversary ke-5 (setelah bergeser) jatuh sebelum jendela Renewal (expiry − 3 bulan)
