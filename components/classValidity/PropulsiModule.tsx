@@ -188,7 +188,7 @@ export default function PropulsiModule(p: PropulsiProps) {
               {S.dminRes.map((r, i) => (
                 <div key={i} className="rounded-xl border border-slate-200 p-4">
                   <div className="flex items-start justify-between gap-2">
-                    <p className="text-sm font-bold">Poros {i + 1} <span className="font-normal text-slate-500">· da = {shafts[i].d || '—'} mm</span></p>
+                    <p className="text-sm font-bold">Poros {i + 1} <span className="font-normal text-slate-500">· da = {shafts[i].d || 'belum diisi'}{shafts[i].d ? ' mm' : ''}</span></p>
                     <Badge v={r.v || 'BELUM DIUKUR'} />
                   </div>
                   <div className="mt-3 grid grid-cols-3 gap-3">
@@ -197,15 +197,17 @@ export default function PropulsiModule(p: PropulsiProps) {
                     <Field label="Bore di (mm)">{numIn(shafts[i].b ?? '', (v) => setShaftRow(i, 'b', v))}</Field>
                   </div>
                   <p className="mt-3 text-sm">
-                    Diameter minimum d: <b>{r.dmin === null ? '—' : `${r.dmin.toFixed(1)} mm`}</b>
-                    {r.dmin !== null && r.da !== null && <span className="text-slate-600"> · selisih {(r.da - r.dmin >= 0 ? '+' : '') + (r.da - r.dmin).toFixed(1)} mm</span>}
+                    {r.solved ? 'Diameter luar minimum (untuk bore di tersebut)' : 'Diameter minimum d'}: <b>{r.dmin === null ? '—' : `${r.dmin.toFixed(1)} mm`}</b>
+                    {r.dmin !== null && r.da !== null && <span className="text-slate-600"> · {r.da - r.dmin >= 0 ? `sisa toleransi pengurangan ${(r.da - r.dmin).toFixed(1)} mm` : `kurang ${(r.dmin - r.da).toFixed(1)} mm dari batas minimum`}</span>}
                   </p>
+                  {r.badBore && <p className="mt-1 text-[11px] font-semibold text-red-700">Bore di harus lebih kecil dari diameter poros da. Periksa isian.</p>}
+                  {r.solved && <p className="mt-1 text-[11px] text-slate-500">Bore terisi tetapi diameter poros (da) belum: dihitung diameter luar terkecil yang memenuhi rumus (1), karena suku bore bergantung pada da.</p>}
                   <p className="mt-1 text-[11px] text-slate-500">F = {r.F} · k = {r.k} · Rm = {r.rm} N/mm² · Cw = {r.cw.toFixed(3)}{r.capped ? ' · Rm dipotong ke batas Rules' : ''}</p>
                   {shafts[i].b && r.da !== null && num(shafts[i].b) !== null && (num(shafts[i].b) as number) / r.da <= 0.4 && <p className="mt-1 text-[11px] text-slate-500">Bore ≤ 0,4·da: suku bore dihitung 1,0.</p>}
                 </div>
               ))}
             </div>
-            <p className="mt-3 text-[11px] text-slate-500">Pw = daya terukur motor penggerak (kerugian gear box dan bearing tidak dikurangi); n = putaran poros pada daya tersebut. Isi diameter poros pada kartu clearance di atas.</p>
+            <p className="mt-3 text-[11px] text-slate-500">Pw = daya terukur motor penggerak (kerugian gear box dan bearing tidak dikurangi); n = putaran poros pada daya tersebut. Diameter minimum dihitung tanpa diameter aktual; diameter poros (da) pada kartu clearance di atas hanya diperlukan untuk vonis COMPLIANT / NON-COMPLIANT.</p>
           </Card>
           )}
 

@@ -24,6 +24,7 @@ export function computePropulsi(input: PropulsiInput) {
   const dminRes = shafts.map((r) => {
     const da = num(r.d);
     const m = minDiameter(dmin, da, num(r.p ?? ''), num(r.n ?? ''), num(r.b ?? ''));
+    // vonis hanya bila diameter aktual (da) diisi; diameter minimum sendiri tetap dihitung tanpa da (lihat minDiameter)
     const v: Verdict = m.dmin !== null && da !== null ? (da >= m.dmin ? 'COMPLIANT' : 'NON-COMPLIANT') : '';
     return { ...m, da, v };
   });

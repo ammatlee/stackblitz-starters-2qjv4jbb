@@ -68,6 +68,41 @@ describe('minDiameter — diameter minimum poros (Rules)', () => {
     expect(mk('160')).toBe('NON-COMPLIANT');
     expect(mk('170')).toBe('COMPLIANT');
   });
+  // diameter minimum desain tidak boleh menunggu diameter aktual (da); da hanya untuk vonis
+  it('poros pejal: dmin dihitung tanpa da (da kosong) = 164,6 mm', () => {
+    const m = minDiameter({ ...DMIN0 }, null, 1000, 300, null);
+    expect(m.dmin).toBeCloseTo(164.605, 2);
+    expect(m.solved).toBe(false);
+  });
+  it('computePropulsi: da kosong → dmin tetap tampil, vonis kosong', () => {
+    const r = run({ shafts: [{ ...SHAFT0, p: '1000', n: '300' }] }).dminRes[0];
+    expect(r.dmin).toBeCloseTo(164.605, 2);
+    expect(r.v).toBe('');
+  });
+  it('contoh layar: propeller k=1,26, Rm 600, P=485, n=1900, bore 150, da 300 → 73,76 mm', () => {
+    const m = minDiameter({ ...DMIN0, kId: 'p126', rm: '600' }, 300, 485, 1900, 150);
+    expect(m.dmin).toBeCloseTo(73.762, 2);
+  });
+  it('poros berlubang, da kosong: dicari diameter luar terkecil yang memenuhi rumus (di=120 → 162,83 mm)', () => {
+    const cfg = { ...DMIN0, kind: 'inter' as const, kId: 'i100' };
+    const m = minDiameter(cfg, null, 2000, 400, 120);
+    expect(m.solved).toBe(true);
+    expect(m.dmin).toBeCloseTo(162.827, 2);
+    // konsisten dengan perhitungan langsung memakai da hasil pencarian
+    expect(minDiameter(cfg, m.dmin as number, 2000, 400, 120).dmin).toBeCloseTo(m.dmin as number, 3);
+  });
+  it('vonis berlubang konsisten: da sedikit di atas hasil pencarian COMPLIANT, sedikit di bawah NON-COMPLIANT', () => {
+    const dm = { ...DMIN0, kind: 'inter' as const, kId: 'i100' };
+    const mk = (d: string) => run({ dmin: dm, shafts: [{ ...SHAFT0, d, p: '2000', n: '400', b: '120' }] }).dminRes[0].v;
+    expect(mk('163')).toBe('COMPLIANT');
+    expect(mk('162.6')).toBe('NON-COMPLIANT');
+  });
+  it('bore ≥ da → tidak dihitung dan ditandai badBore (bukan angka negatif)', () => {
+    const m = minDiameter({ ...DMIN0 }, 100, 1000, 300, 100);
+    expect(m.dmin).toBeNull();
+    expect(m.badBore).toBe(true);
+    expect(minDiameter({ ...DMIN0 }, 100, 1000, 300, 150).dmin).toBeNull();
+  });
 });
 
 describe('rudderMax — clearance bantalan kemudi', () => {

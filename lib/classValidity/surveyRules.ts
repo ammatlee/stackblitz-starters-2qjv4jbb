@@ -237,6 +237,15 @@ export const DMIN0: DminCfg = { kind: 'prop', kId: 'p122', f: '100', mat: 'cmn',
 export type ShaftRow = { d: string; a: string; m: string; p: string; n: string; b: string; l?: string };
 export const SHAFT0: ShaftRow = { d: '', a: '', m: '', p: '', n: '', b: '', l: '' };
 
+/**
+ * Diameter minimum poros, Rules BKI formula (1): da ≥ d ≥ F·k·∛[ Pw / (n·(1 − (di/da)⁴)) · Cw ], Cw = 560/(Rm+160) (formula (2)).
+ * Bore ≤ 0,4·da → suku (1 − (di/da)⁴) dianggap 1,0.
+ *  - Poros pejal (bore kosong): d TIDAK memerlukan diameter aktual; da hanya dipakai untuk vonis COMPLIANT / NON-COMPLIANT.
+ *  - Poros berlubang + da terisi: d dihitung langsung dengan da aktual.
+ *  - Poros berlubang + da kosong: suku bore bergantung pada da, maka yang dicari adalah diameter luar TERKECIL (da) yang memenuhi
+ *    da ≥ d(da) untuk bore tersebut (hasil `solved` = true).
+ *  - Bore ≥ da mustahil → dmin null dan `badBore` = true.
+ */
 export function minDiameter(cfg: DminCfg, da: number | null, pw: number | null, n: number | null, di: number | null) {
   // batas Rm untuk perhitungan Cw (Rules B.1): propeller shaft 600; carbon/CMn selain propeller 760; alloy selain propeller 800
   const cap = cfg.kind === 'prop' ? 600 : cfg.mat === 'alloy' ? 800 : 760;
@@ -247,12 +256,27 @@ export function minDiameter(cfg: DminCfg, da: number | null, pw: number | null, 
   const opt = K_OPTS[cfg.kind].find((o) => o.id === cfg.kId) ?? K_OPTS[cfg.kind][0];
   const Fn = cfg.kind === 'prop' ? 100 : num(cfg.f);
   const F = Fn ?? 0;
+  const none = (badBore = false) => ({ dmin: null as number | null, rm, cw, capped, k: opt.k, F, cap, solved: false, badBore });
   // F kosong / bukan angka / ≤ 0 → tidak dinilai (dmin null), jangan dianggap 0 yang membuat semua poros COMPLIANT
-  if (da === null || pw === null || n === null || pw <= 0 || n <= 0 || Fn === null || Fn <= 0) return { dmin: null as number | null, rm, cw, capped, k: opt.k, F, cap };
-  const ratio = di !== null && da > 0 ? di / da : 0;
-  const bore = ratio <= 0.4 ? 1 : 1 - Math.pow(ratio, 4); // bore ≤ 0,4·da → suku bore dianggap 1,0
-  const dmin = F * opt.k * Math.cbrt((pw / (n * bore)) * cw); // formula (1)
-  return { dmin, rm, cw, capped, k: opt.k, F, cap };
+  if (pw === null || n === null || pw <= 0 || n <= 0 || Fn === null || Fn <= 0) return none();
+  const solid = F * opt.k * Math.cbrt((pw / n) * cw); // suku bore = 1,0
+  const out = (dmin: number, solved = false) => ({ dmin, rm, cw, capped, k: opt.k, F, cap, solved, badBore: false });
+  if (di === null || di <= 0) return out(solid); // pejal: tidak perlu diameter aktual
+  const boreTerm = (d: number) => (di / d <= 0.4 ? 1 : 1 - Math.pow(di / d, 4));
+  const dAt = (d: number) => F * opt.k * Math.cbrt((pw / (n * boreTerm(d))) * cw);
+  if (da !== null && da > 0) {
+    if (di >= da) return none(true); // bore tidak mungkin sebesar atau lebih dari diameter luar
+    return out(dAt(da));
+  }
+  // da kosong: cari da terkecil dengan da ≥ d(da). g(da) = da − d(da) naik terus terhadap da, jadi cukup bisection.
+  let lo = di;
+  let hi = Math.max(solid, di / 0.4); // di titik ini suku bore = 1 → g = hi − solid ≥ 0
+  for (let i = 0; i < 100; i += 1) {
+    const mid = (lo + hi) / 2;
+    if (mid - dAt(mid) >= 0) hi = mid;
+    else lo = mid;
+  }
+  return out(hi, true);
 }
 
 export type ShaftSys = 'open' | 'oil' | 'fw';
