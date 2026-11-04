@@ -33,6 +33,14 @@ function Btn(p: { label: string; run: () => void; on?: boolean; off?: boolean })
   );
 }
 
+// Link yang dibuka di tab baru wajib membawa rel="noopener noreferrer" (mencegah halaman tujuan membajak tab ini).
+// Dipasang sekali di level modul; berlaku untuk semua isi yang ditampilkan lewat RichView, termasuk data lama.
+if (typeof window !== 'undefined') {
+  DOMPurify.addHook('afterSanitizeAttributes', (node) => {
+    if (node.tagName === 'A' && node.getAttribute('target') === '_blank') node.setAttribute('rel', 'noopener noreferrer');
+  });
+}
+
 export function RichView({ html }: { html: string }) {
   const clean = typeof window === 'undefined' ? '' : DOMPurify.sanitize(html, { ADD_ATTR: ['target', 'rel'] });
   return (
