@@ -25,6 +25,11 @@ export default function AdminPage() {
 
   const setApproved = async (id: string, v: boolean) => {
     if (!supabase) return;
+    // mencabut persetujuan langsung menutup akses anggota, jadi minta konfirmasi dulu
+    if (!v) {
+      const who = rows.find((r) => r.user_id === id)?.email ?? 'akun ini';
+      if (!window.confirm(`Cabut persetujuan ${who}? Akun ini tidak bisa lagi membuka data sampai disetujui kembali.`)) return;
+    }
     const { error } = await supabase.from('profiles').update({ approved: v }).eq('user_id', id);
     if (error) setMsg(error.message);
     else load();
