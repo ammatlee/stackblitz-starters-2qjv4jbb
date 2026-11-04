@@ -1,8 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import { num, parseD, addM, fmt } from '../lib/classValidity/dateUtils';
 
+// Aturan: ribuan ditulis tanpa pemisah (1234); satu titik atau satu koma selalu desimal, jadi "1.234" dan "1,234" = 1,234.
 describe('num — baca angka dari input teks', () => {
-  it.each([['50', 50], ['50,5', 50.5], ['50.5', 50.5], ['1.234,5', 1234.5], ['1,234.5', 1234.5], [' 7 ', 7], ['-0,2', -0.2], ['.5', 0.5]])('"%s" → %d', (s, v) => expect(num(s)).toBe(v));
+  it.each([['50', 50], ['50,5', 50.5], ['50.5', 50.5], ['1.234,5', 1234.5], ['1,234.5', 1234.5], [' 7 ', 7], ['-0,2', -0.2], ['.5', 0.5], ['1.234', 1.234], ['1,234', 1.234]])('"%s" → %d', (s, v) => expect(num(s)).toBe(v));
   it.each([[''], ['   '], ['abc'], ['12abc'], ['1,2,3'], ['--1']])('"%s" → null (bukan angka)', (s) => expect(num(s)).toBeNull());
 });
 
