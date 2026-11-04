@@ -44,13 +44,16 @@ export function computeStatus(input: StatusInput) {
   const rnBumped = rnAge !== null && rnPrev !== null && rnPrev > rnAge;
   const rnLabel = rn === null ? 'INPUT REQUIRED' : `RENEWAL ${roman(rn)}`;
   const prev = exp ? addM(exp, -60) : null;
+  // Tanggal dari Survey Status dibaca lewat parseD: teks rusak menjadi null (kembali ke hitungan dasar), bukan Invalid Date yang merambat jadi NaN
+  const nextAnnivD = statusInfo ? parseD(statusInfo.nextAnniv) : null;
+  const lastDockD = statusInfo?.lastDock ? parseD(statusInfo.lastDock) : null;
 
   const win: Partial<Record<SurveyKey, { start: Date; end: Date }>> = {};
   if (exp && prev) {
     // Annual ke-n: bila Survey Status kapal tersedia, ikuti rantai anniversary-nya (tetap benar setelah anniversary bergeser)
     const an = (n: number) =>
-      statusInfo
-        ? mk(new Date(statusInfo.nextAnniv + 'T00:00:00Z').getUTCFullYear() + (n - (statusInfo.annCount + 1)), am - 1, ad)
+      statusInfo && nextAnnivD
+        ? mk(nextAnnivD.getUTCFullYear() + (n - (statusInfo.annCount + 1)), am - 1, ad)
         : mk(prev.getUTCFullYear() + n, am - 1, ad);
     win.A1 = { start: addM(an(1), -3), end: addM(an(1), 3) };
     win.A2 = { start: addM(an(2), -3), end: addM(an(2), 3) };
@@ -65,7 +68,7 @@ export function computeStatus(input: StatusInput) {
     win.REN = renWin;
     // Docking: maksimum 36 bulan dari Docking/Renewal terakhir (bukan dari anniversary).
     // Bila 36 bulan itu melewati akhir jendela Renewal, Docking dikerjakan bersama Special Survey: batas akhirnya = akhir jendela Renewal.
-    const dockBase = statusInfo?.lastDock ? new Date(statusInfo.lastDock + 'T00:00:00Z') : prev;
+    const dockBase = lastDockD ?? prev;
     const d1End = +addM(dockBase, 36) > +renWin.end ? renWin.end : addM(dockBase, 36);
     const d1Start = +addM(dockBase, 24) > +d1End ? d1End : addM(dockBase, 24);
     win.D1 = { start: d1Start, end: d1End };
@@ -73,8 +76,8 @@ export function computeStatus(input: StatusInput) {
 
   // Annual ke-5 hanya ada bila anniversary ke-5 (setelah bergeser) jatuh sebelum jendela Renewal (expiry − 3 bulan)
   const an5 = prev
-    ? statusInfo
-      ? mk(new Date(statusInfo.nextAnniv + 'T00:00:00Z').getUTCFullYear() + (5 - (statusInfo.annCount + 1)), am - 1, ad)
+    ? statusInfo && nextAnnivD
+      ? mk(nextAnnivD.getUTCFullYear() + (5 - (statusInfo.annCount + 1)), am - 1, ad)
       : mk(prev.getUTCFullYear() + 5, am - 1, ad)
     : null;
   const a5Applicable = !!exp && !!an5 && +an5 < +addM(exp, -3);

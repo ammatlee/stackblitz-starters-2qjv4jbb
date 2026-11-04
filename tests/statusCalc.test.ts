@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { computeStatus } from '../lib/classValidity/statusCalc';
 import type { SurveyKey } from '../lib/classValidity/surveyRules';
-import { BASE, CASES, REAL_CASES } from './fixtures/cases';
+import { BASE, CASES, REAL_CASES, pick } from './fixtures/cases';
 
 const iso = (d: Date | null | undefined) => (d ? d.toISOString().slice(0, 10) : null);
 
@@ -35,6 +35,25 @@ describe.each(GROUPS.filter(([, l]) => l.length > 0))('computeStatus — kasus %
       }
     });
   }
+});
+
+// Tanggal rusak dari Survey Status tidak boleh merambat jadi Invalid Date/NaN: hasilnya harus sama dengan tanpa statusInfo.
+describe('computeStatus — tanggal rusak dari Survey Status', () => {
+  const input = { ...BASE, startDate: '2024-01-10', compDate: '2024-01-12', sel: pick('A1') };
+  const info = (nextAnniv: string, lastDock: string | null) => ({ nextAnniv, annCount: 0, intDone: false, dock1Done: false, shaftDone: false, lastDock });
+  const dates = (r: ReturnType<typeof computeStatus>) => Object.fromEntries(Object.entries(r.win).map(([k, w]) => [k, w ? [iso(w.start), iso(w.end)] : null]));
+
+  it('nextAnniv & lastDock tidak valid → tidak ada tanggal NaN pada window', () => {
+    const r = computeStatus({ ...input, statusInfo: info('bukan-tanggal', 'salah') });
+    for (const w of Object.values(r.win)) {
+      expect(w && Number.isNaN(+w.start)).toBeFalsy();
+      expect(w && Number.isNaN(+w.end)).toBeFalsy();
+    }
+  });
+
+  it('nextAnniv & lastDock tidak valid → sama dengan tanpa statusInfo', () => {
+    expect(dates(computeStatus({ ...input, statusInfo: info('2024-13-45', 'xx') }))).toEqual(dates(computeStatus({ ...input, statusInfo: null })));
+  });
 });
 
 it.todo('isi REAL_CASES di tests/fixtures/cases.ts dengan kasus kapal nyata (hasil yang sudah diverifikasi)');

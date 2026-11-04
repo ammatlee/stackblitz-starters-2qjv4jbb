@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import type { User } from '@supabase/supabase-js';
 import { supabase, isConfigured } from '../lib/supabase';
@@ -60,17 +60,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [sessionLoading, setSessionLoading] = useState(true);
   const [approved, setApproved] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
-  const [checking, setChecking] = useState(false);
+  // id akun yang status persetujuannya sudah selesai diperiksa; selama berbeda dari user.id, tampilan tetap "Memuat…"
+  const [checkedUid, setCheckedUid] = useState<string | null>(null);
+  const uidRef = useRef<string | undefined>(undefined);
 
   useEffect(() => {
     if (!supabase) {
       setSessionLoading(false);
       return;
     }
-    supabase.auth.getSession().then(({ data }) => {
-      setUser(data.session?.user ?? (isOffline() ? storedUser() : null));
-      setSessionLoading(false);
-    });
+    supabase.auth
+      .getSession()
+      .then(({ data }) => {
+        setUser(data.session?.user ?? (isOffline() ? storedUser() : null));
+      })
+      .catch(() => {
+        // gagal membaca sesi: jangan terjebak di "Memuat…"
+        setUser(isOffline() ? storedUser() : null);
+      })
+      .finally(() => setSessionLoading(false));
     const { data } = supabase.auth.onAuthStateChange((event, session) => {
       if (!session && event !== 'SIGNED_OUT' && isOffline()) return; // tanpa sinyal: pertahankan tampilan login
       setUser(session?.user ?? null);
@@ -87,9 +95,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // status persetujuan: admin otomatis disetujui; anggota lain menunggu persetujuan admin
   const uid = user?.id;
-  const runCheck = useCallback(async (id: string, silent: boolean) => {
+  uidRef.current = uid;
+  const runCheck = useCallback(async (id: string) => {
     if (!supabase) return;
-    if (!silent) setChecking(true);
     let adm = false;
     let ok = false;
     let failed = false;
@@ -123,24 +131,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         /* abaikan */
       }
     }
+    if (uidRef.current !== id) return; // akun sudah berganti saat menunggu server: abaikan hasil lama
     setIsAdmin(adm);
     setApproved(ok);
-    if (!silent) setChecking(false);
+    setCheckedUid(id);
   }, []);
 
   useEffect(() => {
     if (!supabase || !uid) {
       setApproved(false);
       setIsAdmin(false);
-      setChecking(false);
+      setCheckedUid(null);
       return;
     }
-    runCheck(uid, false);
+    runCheck(uid);
   }, [uid, runCheck]);
 
   const recheck = useCallback(async () => {
-    if (uid) await runCheck(uid, true);
+    if (uid) await runCheck(uid);
   }, [uid, runCheck]);
+
+  // true sejak ada akun sampai pemeriksaan persetujuannya selesai (dihitung saat render, jadi tidak ada kedipan "Menunggu persetujuan")
+  const checking = !!supabase && !!user && checkedUid !== user.id;
 
   const signIn = async (email: string, password: string): Promise<Result> => {
     if (!supabase) return { error: 'Supabase belum dikonfigurasi.' };
