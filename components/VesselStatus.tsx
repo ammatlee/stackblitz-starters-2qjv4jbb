@@ -491,7 +491,26 @@ export default function VesselStatus({ refreshKey, vesselName, onApply }: { refr
             Anniversary date of Class Survey : <b>{String(result.ad).padStart(2, '0')}.{String(result.am).padStart(2, '0')}</b> · Periode berjalan: {toDMY(result.periodStart)} – {toDMY(result.expiry)}
             {result.nextNo !== null && <> · Renewal berikutnya: <b>Renewal {roman(result.nextNo)}</b></>}
           </p>
-          <div className="mt-2 overflow-x-auto">
+          {/* HP: tiap survei jadi kartu (status di kanan atas, tanpa geser ke samping). Layar lebar dan cetak tetap memakai tabel. */}
+          <ul className="mt-2 divide-y divide-slate-100 border-y border-slate-200 sm:hidden print:hidden">
+            {result.rows.map((r) => (
+              <li key={r.kind} className="py-3">
+                <div className="flex items-start justify-between gap-3">
+                  <p className="text-sm font-semibold text-slate-900">{r.kind}</p>
+                  <span className={'inline-block shrink-0 whitespace-nowrap rounded-full px-2.5 py-0.5 text-[11px] font-semibold ' + (STATE_TONE[r.state] ?? 'bg-slate-100 text-slate-600')}>{r.state}</span>
+                </div>
+                {r.note && <p className="mt-0.5 text-xs leading-snug text-slate-500">{r.note}</p>}
+                {r.warn && <p className="mt-0.5 text-xs font-semibold leading-snug text-amber-700">⚠ {r.warn}</p>}
+                <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-2 text-sm">
+                  <div><dt className="text-xs text-slate-500">Due Date</dt><dd className="font-medium">{r.due || '—'}</dd></div>
+                  <div><dt className="text-xs text-slate-500">Last Date</dt><dd>{r.last || '—'}</dd></div>
+                  {r.range && <div><dt className="text-xs text-slate-500">Range Date</dt><dd>{r.range}</dd></div>}
+                  {r.postponed && <div><dt className="text-xs text-slate-500">Postponed</dt><dd>{r.postponed}</dd></div>}
+                </dl>
+              </li>
+            ))}
+          </ul>
+          <div className="mt-2 hidden overflow-x-auto sm:block print:block">
             <table className="w-full min-w-[720px] text-left text-sm">
               <thead className="border-y border-slate-300 text-xs text-slate-500">
                 <tr><th className="py-2 pr-3">Kind of Survey</th><th className="pr-3">Due Date</th><th className="pr-3">Range Date</th><th className="pr-3">Postponed</th><th className="pr-3">Last Date</th><th>Status</th></tr>
@@ -504,7 +523,7 @@ export default function VesselStatus({ refreshKey, vesselName, onApply }: { refr
                     <td className="pr-3">{r.range || '—'}</td>
                     <td className="pr-3">{r.postponed || '—'}</td>
                     <td className="pr-3">{r.last || '—'}</td>
-                    <td><span className={'rounded-full px-2.5 py-0.5 text-[11px] font-semibold ' + (STATE_TONE[r.state] ?? 'bg-slate-100 text-slate-600')}>{r.state}</span></td>
+                    <td><span className={'inline-block whitespace-nowrap rounded-full px-2.5 py-0.5 text-[11px] font-semibold ' + (STATE_TONE[r.state] ?? 'bg-slate-100 text-slate-600')}>{r.state}</span></td>
                   </tr>
                 ))}
               </tbody>
