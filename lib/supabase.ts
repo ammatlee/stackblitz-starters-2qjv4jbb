@@ -1,8 +1,10 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { clearOfflineCache, makeOfflineFetch } from './offlineFetch';
 
-const url = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://ehvbyhzlgdupafuzbgnd.supabase.co';
-const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'sb_publishable_LpcYyg69736jVtB9gVexNA__cox8R5t';
+// Alamat dan key HANYA dari variabel lingkungan (Cloudflare: Settings → Variables and Secrets; lokal/StackBlitz: file .env.local).
+// Sengaja tanpa nilai bawaan supaya build yang lupa diisi tidak diam-diam memakai database produksi; bila kosong, aplikasi masuk mode demo.
+const url = process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
+const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? '';
 
 export const isConfigured = Boolean(url && key && !url.startsWith('ISI_'));
 
