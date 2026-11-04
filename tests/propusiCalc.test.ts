@@ -82,14 +82,14 @@ describe('rudderMax — clearance bantalan kemudi', () => {
 });
 
 describe('jangkar dan rantai', () => {
-  it('rasio minimum', () => { expect(ANCHOR_MIN_RATIO).toBe(0.88); expect(CHAIN_MIN_RATIO).toBe(0.9); });
-  it('jangkar 1000 kg: 880 COMPLIANT, 879 NON-COMPLIANT', () => {
-    expect(run({ anchor: { o: '1000', a: '880' } }).anchorV).toBe('COMPLIANT');
-    expect(run({ anchor: { o: '1000', a: '879' } }).anchorV).toBe('NON-COMPLIANT');
+  it('rasio minimum', () => { expect(ANCHOR_MIN_RATIO).toBe(0.9); expect(CHAIN_MIN_RATIO).toBe(0.88); });
+  it('jangkar 1000 kg: 900 COMPLIANT, 899 NON-COMPLIANT', () => {
+    expect(run({ anchor: { o: '1000', a: '900' } }).anchorV).toBe('COMPLIANT');
+    expect(run({ anchor: { o: '1000', a: '899' } }).anchorV).toBe('NON-COMPLIANT');
   });
-  it('rantai Ø50: 45 COMPLIANT, 44,9 NON-COMPLIANT', () => {
-    expect(run({ chain: { o: '50', a: '45' } }).chainV).toBe('COMPLIANT');
-    expect(run({ chain: { o: '50', a: '44.9' } }).chainV).toBe('NON-COMPLIANT');
+  it('rantai Ø50: 44 COMPLIANT, 43,9 NON-COMPLIANT', () => {
+    expect(run({ chain: { o: '50', a: '44' } }).chainV).toBe('COMPLIANT');
+    expect(run({ chain: { o: '50', a: '43.9' } }).chainV).toBe('NON-COMPLIANT');
   });
   it('berat poros: wdFinal = a + (now − then)', () => {
     expect(run({ wd: { a: '10', then: '4', now: '7' } }).wdFinal).toBe(13);
@@ -105,7 +105,7 @@ describe('computePropulsi — hitungan ringkasan', () => {
     expect(r.fails).toBe(1);
   });
   it('item yang disembunyikan tidak ikut dihitung', () => {
-    const r = run({ showShaft: false, showRudder: false, showDmin: false, anchor: { o: '1000', a: '880' }, chain: { o: '50', a: '45' } });
+    const r = run({ showShaft: false, showRudder: false, showDmin: false, anchor: { o: '1000', a: '900' }, chain: { o: '50', a: '45' } });
     expect(r.total).toBe(2);
     expect(r.fails).toBe(0);
   });

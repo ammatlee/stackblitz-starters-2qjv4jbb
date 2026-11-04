@@ -123,7 +123,7 @@ export default function MemoModule({ ctx, memo, setMemo, ownerDefault, surveyorD
                   <Field label="Diameter rantai original (mm)">{numIn(chain.o, (v) => setChain((x) => ({ ...x, o: v })))}</Field>
                   <Field label="Jumlah segel rantai (27,5 m)">{numIn(memo.segels, (v) => setF('segels', v))}</Field>
                 </div>
-                <p className="mt-2 text-[11px] text-slate-500">Minimum dihitung otomatis: jangkar 88% dan diameter rantai 90% dari nilai original. Bila kosong, memo menampilkan titik-titik (……) untuk diisi.</p>
+                <p className="mt-2 text-[11px] text-slate-500">Minimum dihitung otomatis: jangkar 90% dan diameter rantai 88% dari nilai original. Bila kosong, memo menampilkan titik-titik (……) untuk diisi.</p>
               </div>
             )}
           </>

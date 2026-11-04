@@ -248,14 +248,14 @@ export default function PropulsiModule(p: PropulsiProps) {
 
       {showAnchor && (
       <div className="grid gap-4 md:grid-cols-2">
-        <Card title="Anchor Weight" sub="Minimum 88% berat asli" right={<Badge v={S.anchorV || 'BELUM DIUKUR'} />}>
+        <Card title="Anchor Weight" sub="Minimum 90% berat asli" right={<Badge v={S.anchorV || 'BELUM DIUKUR'} />}>
           <div className="grid grid-cols-2 gap-3">
             <Field label="Original (kg)">{numIn(anchor.o, (v) => setAnchor((x) => ({ ...x, o: v })))}</Field>
             <Field label="Actual (kg)">{numIn(anchor.a, (v) => setAnchor((x) => ({ ...x, a: v })))}</Field>
           </div>
           <p className="mt-3 text-sm">Minimum: <b>{S.anchorMin === null ? '—' : `${S.anchorMin.toFixed(1)} kg`}</b></p>
         </Card>
-        <Card title="Anchor Chain Diameter" sub="Minimum 90% diameter asli" right={<Badge v={S.chainV || 'BELUM DIUKUR'} />}>
+        <Card title="Anchor Chain Diameter" sub="Minimum 88% diameter asli" right={<Badge v={S.chainV || 'BELUM DIUKUR'} />}>
           <div className="grid grid-cols-2 gap-3">
             <Field label="Original (mm)">{numIn(chain.o, (v) => setChain((x) => ({ ...x, o: v })))}</Field>
             <Field label="Actual (mm)">{numIn(chain.a, (v) => setChain((x) => ({ ...x, a: v })))}</Field>
