@@ -205,8 +205,12 @@ export default function AgendaPanel({ vesselName, vesselType, yearBuilt, agendaN
     setBkBusy(true);
     setBkMsg(null);
     try {
-      const c = await downloadBackup();
-      setBkMsg({ k: 'ok', t: `Cadangan diunduh: ${c.vessels} kapal, ${c.agendas} agenda, ${c.vessel_events} pembaruan manual.` });
+      const { counts: c, skipped } = await downloadBackup();
+      const extra = [c.bulletins !== undefined ? `${c.bulletins} bulletin` : '', c.audit_log !== undefined ? `${c.audit_log} riwayat perubahan` : ''].filter(Boolean).join(', ');
+      setBkMsg({
+        k: 'ok',
+        t: `Cadangan diunduh: ${c.vessels} kapal, ${c.agendas} agenda, ${c.vessel_events} pembaruan manual${extra ? `, ${extra}` : ''}.` + (skipped.length ? ` Tidak ikut (gagal dibaca): ${skipped.join(', ')}.` : ''),
+      });
     } catch (e) {
       setBkMsg({ k: 'err', t: e instanceof Error ? e.message : 'Gagal membuat cadangan.' });
     }

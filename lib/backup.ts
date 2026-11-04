@@ -1,32 +1,64 @@
 import { supabase } from './supabase';
+import { fetchAllRows } from './fetchAll';
 
-// tabel yang ikut dicadangkan (hanya data yang boleh dibaca akun ini; admin = semua akun)
-const TABLES = ['vessels', 'agendas', 'vessel_events'] as const;
-const PAGE = 1000;
+type Query = {
+  order: (col: string) => Query;
+  range: (from: number, to: number) => PromiseLike<{ data: unknown; error: { message: string } | null }>;
+};
 
-async function fetchAll(table: string): Promise<unknown[]> {
+// Tabel inti: bila gagal dibaca, pencadangan dibatalkan (jangan sampai file cadangan terlihat lengkap padahal tidak).
+// Tabel tambahan: bila gagal dibaca (mis. tabel belum dibuat), dilewati dan dicatat di file serta pesan hasil.
+// Kolom urutan harus unik supaya paging tidak tumpang tindih; report_na tidak punya kolom id, jadi memakai kunci gabungannya.
+const CORE: { table: string; order: string[] }[] = [
+  { table: 'vessels', order: ['id'] },
+  { table: 'agendas', order: ['id'] },
+  { table: 'vessel_events', order: ['id'] },
+];
+const EXTRA: { table: string; order: string[] }[] = [
+  { table: 'bulletins', order: ['id'] },
+  { table: 'report_na', order: ['owner', 'vessel_type', 'col', 'item'] },
+  { table: 'vessel_types_custom', order: ['owner', 'name'] },
+  { table: 'audit_log', order: ['id'] },
+];
+
+async function readTable(table: string, order: string[]): Promise<{ rows: unknown[]; error: string | null }> {
   if (!supabase) throw new Error('Supabase belum dikonfigurasi.');
-  const out: unknown[] = [];
-  for (let from = 0; ; from += PAGE) {
-    const { data, error } = await supabase.from(table).select('*').order('id', { ascending: true }).range(from, from + PAGE - 1);
-    if (error) throw new Error(`Gagal membaca tabel ${table}: ${error.message}`);
-    const rows = (data ?? []) as unknown[];
-    out.push(...rows);
-    if (rows.length < PAGE) break;
-  }
-  return out;
+  const sb = supabase;
+  const r = await fetchAllRows((from, to) => {
+    const q = order.reduce((acc, c) => acc.order(c), sb.from(table).select('*') as unknown as Query);
+    return q.range(from, to);
+  });
+  return { rows: r.data, error: r.error ? r.error.message : null };
 }
 
-/** Mengunduh semua data kapal, agenda, dan pembaruan status sebagai satu file JSON. Mengembalikan jumlah baris per tabel. */
-export async function downloadBackup(): Promise<Record<string, number>> {
+export type BackupResult = { counts: Record<string, number>; skipped: string[] };
+
+/**
+ * Mengunduh data kapal, agenda, pembaruan status, bulletin, pengaturan laporan, jenis kapal sendiri, dan riwayat perubahan
+ * sebagai satu file JSON (hanya data yang boleh dibaca akun ini; admin = semua akun).
+ * Catatan: file lampiran/gambar di Storage tidak ikut; yang tersimpan hanya tautannya.
+ */
+export async function downloadBackup(): Promise<BackupResult> {
   const tables: Record<string, unknown[]> = {};
-  for (const t of TABLES) tables[t] = await fetchAll(t);
+  const skipped: { table: string; error: string }[] = [];
+
+  for (const t of CORE) {
+    const r = await readTable(t.table, t.order);
+    if (r.error) throw new Error(`Gagal membaca tabel ${t.table}: ${r.error}`);
+    tables[t.table] = r.rows;
+  }
+  for (const t of EXTRA) {
+    const r = await readTable(t.table, t.order);
+    if (r.error) skipped.push({ table: t.table, error: r.error });
+    else tables[t.table] = r.rows;
+  }
+
   const counts: Record<string, number> = {};
-  TABLES.forEach((t) => (counts[t] = tables[t].length));
+  Object.keys(tables).forEach((t) => (counts[t] = tables[t].length));
 
   const now = new Date();
   const stamp = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-  const blob = new Blob([JSON.stringify({ app: 'rdk-class', exportedAt: now.toISOString(), tables }, null, 2)], { type: 'application/json' });
+  const blob = new Blob([JSON.stringify({ app: 'rdk-class', format: 2, exportedAt: now.toISOString(), tables, skipped }, null, 2)], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
@@ -35,5 +67,5 @@ export async function downloadBackup(): Promise<Record<string, number>> {
   a.click();
   a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
-  return counts;
+  return { counts, skipped: skipped.map((s) => s.table) };
 }
