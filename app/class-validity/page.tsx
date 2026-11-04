@@ -300,6 +300,7 @@ export default function Page() {
       if (k.length === 2 && k[0] === 'A' && Number(k[1]) <= statusInfo.annCount) return false;
       if (k === 'INT' && statusInfo.intDone) return false;
       if (k === 'D1' && statusInfo.dock1Done) return false;
+      if (k === 'PS' && statusInfo.shaftDone) return false;
     }
     return true;
   };

@@ -335,7 +335,7 @@ export function computeSurveyStatus(b: Baseline, evsAll: Ev[], today: Date): Sta
 
   // Propeller Shaft Survey: interval 5 tahun (sistem open: 5 atau 3 tahun), dapat ditunda dengan extension; hanya kapal berpenggerak
   const propelled = b.propelled ?? !isNonPropelled(b.vessel_type);
-  const shaftDone = lastShaft !== null && +lastShaft >= +periodStart;
+  const shaftInPeriod = lastShaft !== null && +lastShaft >= +periodStart;
   let shaft: ShaftStatus | null = null;
   if (propelled) {
     const baseDue = shaftD0();
@@ -381,6 +381,9 @@ export function computeSurveyStatus(b: Baseline, evsAll: Ev[], today: Date): Sta
     });
   }
 
+  // Propeller Shaft dianggap sudah dikerjakan pada periode ini bila ada survei poros sejak awal periode DAN jatuh tempo berikutnya
+  // sudah melewati expiry (tanggalnya tidak harus sama dengan Class Renewal). Interval 3 tahun (open loop) bisa jatuh tempo lagi dalam periode yang sama.
+  const shaftDone = shaftInPeriod && (shaft ? +shaft.due > +expiry : true);
   const dock1Done = lastDock !== null && +lastDock > +(lastSpecial ?? periodStart);
   return {
     rows, expiry, ad, am, periodStart, showA5, nextAnniv, annCount, intDone, dock1Done, shaftDone, propelled, lastDock,
