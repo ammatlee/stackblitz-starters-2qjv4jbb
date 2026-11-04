@@ -8,12 +8,14 @@ import VesselTypeSelect from './VesselTypeSelect';
 import { isNonPropelled } from '../lib/vesselTypes';
 import { todayUTC } from '../lib/fleet';
 import { fetchAllRows } from '../lib/fetchAll';
+import { updateWithVersion } from '../lib/optimisticLock';
+import type { LockClient } from '../lib/optimisticLock';
 import { computeSurveyStatus, maxExtension, roman, toDMY, toISO } from '../lib/surveyStatus';
 import { plansQuery, withPlans, SHAFT_PLAN_OPTS, shaftPlanLabel } from '../lib/shaftPlans';
 import type { PlanRow } from '../lib/shaftPlans';
 import type { Baseline, Ev } from '../lib/surveyStatus';
 
-type VesselRow = Baseline & { id: string; owner: string; name: string; vessel_type: string | null; last_shaft: string | null; anchor_notation: boolean | null; propelled: boolean | null; shaft_system: string | null; prop_connection: string | null; open_config: string | null };
+type VesselRow = Baseline & { id: string; owner: string; version?: number; name: string; vessel_type: string | null; last_shaft: string | null; anchor_notation: boolean | null; propelled: boolean | null; shaft_system: string | null; prop_connection: string | null; open_config: string | null };
 type AgRow = { vessel_id: string; agenda_no: string; plan?: string | null; surveys: string[] | null; inspection_start: string | null; inspection_completion: string | null; scenario: string | null; finished_at: string | null };
 type EvRow = { id: string; vessel_id: string; surveys: string[] | null; completion: string; created_at: string; shaft_plan?: string | null };
 
@@ -230,10 +232,24 @@ export default function VesselStatus({ refreshKey, vesselName, onApply }: { refr
     };
     let id = selId;
     if (selId) {
-      const r = await supabase.from('vessels').update(payload).eq('id', selId);
-      if (r.error) {
+      // simpan hanya bila data kapal belum diubah orang lain sejak dimuat (cek version)
+      const ver = sel && sel.id === selId ? sel.version : undefined;
+      let errMsg = '';
+      if (typeof ver === 'number') {
+        const lk = await updateWithVersion(supabase as unknown as LockClient, 'vessels', selId, ver, payload);
+        if (lk.status === 'conflict') {
+          await load();
+          setBusy(false);
+          return setMsg({ k: 'err', t: 'Data kapal ini sudah diubah orang lain setelah Anda membukanya, jadi tidak disimpan agar perubahan mereka tidak tertimpa. Data sudah dimuat ulang; buka Status awal lagi lalu ulangi perubahan Anda.' });
+        }
+        if (lk.status !== 'ok') errMsg = lk.message;
+      } else {
+        const r = await supabase.from('vessels').update(payload).eq('id', selId);
+        if (r.error) errMsg = r.error.message;
+      }
+      if (errMsg) {
         setBusy(false);
-        return setMsg({ k: 'err', t: r.error.message + (/shaft_(exts|plan)|last_shaft_(plan|major)/.test(r.error.message) ? ' (jalankan SQL 03_shaft.sql dulu)' : '') });
+        return setMsg({ k: 'err', t: errMsg + (/shaft_(exts|plan)|last_shaft_(plan|major)/.test(errMsg) ? ' (jalankan SQL 03_shaft.sql dulu)' : '') });
       }
     } else {
       const r = await supabase.from('vessels').insert({ owner: user.id, name: f.name.trim(), ...payload }).select('id').single();

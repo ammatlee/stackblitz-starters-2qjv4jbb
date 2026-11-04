@@ -3,6 +3,8 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { downloadBackup } from '../lib/backup';
+import { updateWithVersion } from '../lib/optimisticLock';
+import type { LockClient } from '../lib/optimisticLock';
 import { useAuth } from './AuthProvider';
 import { dueLabel, dueTone, reportDue, todayISO } from './classValidity/VisitsModule';
 
@@ -19,6 +21,7 @@ type Row = {
   status: string | null;
   scenario: string | null;
   finished: boolean;
+  version?: number; // naik otomatis tiap diubah (sql/07_versi_edit.sql); dipakai untuk penguncian edit bersamaan
   data: Snapshot | null;
   vessels: VesselRef | VesselRef[] | null;
 };
@@ -53,7 +56,7 @@ const TONE: Record<string, string> = {
   WITHDRAWN: 'bg-red-100 text-red-800',
 };
 
-const AGENDA_COLS = 'id,owner,vessel_id,agenda_no,surveys,inspection_start,inspection_completion,status,scenario,finished,data,vessels(name,vessel_type)';
+const AGENDA_COLS = 'id,owner,vessel_id,agenda_no,surveys,inspection_start,inspection_completion,status,scenario,finished,version,data,vessels(name,vessel_type)';
 const STALE_DAYS = 14; // agenda On Progress tanpa kunjungan baru selama ini diberi penanda "belum di-Finish?"
 const daysSince = (iso: string) => {
   const [y, m, d] = iso.split('-').map(Number);
@@ -70,12 +73,19 @@ export default function AgendaPanel({ vesselName, vesselType, yearBuilt, agendaN
   const [msg, setMsg] = useState<{ k: 'err' | 'ok'; t: string } | null>(null);
   const [bkBusy, setBkBusy] = useState(false);
   const [bkMsg, setBkMsg] = useState<{ k: 'err' | 'ok'; t: string } | null>(null);
+  // agenda yang sedang dilanjutkan dari riwayat (tombol Buka): disimpan versinya untuk mendeteksi perubahan orang lain
+  const [opened, setOpened] = useState<{ id: string; agendaNo: string; version: number } | null>(null);
+  const openRow = (r: Row, finished: boolean) => {
+    if (!r.data) return;
+    setOpened(typeof r.version === 'number' ? { id: r.id, agendaNo: r.agenda_no, version: r.version } : null);
+    onRestore({ ...r.data, finished });
+  };
 
   const load = useCallback(async () => {
     if (!supabase || !user) return;
     const { data, error } = await supabase
       .from('agendas')
-      .select('id,owner,vessel_id,agenda_no,surveys,inspection_start,inspection_completion,status,scenario,finished,data,vessels(name,vessel_type)')
+      .select(AGENDA_COLS)
       .order('created_at', { ascending: false })
       .limit(50);
     if (error) setMsg({ k: 'err', t: 'Gagal memuat riwayat: ' + error.message });
@@ -167,9 +177,24 @@ export default function AgendaPanel({ vesselName, vesselType, yearBuilt, agendaN
       data: snap,
       ...(finish ? { finished: true, finished_at: new Date().toISOString() } : {}),
     };
-    const up = await supabase.from('agendas').upsert(row, { onConflict: 'owner,agenda_no' });
-    setBusy(false);
-    if (up.error) return setMsg({ k: 'err', t: 'Gagal menyimpan agenda: ' + up.error.message });
+    // Agenda yang dibuka dari riwayat: simpan hanya bila belum diubah orang lain (cek version).
+    // Agenda baru (form diisi dari nol): perilaku lama, simpan berdasarkan No. Agenda.
+    if (opened && opened.agendaNo === no) {
+      const lk = await updateWithVersion(supabase as unknown as LockClient, 'agendas', opened.id, opened.version, row);
+      setBusy(false);
+      if (lk.status !== 'ok') {
+        if (lk.status === 'conflict') {
+          load();
+          return setMsg({ k: 'err', t: `Agenda ${no} sudah diubah orang lain setelah Anda membukanya, jadi tidak disimpan agar perubahan mereka tidak tertimpa. Buka ulang agenda ini dari riwayat (daftar sudah dimuat ulang), lalu ulangi perubahan Anda.` });
+        }
+        return setMsg({ k: 'err', t: 'Gagal menyimpan agenda: ' + lk.message });
+      }
+    } else {
+      const up = await supabase.from('agendas').upsert(row, { onConflict: 'owner,agenda_no' });
+      setBusy(false);
+      if (up.error) return setMsg({ k: 'err', t: 'Gagal menyimpan agenda: ' + up.error.message });
+    }
+    setOpened(null);
     setMsg({ k: 'ok', t: (finish ? `Agenda ${no} ditandai selesai dan tersimpan.` : `Agenda ${no} tersimpan.`) + (unsent ? ` ${unsent} kunjungan belum dicentang "sudah diinput di web BKI".` : '') + ' Form dikosongkan. Pilih nama kapal untuk memuat data kapal, lalu pilih lingkup survei dan isi tanggal. Ketuk Buka pada riwayat untuk melanjutkan agenda ini.' });
     load();
     onSaved?.();
@@ -213,8 +238,17 @@ export default function AgendaPanel({ vesselName, vesselType, yearBuilt, agendaN
   // laporan selesai: tanggal disimpan di data agenda (pengingat 7 hari hilang)
   const markReport = async (r: Row) => {
     if (!supabase) return;
-    const { error } = await supabase.from('agendas').update({ data: { ...(r.data ?? {}), reportDone: todayISO() } }).eq('id', r.id);
-    if (error) return setMsg({ k: 'err', t: 'Gagal menandai laporan selesai: ' + error.message });
+    const values = { data: { ...(r.data ?? {}), reportDone: todayISO() } };
+    if (typeof r.version === 'number') {
+      const lk = await updateWithVersion(supabase as unknown as LockClient, 'agendas', r.id, r.version, values);
+      if (lk.status !== 'ok') {
+        if (lk.status === 'conflict') load();
+        return setMsg({ k: 'err', t: lk.status === 'conflict' ? `Agenda ${r.agenda_no} baru saja diubah orang lain. Daftar sudah dimuat ulang; coba tandai lagi.` : 'Gagal menandai laporan selesai: ' + lk.message });
+      }
+    } else {
+      const { error } = await supabase.from('agendas').update(values).eq('id', r.id);
+      if (error) return setMsg({ k: 'err', t: 'Gagal menandai laporan selesai: ' + error.message });
+    }
     setMsg({ k: 'ok', t: `Laporan agenda ${r.agenda_no} ditandai selesai.` });
     load();
   };
@@ -295,7 +329,7 @@ export default function AgendaPanel({ vesselName, vesselType, yearBuilt, agendaN
                 <span className="min-w-0">
                   <span className="font-semibold">{vname(r)}</span> · {r.agenda_no} · kunjungan terakhir {dmy(r.inspection_completion)} ({ago} hari lalu)
                 </span>
-                <button onClick={() => r.data && onRestore({ ...r.data, finished: false })} className="rounded-md border border-slate-300 bg-white px-2.5 py-1 text-xs font-semibold hover:bg-slate-50">Buka</button>
+                <button onClick={() => openRow(r, false)} className="rounded-md border border-slate-300 bg-white px-2.5 py-1 text-xs font-semibold hover:bg-slate-50">Buka</button>
               </li>
             ))}
           </ul>
@@ -340,7 +374,7 @@ export default function AgendaPanel({ vesselName, vesselType, yearBuilt, agendaN
                       </div>
                       <div className="flex items-center gap-2">
                         {r.status && <span className={'rounded-full px-2.5 py-0.5 text-[11px] font-semibold ' + (TONE[r.status] ?? 'bg-slate-100 text-slate-600')}>{r.status}</span>}
-                        <button onClick={() => r.data && onRestore({ ...r.data, finished: r.finished })} className="rounded-md border border-slate-300 px-2.5 py-1 text-xs font-semibold hover:bg-slate-50">
+                        <button onClick={() => openRow(r, r.finished)} className="rounded-md border border-slate-300 px-2.5 py-1 text-xs font-semibold hover:bg-slate-50">
                           Buka
                         </button>
                         <button onClick={() => remove(r)} className="rounded-md px-2 py-1 text-xs font-semibold text-red-700 hover:bg-red-50">
