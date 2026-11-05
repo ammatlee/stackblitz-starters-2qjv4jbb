@@ -201,8 +201,6 @@ export default function VesselStatus({ refreshKey, vesselName, onApply }: { refr
     if (!f.expiry) return setMsg({ k: 'err', t: 'Isi tanggal expiry sertifikat (dd.mm.yyyy).' });
     if (f.postponed && f.postponed > maxExtension(f.expiry)) return setMsg({ k: 'err', t: `Extension/Postponed maksimal 3 bulan setelah expiry (paling lambat ${maxExtension(f.expiry).split('-').reverse().join('.')}).` });
     if (!selId && !f.name.trim()) return setMsg({ k: 'err', t: 'Isi nama kapal.' });
-    setBusy(true);
-    setMsg(null);
     const n = (s: string) => (s ? Number(s) : null);
     const cntOf = (v: string) => Math.min(5, Math.max(0, Math.round(Number(v) || 0)));
     const extsArr = [...Array(cntOf(f.extE1)).fill('E1'), ...Array(cntOf(f.extE25)).fill('E25'), ...Array(cntOf(f.extE3)).fill('E3')] as string[];
@@ -211,6 +209,32 @@ export default function VesselStatus({ refreshKey, vesselName, onApply }: { refr
       (sel && sel.last_shaft_plan !== undefined) || f.lastShaftPlan || f.lastShaftMajor || extsArr.length > 0
         ? { last_shaft_plan: f.lastShaftPlan || null, last_shaft_major: f.lastShaftMajor || null, shaft_exts: extsArr }
         : {};
+    // Status awal (baseline) hanya di-reset bila field status benar-benar berubah. Mengubah jenis kapal, notasi,
+    // sistem poros, dll. tidak boleh membuat agenda yang sudah di-Finish berhenti dihitung.
+    const norm = (v: unknown) => (v === undefined || v === '' ? null : v);
+    const newStatus: Record<string, unknown> = {
+      cert_expiry: f.expiry, anniv_day: n(f.ad), anniv_month: n(f.am), last_renewal_no: n(f.lastNo),
+      last_special: f.lastSpecial || null, last_annual: f.lastAnnual || null, last_annual_no: n(f.lastAnnualNo),
+      last_intermediate: f.lastInt || null, last_docking: f.lastDock || null, last_shaft: f.lastShaft || null,
+      postponed_until: f.postponed || null,
+      ...('last_shaft_plan' in shaftExtra ? { last_shaft_plan: f.lastShaftPlan || null, last_shaft_major: f.lastShaftMajor || null, shaft_exts: [...extsArr].sort().join(',') } : {}),
+    };
+    const oldRec = (sel ?? {}) as unknown as Record<string, unknown>;
+    const statusChanged = !selId || !sel || Object.entries(newStatus).some(([k, v]) => {
+      const old = k === 'shaft_exts' ? [...(sel.shaft_exts ?? [])].sort().join(',') : oldRec[k];
+      return norm(v) !== norm(old);
+    });
+    if (selId && statusChanged && result && result.applied.length > 0) {
+      const ok = await confirm({
+        title: 'Ubah status awal?',
+        message: `Anda mengubah isian status (tanggal/nomor survei). Status akan dihitung ulang dari isian ini, dan agenda yang sudah di-Finish (${result.applied.join(', ')}) tidak ikut dihitung lagi.\n\nBila hanya ingin mengubah jenis kapal atau notasi, batalkan lalu jangan ubah isian tanggal.`,
+        confirmText: 'Ya, ubah',
+        tone: 'danger',
+      });
+      if (!ok) return;
+    }
+    setBusy(true);
+    setMsg(null);
     const payload = {
       vessel_type: f.type || null,
       year_built: n(f.yb),
@@ -230,7 +254,7 @@ export default function VesselStatus({ refreshKey, vesselName, onApply }: { refr
       prop_connection: f.propConn || null,
       open_config: f.shaftSys === 'open' ? f.openCfg || null : null,
       postponed_until: f.postponed || null,
-      baseline_at: new Date().toISOString(),
+      ...(statusChanged ? { baseline_at: new Date().toISOString() } : {}),
       ...shaftExtra,
     };
     let id = selId;
@@ -347,7 +371,7 @@ export default function VesselStatus({ refreshKey, vesselName, onApply }: { refr
         <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-4">
           <p className="text-sm font-bold">Status awal kapal</p>
           <p className="mt-1 text-xs text-slate-600">
-            Isi sesuai sertifikat kelas saat ini. Hanya tanggal expiry yang wajib. Agenda yang di-Finish dan pembaruan manual <b>setelah</b> status awal ini disimpan akan memperbarui Survey Status otomatis.
+            Isi sesuai sertifikat kelas saat ini. Hanya tanggal expiry yang wajib. Agenda yang di-Finish dan pembaruan manual <b>setelah</b> status awal ini disimpan akan memperbarui Survey Status otomatis. Mengubah jenis kapal, notasi, atau sistem poros tidak mereset status.
           </p>
           <div className="mt-3 grid gap-3 sm:grid-cols-2">
             {!selId && fld('Nama kapal', <input className={inp} value={f.name} onChange={set('name')} />)}
