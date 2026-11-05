@@ -39,13 +39,18 @@ export default function DateInput({ value, onChange, className }: { value: strin
   const invalid = text.length === 10 && parseText(text) === null;
 
   return (
-    <input
-      inputMode="numeric"
-      maxLength={10}
-      placeholder="dd.mm.yyyy"
-      className={(className ?? '') + (invalid ? ' border-red-500' : '')}
-      value={text}
-      onChange={(e) => handle(e.target.value)}
-    />
+    <>
+      <input
+        inputMode="numeric"
+        autoComplete="off"
+        maxLength={10}
+        placeholder="dd.mm.yyyy"
+        aria-invalid={invalid || undefined}
+        className={(className ?? '') + (invalid ? ' border-red-500' : '')}
+        value={text}
+        onChange={(e) => handle(e.target.value)}
+      />
+      {invalid && <span role="alert" className="mt-1 block text-xs font-semibold text-red-600">Tanggal tidak valid. Gunakan format dd.mm.yyyy.</span>}
+    </>
   );
 }

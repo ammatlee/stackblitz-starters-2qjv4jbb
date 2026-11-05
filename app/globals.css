@@ -3,27 +3,11 @@
 @tailwind utilities;
 
 :root {
-  --foreground-rgb: 0, 0, 0;
-  --background-start-rgb: 214, 219, 220;
-  --background-end-rgb: 255, 255, 255;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --foreground-rgb: 255, 255, 255;
-    --background-start-rgb: 0, 0, 0;
-    --background-end-rgb: 0, 0, 0;
-  }
+  color-scheme: light; /* aplikasi ini hanya punya tema terang; cegah kontrol bawaan ikut gelap */
 }
 
 body {
-  color: rgb(var(--foreground-rgb));
-  background: linear-gradient(
-      to bottom,
-      transparent,
-      rgb(var(--background-end-rgb))
-    )
-    rgb(var(--background-start-rgb));
+  -webkit-text-size-adjust: 100%;
 }
 
 /* ---- Cetak / simpan PDF ---- */
@@ -70,7 +54,8 @@ body {
     width: 1.25rem;
     height: 1.25rem;
   }
-  header nav a {
+  header nav a,
+  header a[href='/login'] {
     display: inline-flex;
     align-items: center;
     min-height: 40px;

@@ -23,18 +23,17 @@ export default function OfflineBanner() {
 
   if (online && !stale) return null;
 
-  const base = 'fixed inset-x-0 bottom-0 z-50 px-4 pt-2 text-center text-xs font-medium shadow-lg ';
-  const pad = { paddingBottom: 'calc(0.5rem + env(safe-area-inset-bottom, 0px))' };
+  const base = 'fixed inset-x-0 bottom-[calc(3.5rem+env(safe-area-inset-bottom,0px))] z-50 px-4 py-2 text-center text-xs font-medium shadow-lg md:bottom-0 ';
 
   if (!online) {
     return (
-      <div className={base + 'bg-amber-500 text-white'} style={pad} role="status">
+      <div className={base + 'bg-amber-500 text-white'} role="status">
         Tanpa sinyal — data yang tampil adalah salinan terakhir di HP. Menyimpan perubahan butuh sinyal.
       </div>
     );
   }
   return (
-    <div className={base + 'bg-sky-600 text-white'} style={pad} role="status">
+    <div className={base + 'bg-sky-600 text-white'} role="status">
       Data yang tampil adalah salinan lama.{' '}
       <button type="button" onClick={() => window.location.reload()} className="ml-1 rounded bg-white/90 px-2 py-0.5 font-semibold text-sky-700">
         Muat ulang
