@@ -35,7 +35,7 @@ export type ApplyValues = {
   propConnection: string | null; // flanged | keyless | keyed
   openConfig: string | null; // five | three (hanya sistem open: interval 5 / 3 tahun)
   // ringkasan Survey Status untuk form inspeksi (survei yang sudah dikerjakan tidak ditawarkan lagi)
-  info?: { nextAnniv: string; annCount: number; intDone: boolean; dock1Done: boolean; shaftDone: boolean; lastDock: string | null } | null;
+  info?: { nextAnniv: string; annCount: number; intDone: boolean; dock1Done: boolean; shaftDone: boolean; lastDock: string | null; postponed?: string | null; shaftDue?: string | null } | null;
 };
 
 const STATE_TONE: Record<string, string> = {
@@ -116,7 +116,7 @@ export default function VesselStatus({ refreshKey, vesselName, onApply }: { refr
       propConnection: v.prop_connection ?? null,
       openConfig: v.open_config ?? null,
       info: r
-        ? { nextAnniv: toISO(r.nextAnniv), annCount: r.annCount, intDone: r.intDone, dock1Done: r.dock1Done, shaftDone: r.shaftDone, lastDock: r.lastDock ? toISO(r.lastDock) : null }
+        ? { nextAnniv: toISO(r.nextAnniv), annCount: r.annCount, intDone: r.intDone, dock1Done: r.dock1Done, shaftDone: r.shaftDone, lastDock: r.lastDock ? toISO(r.lastDock) : null, postponed: r.postponedEff ? toISO(r.postponedEff) : null, shaftDue: r.shaft ? toISO(r.shaft.due) : null }
         : null,
     });
   }, []);

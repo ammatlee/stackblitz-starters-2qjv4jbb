@@ -4,7 +4,7 @@
  * Murni fungsi (tanpa Supabase) supaya mudah diuji.
  */
 
-import { isNonPropelled } from './vesselTypes';
+import { isNonPropelled, hasNoIntermediate } from './vesselTypes';
 import { parseD as parse, mk, addM } from './classValidity/dateUtils';
 
 export type Baseline = {
@@ -66,6 +66,7 @@ export type StatusResult = {
   shaftDone: boolean;
   propelled: boolean;
   lastDock: Date | null;
+  postponedEff: Date | null; // Extension/Postponed Renewal yang berlaku (sudah dibatasi 3 bulan), null bila tidak ada
   lastNo: number | null;
   nextNo: number | null;
   applied: string[];
@@ -274,7 +275,7 @@ export function computeSurveyStatus(b: Baseline, evsAll: Ev[], today: Date): Sta
   const intStart = addM(a2, -3);
   const intEnd = addM(a3, 3);
   const intDone = lastInt !== null && +(lastInt as Date) >= +periodStart;
-  rows.push({
+  if (!hasNoIntermediate(b.vessel_type)) rows.push({
     kind: 'Intermediate Survey',
     due: '',
     range: intDone ? '' : `${toDMY(intStart)} s/d ${toDMY(intEnd)}`,
@@ -324,8 +325,8 @@ export function computeSurveyStatus(b: Baseline, evsAll: Ev[], today: Date): Sta
   // Bila 36 bulan dari Docking sebelumnya melewati jatuh tempo Special Survey, Docking berikutnya dikerjakan bersama Special Survey:
   // jatuh tempo = tanggal Special Survey (mis. Docking 1 sudah selesai → Docking 2 jatuh tempo sama dengan Special Survey).
   const dock36 = addM(dockBase, 36);
-  const dockAtSpecial = +dock36 > +expiry;
-  const dockDue = dockAtSpecial ? expiry : dock36;
+  const dockAtSpecial = +dock36 > +effDue; // effDue = expiry, atau tanggal extension Renewal bila ada
+  const dockDue = dockAtSpecial ? effDue : dock36;
   const dockNote = dockAtSpecial
     ? 'Dikerjakan bersama Special Survey (36 bulan dari Docking sebelumnya melewati jatuh tempo Special Survey)'
     : 'Maksimum 36 bulan dari Docking sebelumnya; tidak ada batas paling awal';
@@ -392,7 +393,7 @@ export function computeSurveyStatus(b: Baseline, evsAll: Ev[], today: Date): Sta
   const shaftDone = shaftInPeriod && (shaft ? +shaft.due > +expiry : true);
   const dock1Done = lastDock !== null && +lastDock > +(lastSpecial ?? periodStart);
   return {
-    rows, expiry, ad, am, periodStart, showA5, nextAnniv, annCount, intDone, dock1Done, shaftDone, propelled, lastDock,
+    rows, expiry, ad, am, periodStart, showA5, nextAnniv, annCount, intDone, dock1Done, shaftDone, propelled, lastDock, postponedEff: extEff,
     lastNo, nextNo: nextNoOf(expiry, lastNo), applied, shaft,
   };
 }

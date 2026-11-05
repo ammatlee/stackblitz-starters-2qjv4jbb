@@ -38,3 +38,6 @@ export const isNonPropelled = (t: string | null | undefined): boolean => {
   if (/self[\s-]?propelled|\bspob\b|\bsplb\b|bermesin|motor barge/i.test(t)) return false;
   return /barge|pontoon|tongkang/i.test(t);
 };
+
+/** Jenis kapal tanpa Intermediate Survey (Standard Pemeriksaan Laporan Survey BKI: Pontoon tidak punya kolom IS). */
+export const hasNoIntermediate = (t: string | null | undefined): boolean => !!t && (t === 'Pontoon' || /pontoon/i.test(t));

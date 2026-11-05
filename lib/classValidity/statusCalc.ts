@@ -3,6 +3,7 @@ import { SURVEYS, HIST_KEYS, isAnnual, ANNUAL, INTERMEDIATE, RENEWAL, DOCKING, D
 import type { SurveyKey, Status } from './surveyRules';
 import { parseD, mk, addM, fmt, fmtDM, num, daysBetween } from './dateUtils';
 import { roman } from '../surveyStatus';
+import { hasNoIntermediate } from '../vesselTypes';
 import type { Sel } from './surveyRules';
 import type { ApplyValues } from '../../components/VesselStatus';
 
@@ -12,6 +13,7 @@ export type StatusInput = {
   compDate: string;
   extension: string;
   yearBuilt: string;
+  vType?: string; // jenis kapal: Pontoon tidak punya Intermediate
   annivD: number | null;
   annivM: number | null;
   sel: Sel;
@@ -25,9 +27,11 @@ export type StatusInput = {
 export function computeStatus(input: StatusInput) {
   const { expiry, startDate, compDate, extension, yearBuilt, annivD, annivM, sel, recDue, recDone, recAssess, lastNo, statusInfo } = input;
   const exp = parseD(expiry);
+  const noInt = hasNoIntermediate(input.vType);
   const st = parseD(startDate);
   const co = parseD(compDate);
-  const ext = parseD(extension);
+  // extension isian agenda; bila kosong, pakai Postponed/Extension dari Survey Status kapal (supaya dua mesin sama)
+  const ext = parseD(extension) ?? (statusInfo?.postponed ? parseD(statusInfo.postponed) : null);
   const yb = num(yearBuilt);
   const rec = { due: parseD(recDue), done: parseD(recDone), assess: parseD(recAssess) };
 
@@ -109,7 +113,7 @@ export function computeStatus(input: StatusInput) {
   const firstEnd = doingW.length ? minD(doingW.map((w) => w.end)) : null;
   const implied =
     firstStart && firstEnd && co
-      ? SURVEYS.filter((x) => HIST_KEYS.includes(x.key) && !sel[x.key] && win[x.key] && (+win[x.key]!.start > +firstStart || +win[x.key]!.end > +firstEnd) && +co > +addM(win[x.key]!.end, 6)).map((x) => ({
+      ? SURVEYS.filter((x) => HIST_KEYS.includes(x.key) && !(noInt && x.key === 'INT') && !sel[x.key] && win[x.key] && (+win[x.key]!.start > +firstStart || +win[x.key]!.end > +firstEnd) && +co > +addM(win[x.key]!.end, 6)).map((x) => ({
           ...x, w: win[x.key], status: 'WITHDRAWN' as Status,
         }))
       : [];
@@ -131,7 +135,7 @@ export function computeStatus(input: StatusInput) {
   if (co) {
     if (recSt === 'WITHDRAWN') c = 'B';
     else if (stOf('REN') === 'WITHDRAWN') c = 'D';
-    else if (annualW >= 2 && intW) c = 'C';
+    else if (annualW >= 2 && (intW || noInt)) c = 'C';
     else if (annualW > 0 || intW) c = 'A';
   }
   const caseTitle: Record<string, string> = {

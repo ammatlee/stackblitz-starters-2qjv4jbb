@@ -12,7 +12,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import type { Dispatch, SetStateAction } from 'react';
-import { isNonPropelled } from '../../lib/vesselTypes';
+import { isNonPropelled, hasNoIntermediate } from '../../lib/vesselTypes';
 import type { ApplyValues } from '../../components/VesselStatus';
 
 import type { Conn, OpenCfg, PlanKey } from '../../lib/shaftRules';
@@ -100,8 +100,8 @@ export default function Page() {
 
   /* ======================= MODUL 1: kalkulasi (mengikuti sheet Class Status) ======================= */
   const A = useMemo(
-    () => computeStatus({ expiry, startDate, compDate, extension, yearBuilt, annivD, annivM, sel, recDue, recDone, recAssess, lastNo, statusInfo }),
-    [expiry, startDate, compDate, extension, yearBuilt, annivD, annivM, sel, recDue, recDone, recAssess, lastNo, statusInfo]
+    () => computeStatus({ vType, expiry, startDate, compDate, extension, yearBuilt, annivD, annivM, sel, recDue, recDone, recAssess, lastNo, statusInfo }),
+    [vType, expiry, startDate, compDate, extension, yearBuilt, annivD, annivM, sel, recDue, recDone, recAssess, lastNo, statusInfo]
   );
 
   /* ======================= MODUL 3: kalkulasi (sheet Dimensi Kemudi) ======================= */
@@ -307,6 +307,7 @@ export default function Page() {
     if (sel[k]) return true;
     if (k === 'A5' && !A.a5Applicable) return false;
     if (k === 'PS' && !propelled) return false;
+    if (k === 'INT' && hasNoIntermediate(vType)) return false;
     if (statusInfo) {
       if (k.length === 2 && k[0] === 'A' && Number(k[1]) <= statusInfo.annCount) return false;
       if (k === 'INT' && statusInfo.intDone) return false;
