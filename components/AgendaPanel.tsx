@@ -6,6 +6,7 @@ import { downloadBackup } from '../lib/backup';
 import { updateWithVersion } from '../lib/optimisticLock';
 import type { LockClient } from '../lib/optimisticLock';
 import { useAuth } from './AuthProvider';
+import { useDialog } from './DialogProvider';
 import { dueLabel, dueTone, reportDue, todayISO } from './classValidity/VisitsModule';
 
 type Snapshot = Record<string, unknown>;
@@ -66,6 +67,7 @@ const daysSince = (iso: string) => {
 
 export default function AgendaPanel({ vesselName, vesselType, yearBuilt, agendaNo, start, completion, snapshot, summary, onRestore, onSaved, anchorNotation, propelled, shaftSystem, onClear }: Props) {
   const { user, configured, loading, isAdmin } = useAuth();
+  const { confirm } = useDialog();
   const [rows, setRows] = useState<Row[]>([]);
   const [finRows, setFinRows] = useState<Row[]>([]); // semua agenda yang sudah di-Finish (untuk pengingat laporan; tidak dibatasi 50 terbaru)
   const [openRows, setOpenRows] = useState<Row[]>([]); // agenda yang belum di-Finish
@@ -117,9 +119,11 @@ export default function AgendaPanel({ vesselName, vesselType, yearBuilt, agendaN
       if (summary.surveys.includes('PS') && !snapshot.shaftPlan) {
         return setMsg({ k: 'err', t: 'Pilih Method atau extension Propeller Shaft dulu (tab Scope) sebelum Finish. Tanpa itu, jatuh tempo poros bisa salah hitung.' });
       }
-      const ok = window.confirm(
-        `Finish agenda ${no}?\n\nCompletion (kunjungan terakhir): ${dmy(completion)}\nDeadline laporan: ${dmy(due.dueISO)} (${dueLabel(due.days)})\n\nPastikan semua kunjungan sudah tercatat.`
-      );
+      const ok = await confirm({
+        title: `Finish agenda ${no}?`,
+        message: `Completion (kunjungan terakhir): ${dmy(completion)}\nDeadline laporan: ${dmy(due.dueISO)} (${dueLabel(due.days)})\n\nPastikan semua kunjungan sudah tercatat.`,
+        confirmText: 'Finish',
+      });
       if (!ok) return;
     }
     setBusy(true);
@@ -228,7 +232,7 @@ export default function AgendaPanel({ vesselName, vesselType, yearBuilt, agendaN
     const ask = manualIds.length
       ? `Hapus agenda ${r.agenda_no}? ${manualIds.length} pembaruan manual yang tanggalnya setelah agenda ini juga akan dihapus agar Survey Status tidak menyisakan data lama.`
       : `Hapus agenda ${r.agenda_no}?`;
-    if (!window.confirm(ask)) return;
+    if (!(await confirm({ title: 'Hapus agenda?', message: ask, confirmText: 'Hapus', tone: 'danger' }))) return;
     const { error } = await supabase.from('agendas').delete().eq('id', r.id);
     if (error) {
       setMsg({ k: 'err', t: 'Gagal menghapus: ' + error.message });

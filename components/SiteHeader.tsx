@@ -52,8 +52,8 @@ export default function SiteHeader() {
           ) : user ? (
             <>
               {!approved && <span className="ml-2 rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-900">Menunggu persetujuan</span>}
-              <button onClick={() => signOut()} className="ml-2 rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50">
-                Keluar ({user.email})
+              <button onClick={() => signOut()} title={user.email ?? undefined} className="ml-2 rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50">
+                Keluar<span className="hidden md:inline"> ({user.email})</span>
               </button>
             </>
           ) : (

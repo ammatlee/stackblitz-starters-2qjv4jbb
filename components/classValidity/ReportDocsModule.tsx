@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import type { Dispatch, SetStateAction } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../AuthProvider';
+import { useDialog } from '../DialogProvider';
 import { Card, Fold, Field, inputCls } from './ui';
 import { cx } from '../../lib/classValidity/dateUtils';
 import { SURVEYS } from '../../lib/classValidity/surveyRules';
@@ -51,6 +52,7 @@ export default function ReportDocsModule({ vType, sel, name, agenda, docs, setDo
   const cat = docs.cat || auto || '';
   const catInfo = CATEGORIES.find((c) => c.id === cat) ?? null;
   const { user } = useAuth();
+  const { confirm } = useDialog();
 
   // N/A permanen: tersimpan per akun + jenis kapal + jenis survei, berlaku untuk agenda berikutnya
   const [prefs, setPrefs] = useState<Set<string>>(new Set());
@@ -98,7 +100,13 @@ export default function ReportDocsModule({ vType, sel, name, agenda, docs, setDo
 
   const resetPrefs = async () => {
     if (!supabase || !user || !vType) return;
-    if (!window.confirm(`Reset semua N/A tersimpan untuk jenis kapal ${vType}? Semua form dan lampiran akan muncul kembali seperti awal.`)) return;
+    const yes = await confirm({
+      title: 'Reset N/A tersimpan?',
+      message: `Reset semua N/A tersimpan untuk jenis kapal ${vType}? Semua form dan lampiran akan muncul kembali seperti awal.`,
+      confirmText: 'Reset',
+      tone: 'danger',
+    });
+    if (!yes) return;
     const { error } = await supabase.from('report_na').delete().eq('owner', user.id).eq('vessel_type', vType);
     if (error) return setErr('Gagal reset: ' + error.message);
     setErr('');

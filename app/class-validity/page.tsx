@@ -353,23 +353,30 @@ export default function Page() {
         </p>
       </div>
       <header className="sticky top-0 z-20 border-b border-slate-800 bg-slate-900 text-white shadow print:hidden">
-        <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-3 px-4 py-3">
-          <div>
-            <h1 className="text-base font-bold tracking-tight sm:text-lg">RDK — Vessel Survey Status &amp; Class Scope</h1>
-          </div>
-          <div className="flex items-center gap-2 text-xs">
-            <span className="hidden text-slate-300 sm:inline">{name || 'Kapal'} · {vType}</span>
+        <h1 className="sr-only">RDK — Vessel Survey Status &amp; Class Scope</h1>
+        <div className="mx-auto flex max-w-5xl items-center justify-between gap-3 px-4 pt-2.5">
+          <p className="min-w-0 truncate text-sm font-semibold">
+            {name || 'Kapal belum dipilih'}
+            {vType && <span className="font-normal text-slate-300"> · {vType}</span>}
+          </p>
+          <div className="flex shrink-0 items-center gap-2 text-xs">
             <Badge v={A.overall} />
             <button type="button" onClick={() => window.print()} className="rounded-lg border border-slate-600 px-3 py-1.5 font-semibold text-slate-100 hover:bg-slate-800">
               Cetak / PDF
             </button>
           </div>
         </div>
-        <nav className="mx-auto flex max-w-5xl gap-1 overflow-x-auto px-3 pb-2">
+        <nav className="mx-auto flex max-w-5xl gap-1 overflow-x-auto px-3 pb-2 pt-2" role="tablist" aria-label="Modul Class Validity">
           {tabs.map(([k, a, b]) => (
-            <button key={k} onClick={() => setTab(k)} className={cx('shrink-0 rounded-lg px-4 py-2 text-left text-xs transition', tab === k ? 'bg-teal-500 text-slate-950' : 'text-slate-300 hover:bg-slate-800')}>
-              <span className="block font-bold">{a}</span>
-              <span className="block opacity-80">{b}</span>
+            <button
+              key={k}
+              role="tab"
+              aria-selected={tab === k}
+              onClick={() => setTab(k)}
+              className={cx('shrink-0 rounded-lg px-4 py-2 text-left text-xs transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-teal-300', tab === k ? 'bg-teal-500 text-slate-950' : 'text-slate-300 hover:bg-slate-800')}
+            >
+              <span className="block text-sm font-bold sm:text-xs">{a}</span>
+              <span className="hidden opacity-80 sm:block">{b}</span>
             </button>
           ))}
         </nav>

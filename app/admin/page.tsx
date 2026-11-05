@@ -3,12 +3,14 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../components/AuthProvider';
+import { useDialog } from '../../components/DialogProvider';
 
 type P = { user_id: string; email: string | null; approved: boolean; created_at: string };
 const dmy = (s: string) => s.slice(0, 10).split('-').reverse().join('.');
 
 export default function AdminPage() {
   const { isAdmin, loading, user } = useAuth();
+  const { confirm } = useDialog();
   const [rows, setRows] = useState<P[]>([]);
   const [msg, setMsg] = useState('');
 
@@ -28,7 +30,13 @@ export default function AdminPage() {
     // mencabut persetujuan langsung menutup akses anggota, jadi minta konfirmasi dulu
     if (!v) {
       const who = rows.find((r) => r.user_id === id)?.email ?? 'akun ini';
-      if (!window.confirm(`Cabut persetujuan ${who}? Akun ini tidak bisa lagi membuka data sampai disetujui kembali.`)) return;
+      const yes = await confirm({
+        title: 'Cabut persetujuan?',
+        message: `Cabut persetujuan ${who}? Akun ini tidak bisa lagi membuka data sampai disetujui kembali.`,
+        confirmText: 'Cabut',
+        tone: 'danger',
+      });
+      if (!yes) return;
     }
     const { error } = await supabase.from('profiles').update({ approved: v }).eq('user_id', id);
     if (error) setMsg(error.message);

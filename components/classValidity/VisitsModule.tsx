@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import type { Dispatch, SetStateAction } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../AuthProvider';
+import { useDialog } from '../DialogProvider';
 import DateInput from '../DateInput';
 import { Card, Field, Fold, inputCls } from './ui';
 import { cx } from '../../lib/classValidity/dateUtils';
@@ -134,6 +135,7 @@ type Props = {
 export default function VisitsModule({ visits, setVisits, vesselName, agenda, compDate, finished, reportDone, setReportDone, sel, meta, setMeta }: Props) {
   const due = finished ? reportDue(compDate, reportDone) : null;
   const { user } = useAuth();
+  const { confirm, alert } = useDialog();
   const saved = String((user?.user_metadata as Record<string, unknown> | undefined)?.surveyor_name ?? '');
   const [nm, setNm] = useState(saved);
   const [nmMsg, setNmMsg] = useState('');
@@ -166,7 +168,7 @@ export default function VisitsModule({ visits, setVisits, vesselName, agenda, co
   const printList = () => {
     const w = window.open('', '_blank');
     if (!w) {
-      window.alert('Pop-up diblokir. Izinkan pop-up untuk situs ini, lalu coba lagi.');
+      void alert({ title: 'Pop-up diblokir', message: 'Izinkan pop-up untuk situs ini, lalu coba lagi.' });
       return;
     }
     const surveyor = saved || [...visits].sort((a, b) => (a.ds + a.ts).localeCompare(b.ds + b.ts))[0]?.surveyor || '';
@@ -192,8 +194,8 @@ export default function VisitsModule({ visits, setVisits, vesselName, agenda, co
     const d = todayISO();
     setVisits((list) => [...list, { ...VISIT0, id: rid(), ds: d, de: d, place: last?.place ?? '', surveyor: saved || last?.surveyor || '' }]);
   };
-  const del = (id: string) => {
-    if (window.confirm('Hapus kunjungan ini?')) setVisits((list) => list.filter((v) => v.id !== id));
+  const del = async (id: string) => {
+    if (await confirm({ title: 'Hapus kunjungan?', message: 'Hapus kunjungan ini dari daftar?', confirmText: 'Hapus', tone: 'danger' })) setVisits((list) => list.filter((v) => v.id !== id));
   };
 
   return (

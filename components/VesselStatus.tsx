@@ -3,6 +3,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from './AuthProvider';
+import { useDialog } from './DialogProvider';
 import DateInput from './DateInput';
 import VesselTypeSelect from './VesselTypeSelect';
 import { isNonPropelled } from '../lib/vesselTypes';
@@ -59,6 +60,7 @@ const evsOf = (id: string, ags: AgRow[], mev: EvRow[]): Ev[] => [
 
 export default function VesselStatus({ refreshKey, vesselName, onApply }: { refreshKey: number; vesselName: string; onApply: (v: ApplyValues) => void }) {
   const { user, configured, isAdmin } = useAuth();
+  const { confirm } = useDialog();
   const [vessels, setVessels] = useState<VesselRow[]>([]);
   const [ags, setAgs] = useState<AgRow[]>([]);
   const [mev, setMev] = useState<EvRow[]>([]);
@@ -294,7 +296,8 @@ export default function VesselStatus({ refreshKey, vesselName, onApply }: { refr
   };
 
   const removeManual = async (id: string) => {
-    if (!supabase || !window.confirm('Hapus pembaruan ini?')) return;
+    if (!supabase) return;
+    if (!(await confirm({ title: 'Hapus pembaruan?', message: 'Hapus pembaruan manual ini dari riwayat kapal?', confirmText: 'Hapus', tone: 'danger' }))) return;
     const r = await supabase.from('vessel_events').delete().eq('id', id);
     if (r.error) return setMsg({ k: 'err', t: r.error.message });
     const fresh = await load();

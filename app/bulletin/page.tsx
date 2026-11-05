@@ -3,6 +3,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../components/AuthProvider';
+import { useDialog } from '../../components/DialogProvider';
 import DateInput from '../../components/DateInput';
 import RichEditor, { RichView } from '../../components/RichEditor';
 import FileViewer from '../../components/FileViewer';
@@ -168,6 +169,7 @@ function Body({ text }: { text: string }) {
 
 export default function BulletinPage() {
   const { user, configured, loading, approved, isAdmin } = useAuth();
+  const { confirm, prompt } = useDialog();
   const canWrite = !!user && (approved || isAdmin);
   const [tab, setTab] = useState<'all' | 'pending' | 'mine'>('all');
   const [entries, setEntries] = useState<Entry[]>([]);
@@ -277,7 +279,9 @@ export default function BulletinPage() {
   };
 
   const remove = async (e: Entry) => {
-    if (!supabase || !window.confirm(`Hapus "${e.title}"?`)) return;
+    if (!supabase) return;
+    const yes = await confirm({ title: 'Hapus entri?', message: `Hapus "${e.title}"? Lampiran entri ini ikut terhapus.`, confirmText: 'Hapus', tone: 'danger' });
+    if (!yes) return;
     const { error } = await supabase.from('bulletins').delete().eq('id', e.id);
     if (error) return setMsg({ k: 'err', t: error.message });
     await removeAttachments(e.attachments ?? []);
@@ -291,7 +295,7 @@ export default function BulletinPage() {
     if (!supabase || !isAdmin) return;
     let note: string | null = null;
     if (status === 'rejected') {
-      const r = window.prompt('Alasan penolakan (opsional):');
+      const r = await prompt({ title: 'Tolak entri', message: 'Alasan penolakan (opsional):', confirmText: 'Tolak', tone: 'danger' });
       if (r === null) return;
       note = r.trim() || null;
     }

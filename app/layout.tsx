@@ -4,6 +4,7 @@ import type { ReactNode } from 'react';
 import { AuthProvider } from '../components/AuthProvider';
 import SiteHeader from '../components/SiteHeader';
 import OfflineBanner from '../components/OfflineBanner';
+import { DialogProvider } from '../components/DialogProvider';
 
 export const metadata: Metadata = {
   title: 'RDK — Class Validity',
@@ -19,9 +20,11 @@ export default function RootLayout({ children }: { children: ReactNode }) {
     <html lang="id">
       <body className="bg-slate-100 text-slate-800 antialiased">
         <AuthProvider>
-          <SiteHeader />
-          {children}
-          <OfflineBanner />
+          <DialogProvider>
+            <SiteHeader />
+            {children}
+            <OfflineBanner />
+          </DialogProvider>
         </AuthProvider>
       </body>
     </html>

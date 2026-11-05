@@ -12,6 +12,7 @@ import TableHeader from '@tiptap/extension-table-header';
 import TableCell from '@tiptap/extension-table-cell';
 import Image from '@tiptap/extension-image';
 import { cleanWordHtml } from '../lib/wordPaste';
+import { useDialog } from './DialogProvider';
 import { uploadImage } from '../lib/uploads';
 
 type Props = { value: string; onChange: (html: string, text: string) => void };
@@ -53,6 +54,7 @@ export function RichView({ html }: { html: string }) {
 const isImg = (f: File) => f.type.startsWith('image/');
 
 export default function RichEditor({ value, onChange }: Props) {
+  const { prompt } = useDialog();
   const [note, setNote] = useState<{ k: 'err' | 'ok'; t: string } | null>(null);
   const [uploading, setUploading] = useState(0);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -136,9 +138,9 @@ export default function RichEditor({ value, onChange }: Props) {
   if (!editor) return <div className="min-h-[300px] rounded-lg border border-slate-300 bg-white" />;
   const c = () => editor.chain().focus();
 
-  const setLink = () => {
+  const setLink = async () => {
     const prev = (editor.getAttributes('link').href as string) ?? '';
-    const url = window.prompt('Alamat link (kosongkan untuk menghapus):', prev);
+    const url = await prompt({ title: 'Alamat link', message: 'Kosongkan untuk menghapus link.', defaultValue: prev, placeholder: 'https://…', confirmText: 'Terapkan' });
     if (url === null) return;
     if (url.trim() === '') c().extendMarkRange('link').unsetLink().run();
     else c().extendMarkRange('link').setLink({ href: url.trim() }).run();

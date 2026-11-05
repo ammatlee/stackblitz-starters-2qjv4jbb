@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import type { Dispatch, SetStateAction } from 'react';
 import AgendaPanel from '../../components/AgendaPanel';
 import VesselStatus from '../../components/VesselStatus';
@@ -62,6 +63,13 @@ export type StatusProps = {
 /** MODUL 1 — Class Status: data kapal, survei yang dikerjakan, hasil validitas, window survei, dan agenda. */
 export default function StatusModule(p: StatusProps) {
   const { A, agenda, setAgenda, agendaSummary, snapshot, restoreAgenda, applyVessel, changeName, clearAll, chipVisible, refreshKey, setRefreshKey, name, vType, setVType, yearBuilt, setYearBuilt, expiry, setExpiry, setAnnivD, setAnnivM, extension, setExtension, startDate, setStartDate, compDate, setCompDate, sel, setSel, notation, setNotation, propelled, propelledFlag, setPropelledFlag, lastNo, setLastNo, recDue, setRecDue, recDone, setRecDone, recAssess, setRecAssess, shaftSys, statusInfo, setTab } = p;
+  // data induk kapal (jenis, tahun, expiry, anniversary, renewal ke-) terisi otomatis dari database: lipat bila kapal sudah dimuat
+  const loaded = statusInfo !== null;
+  const [masterOpen, setMasterOpen] = useState(!loaded);
+  useEffect(() => {
+    setMasterOpen(!loaded);
+  }, [loaded]);
+  const masterShown = masterOpen || A.ageInvalid;
   const tone =
     A.overall === 'WITHDRAWN' ? 'from-red-600 to-red-700' : A.overall === 'SUSPENDED' ? 'from-amber-500 to-amber-600' : A.overall === 'VALID' ? 'from-emerald-600 to-emerald-700' : 'from-slate-500 to-slate-600';
   return (
@@ -111,7 +119,7 @@ export default function StatusModule(p: StatusProps) {
         <VesselStatus refreshKey={refreshKey} vesselName={name} onApply={applyVessel} />
       </Fold>
   
-      <Fold title="Agenda & Riwayat" sub="Simpan hasil asesmen per nomor agenda" open noPrint>
+      <Fold title="Agenda & Riwayat" sub={agenda ? `Agenda ${agenda} · simpan atau buka agenda` : 'Simpan atau buka hasil asesmen per nomor agenda'} noPrint>
         <AgendaPanel
           vesselName={name}
           vesselType={vType}
@@ -139,6 +147,27 @@ export default function StatusModule(p: StatusProps) {
             <span className="mt-1 block text-[11px] leading-snug text-slate-500">Ketik untuk mencari atau ketuk daftar kapal tersimpan.</span>
           </div>
           <Field label="No. Agenda"><input className={inputCls} value={agenda} onChange={(e) => setAgenda(e.target.value)} /></Field>
+          <Field label="Inspection Start">{dateIn(startDate, setStartDate)}</Field>
+          <Field label="Inspection Completion">{dateIn(compDate, setCompDate)}</Field>
+        </div>
+        <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50">
+          <button
+            type="button"
+            onClick={() => setMasterOpen(!masterShown)}
+            aria-expanded={masterShown}
+            className="flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left"
+          >
+            <span className="min-w-0">
+              <span className="block text-xs font-bold text-slate-700">Data induk kapal</span>
+              <span className="block truncate text-xs text-slate-600">
+                {vType || 'Jenis belum diisi'} · {yearBuilt || '—'} · expiry {expiry ? fmt(A.exp) : '—'} · anniv. {fmtDM(A.ad, A.am)}
+                {loaded ? ' · terisi otomatis' : ''}
+              </span>
+            </span>
+            <span className="shrink-0 text-xs font-semibold text-teal-700">{masterShown ? 'Tutup' : 'Ubah'}</span>
+          </button>
+          {masterShown && (
+            <div className="grid gap-3 border-t border-slate-200 p-3 sm:grid-cols-2 lg:grid-cols-4">
           <div>
             <span className="mb-1 block text-xs font-semibold text-slate-600">Jenis Kapal</span>
             <VesselTypeSelect className={inputCls} value={vType} onChange={(v, info) => { setVType(v); setPropelledFlag(info?.propelled ?? null); }} />
@@ -148,8 +177,6 @@ export default function StatusModule(p: StatusProps) {
             {A.ageInvalid && <span className="mt-1 block text-xs font-semibold text-red-600">Year Built harus lebih kecil dari tahun expiry. Periksa kembali isian Year Built dan Certificate Expiry.</span>}
           </Field>
           <Field label="Certificate Expiry">{dateIn(expiry, setExpiry)}</Field>
-          <Field label="Inspection Start">{dateIn(startDate, setStartDate)}</Field>
-          <Field label="Inspection Completion">{dateIn(compDate, setCompDate)}</Field>
           <Field label="Renewal terakhir selesai (ke-)" hint="Kosong = ikut umur kapal. Naik 1 tingkat bila periode melewati hitungan umur.">
             <input className={inputCls} inputMode="numeric" value={lastNo ?? ''} onChange={(e) => setLastNo(e.target.value === '' ? null : Number(e.target.value) || null)} />
           </Field>
@@ -166,6 +193,8 @@ export default function StatusModule(p: StatusProps) {
               <button className="mt-1 text-[11px] font-semibold text-teal-700 underline" onClick={() => { setAnnivD(null); setAnnivM(null); }}>Kembali ke otomatis</button>
             )}
           </Field>
+            </div>
+          )}
         </div>
   
         <div className="mt-5">
@@ -258,7 +287,7 @@ export default function StatusModule(p: StatusProps) {
         </Card>
       )}
   
-      <Fold title="Dasar Aturan" sub="ITS Part A dan Nota Dinas BKI untuk hasil saat ini" open>
+      <Fold title="Dasar Aturan" sub="ITS Part A dan Nota Dinas BKI untuk hasil saat ini">
         {A.basis.length === 0 ? (
           <p className="text-sm text-slate-500">Pilih survei dan isi tanggal inspeksi untuk melihat dasar aturan yang berlaku.</p>
         ) : (
