@@ -88,3 +88,8 @@ export function Notice({
     </div>
   );
 }
+
+/** Placeholder abu berdenyut saat data sedang dimuat. */
+export function Skeleton({ className }: { className?: string }) {
+  return <div aria-hidden="true" className={cx('animate-pulse rounded-lg bg-slate-200', className)} />;
+}

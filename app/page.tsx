@@ -1,11 +1,20 @@
+'use client';
+
 import React from 'react';
 import Link from 'next/link';
+import { useAuth } from '../components/AuthProvider';
+import FleetSummary from '../components/fleet/FleetSummary';
 
 export default function Home() {
+  const { user, configured, approved } = useAuth();
+
   return (
     <main className="mx-auto max-w-3xl px-4 py-10">
       <p className="text-xs font-semibold uppercase tracking-widest text-teal-700">Class &amp; Technical</p>
       <h1 className="mt-1 text-3xl font-extrabold text-slate-900">Pilih menu</h1>
+
+      {configured && user && approved && <FleetSummary />}
+
       <div className="mt-8 grid gap-4 sm:grid-cols-2">
         <Link href="/fleet" className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm hover:border-teal-500">
           <h2 className="text-lg font-bold text-slate-900">Dashboard Armada</h2>
