@@ -60,7 +60,7 @@ export default function PropulsiModule(p: PropulsiProps) {
     <>
       <Card title="Ringkasan" sub={propelled ? 'Kapal berpenggerak: poros, rudder, jangkar, dan rantai jangkar' : 'Kapal tanpa penggerak: hanya jangkar dan rantai jangkar'} right={<Badge v={sum} big />}>
         <p className="text-sm">{S.measured} dari {S.total} item terukur · <b>{S.fails}</b> di luar kriteria.</p>
-        <p className="mt-1 text-[11px] text-slate-500">
+        <p className="mt-1 text-xs text-slate-600">
           Status penggerak: {propelled ? 'berpenggerak' : 'tanpa penggerak'} ({propelledFlag === null ? `otomatis dari jenis kapal ${vType}` : 'diatur manual pada data kapal'}).
         </p>
       </Card>
@@ -181,7 +181,7 @@ export default function PropulsiModule(p: PropulsiProps) {
                 <input inputMode="decimal" className={cx(inputCls, 'bg-yellow-50')} value={dmin.rm} onChange={(e) => setDmin({ ...dmin, rm: e.target.value })} />
               </Field>
             </div>
-            <p className="mt-3 rounded-lg bg-slate-50 p-3 text-[11px] leading-relaxed text-slate-600">
+            <p className="mt-3 rounded-lg bg-slate-50 p-3 text-xs leading-relaxed text-slate-600">
               Rules (Material B.1): Rm untuk menghitung faktor material Cw tidak boleh melebihi 600 N/mm² untuk propeller shaft (pengecualian perlu persetujuan khusus BKI), 760 untuk poros carbon / carbon-manganese selain propeller shaft, dan 800 untuk alloy steel selain propeller shaft. F propeller shaft = 100.
             </p>
             <div className="mt-4 space-y-3">
@@ -200,14 +200,14 @@ export default function PropulsiModule(p: PropulsiProps) {
                     {r.solved ? 'Diameter luar minimum (untuk bore di tersebut)' : 'Diameter minimum d'}: <b>{r.dmin === null ? '—' : `${r.dmin.toFixed(1)} mm`}</b>
                     {r.dmin !== null && r.da !== null && <span className="text-slate-600"> · {r.da - r.dmin >= 0 ? `sisa toleransi pengurangan ${(r.da - r.dmin).toFixed(1)} mm` : `kurang ${(r.dmin - r.da).toFixed(1)} mm dari batas minimum`}</span>}
                   </p>
-                  {r.badBore && <p className="mt-1 text-[11px] font-semibold text-red-700">Bore di harus lebih kecil dari diameter poros da. Periksa isian.</p>}
-                  {r.solved && <p className="mt-1 text-[11px] text-slate-500">Bore terisi tetapi diameter poros (da) belum: dihitung diameter luar terkecil yang memenuhi rumus (1), karena suku bore bergantung pada da.</p>}
-                  <p className="mt-1 text-[11px] text-slate-500">F = {r.F} · k = {r.k} · Rm = {r.rm} N/mm² · Cw = {r.cw.toFixed(3)}{r.capped ? ' · Rm dipotong ke batas Rules' : ''}</p>
-                  {shafts[i].b && r.da !== null && num(shafts[i].b) !== null && (num(shafts[i].b) as number) / r.da <= 0.4 && <p className="mt-1 text-[11px] text-slate-500">Bore ≤ 0,4·da: suku bore dihitung 1,0.</p>}
+                  {r.badBore && <p className="mt-1 text-xs font-semibold text-red-700">Bore di harus lebih kecil dari diameter poros da. Periksa isian.</p>}
+                  {r.solved && <p className="mt-1 text-xs text-slate-600">Bore terisi tetapi diameter poros (da) belum: dihitung diameter luar terkecil yang memenuhi rumus (1), karena suku bore bergantung pada da.</p>}
+                  <p className="mt-1 text-xs text-slate-600">F = {r.F} · k = {r.k} · Rm = {r.rm} N/mm² · Cw = {r.cw.toFixed(3)}{r.capped ? ' · Rm dipotong ke batas Rules' : ''}</p>
+                  {shafts[i].b && r.da !== null && num(shafts[i].b) !== null && (num(shafts[i].b) as number) / r.da <= 0.4 && <p className="mt-1 text-xs text-slate-600">Bore ≤ 0,4·da: suku bore dihitung 1,0.</p>}
                 </div>
               ))}
             </div>
-            <p className="mt-3 text-[11px] text-slate-500">Pw = daya terukur motor penggerak (kerugian gear box dan bearing tidak dikurangi); n = putaran poros pada daya tersebut. Diameter minimum dihitung tanpa diameter aktual; diameter poros (da) pada kartu clearance di atas hanya diperlukan untuk vonis COMPLIANT / NON-COMPLIANT.</p>
+            <p className="mt-3 text-xs text-slate-600">Pw = daya terukur motor penggerak (kerugian gear box dan bearing tidak dikurangi); n = putaran poros pada daya tersebut. Diameter minimum dihitung tanpa diameter aktual; diameter poros (da) pada kartu clearance di atas hanya diperlukan untuk vonis COMPLIANT / NON-COMPLIANT.</p>
           </Card>
           )}
 
@@ -219,7 +219,7 @@ export default function PropulsiModule(p: PropulsiProps) {
                 <Field label="Wear-down sekarang (mm)">{numIn(wd.now, (v) => setWd((x) => ({ ...x, now: v })))}</Field>
               </div>
               <p className="mt-3 text-sm">Clearance akhir: <b>{S.wdFinal === null ? '—' : `${f2(S.wdFinal)} mm`}</b></p>
-              <p className="mt-1 text-[11px] text-slate-500">Clearance akhir = actual clearance saat poros ditarik + selisih nilai wear-down (sekarang − saat itu).</p>
+              <p className="mt-1 text-xs text-slate-600">Clearance akhir = actual clearance saat poros ditarik + selisih nilai wear-down (sekarang − saat itu).</p>
               {S.wdFinal !== null && (
                 <button onClick={() => setShaftRow(0, 'a', String(Math.round((S.wdFinal as number) * 10000) / 10000))} className="mt-2 rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-semibold hover:bg-slate-50">
                   Pakai sebagai Actual pada Poros 1

@@ -206,7 +206,7 @@ export default function VisitsModule({ visits, setVisits, vesselName, agenda, co
         sub={`Kunjungan terakhir ${dmy(compDate)} · deadline laporan (${REPORT_DAYS} hari) baru dihitung setelah agenda di-Finish.`}
         right={<span className="rounded-full bg-sky-100 px-3 py-1 text-xs font-bold text-sky-800">On Progress</span>}
       >
-        <p className="text-[11px] text-slate-500">Tanggal completion mengikuti kunjungan terakhir dan bisa bergeser bila ada kunjungan baru. Saat Finish, tanggal itu dikunci dan pengingat laporan mulai berjalan.</p>
+        <p className="text-xs text-slate-600">Tanggal completion mengikuti kunjungan terakhir dan bisa bergeser bila ada kunjungan baru. Saat Finish, tanggal itu dikunci dan pengingat laporan mulai berjalan.</p>
       </Fold>
     )}
     {due && (
@@ -228,7 +228,7 @@ export default function VisitsModule({ visits, setVisits, vesselName, agenda, co
             <button type="button" onClick={() => setReportDone(todayISO())} className="rounded-lg bg-teal-600 px-4 py-2 text-sm font-semibold text-white hover:bg-teal-700">Selesai hari ini</button>
           </div>
         )}
-        <p className="mt-2 text-[11px] text-slate-500">Setelah tanggal diisi, tekan <b>Simpan agenda</b>; pengingat di Riwayat hilang.</p>
+        <p className="mt-2 text-xs text-slate-600">Setelah tanggal diisi, tekan <b>Simpan agenda</b>; pengingat di Riwayat hilang.</p>
       </Fold>
     )}
     <Fold open
@@ -244,7 +244,7 @@ export default function VisitsModule({ visits, setVisits, vesselName, agenda, co
               <button type="button" onClick={saveName} disabled={nm.trim() === saved.trim()} className="shrink-0 rounded-lg bg-slate-900 px-3 text-xs font-semibold text-white disabled:opacity-40">Simpan</button>
             </div>
           </Field>
-          {nmMsg && <p className="mt-1 text-[11px] text-slate-600">{nmMsg}</p>}
+          {nmMsg && <p className="mt-1 text-xs text-slate-600">{nmMsg}</p>}
         </div>
       )}
 
@@ -258,7 +258,7 @@ export default function VisitsModule({ visits, setVisits, vesselName, agenda, co
                 {i + 1}. {dmy(v.ds)}
                 {v.ts ? ` · ${v.ts}${v.te ? '–' + v.te : ''}` : ''}
               </span>
-              <span className="flex items-center gap-2 text-[11px] font-semibold">
+              <span className="flex items-center gap-2 text-xs font-semibold">
                 <span className={cx('rounded-full px-2 py-0.5', v.stage === 'Completion' ? 'bg-emerald-100 text-emerald-800' : 'bg-sky-100 text-sky-800')}>{v.stage}</span>
                 <span className={cx('rounded-full px-2 py-0.5', v.sent ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-900')}>{v.sent ? '✓ di web BKI' : 'belum di web BKI'}</span>
               </span>
@@ -293,7 +293,7 @@ export default function VisitsModule({ visits, setVisits, vesselName, agenda, co
         ))}
       </div>
       <button type="button" onClick={add} className="mt-3 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">+ Tambah kunjungan</button>
-      <p className="mt-2 text-[11px] text-slate-500">Ingat menekan <b>Simpan agenda</b> di tab Status agar kunjungan tersimpan.</p>
+      <p className="mt-2 text-xs text-slate-600">Ingat menekan <b>Simpan agenda</b> di tab Status agar kunjungan tersimpan.</p>
     </Fold>
     {visits.length > 0 && (
       <Card title="Cetak Daftar Kunjungan Survey" sub="Format FQ.088-2014/Rev.0 dari kunjungan di atas; kolom tanda tangan OS/Crew dikosongkan">

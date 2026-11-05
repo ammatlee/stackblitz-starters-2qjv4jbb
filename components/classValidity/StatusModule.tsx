@@ -144,7 +144,7 @@ export default function StatusModule(p: StatusProps) {
           <div>
             <span className="mb-1 block text-xs font-semibold text-slate-600">Nama Kapal</span>
             <VesselNameInput className={inputCls} value={name} onChange={changeName} refreshKey={refreshKey} />
-            <span className="mt-1 block text-[11px] leading-snug text-slate-500">Ketik untuk mencari atau ketuk daftar kapal tersimpan.</span>
+            <span className="mt-1 block text-xs leading-snug text-slate-600">Ketik untuk mencari atau ketuk daftar kapal tersimpan.</span>
           </div>
           <Field label="No. Agenda"><input className={inputCls} value={agenda} onChange={(e) => setAgenda(e.target.value)} /></Field>
           <Field label="Inspection Start">{dateIn(startDate, setStartDate)}</Field>
@@ -190,7 +190,7 @@ export default function StatusModule(p: StatusProps) {
               </select>
             </div>
             {!A.anniversaryAuto && (
-              <button className="mt-1 text-[11px] font-semibold text-teal-700 underline" onClick={() => { setAnnivD(null); setAnnivM(null); }}>Kembali ke otomatis</button>
+              <button className="mt-1 text-xs font-semibold text-teal-700 underline" onClick={() => { setAnnivD(null); setAnnivM(null); }}>Kembali ke otomatis</button>
             )}
           </Field>
             </div>
@@ -210,9 +210,9 @@ export default function StatusModule(p: StatusProps) {
               </button>
             ))}
           </div>
-          {statusInfo && <p className="mt-2 text-[11px] text-slate-500">Hanya survei yang belum dikerjakan pada periode ini yang ditampilkan. Untuk memilih survei yang sudah tercatat, hapus dulu pembaruan manual atau agendanya.</p>}
-          {A.a5Applicable && <p className="mt-2 rounded-lg bg-sky-50 p-2 text-[11px] text-sky-900">Annual 5 diperlukan: anniversary yang dipercepat membuat Annual ke-5 jatuh sebelum jendela Renewal (expiry − 3 bulan). Pilih Annual 5 untuk menilainya.</p>}
-          <p className="mt-2 text-[11px] text-slate-500">
+          {statusInfo && <p className="mt-2 text-xs text-slate-600">Hanya survei yang belum dikerjakan pada periode ini yang ditampilkan. Untuk memilih survei yang sudah tercatat, hapus dulu pembaruan manual atau agendanya.</p>}
+          {A.a5Applicable && <p className="mt-2 rounded-lg bg-sky-50 p-2 text-xs text-sky-900">Annual 5 diperlukan: anniversary yang dipercepat membuat Annual ke-5 jatuh sebelum jendela Renewal (expiry − 3 bulan). Pilih Annual 5 untuk menilainya.</p>}
+          <p className="mt-2 text-xs text-slate-600">
             Survei yang dicentang dinilai dengan tanggal inspeksi di atas. Annual/Intermediate setelahnya yang sudah lewat batas withdrawal otomatis dihitung terlewat; bila ≥ 2 Annual + Intermediate terlewat → Case C (scope Renewal).
           </p>
         </div>
@@ -271,7 +271,7 @@ export default function StatusModule(p: StatusProps) {
             <div className="mb-3 rounded-xl border border-teal-300 bg-teal-50 p-3 text-sm">
               <p className="font-semibold">Anniversary bergeser</p>
               <p className="text-xs">{A.shift.txt}</p>
-              <p className="mt-1 text-[11px] text-slate-600">Tersimpan otomatis ke Survey Status saat agenda ini di-Finish. Pilih ulang kapal setelahnya untuk memuat anniversary terbaru.</p>
+              <p className="mt-1 text-xs text-slate-600">Tersimpan otomatis ke Survey Status saat agenda ini di-Finish. Pilih ulang kapal setelahnya untuk memuat anniversary terbaru.</p>
             </div>
           )}
           {A.newPeriod && (
@@ -300,18 +300,18 @@ export default function StatusModule(p: StatusProps) {
                   <p className="text-sm font-bold">{b.title}</p>
                   <div className="mt-2 grid gap-3 md:grid-cols-2">
                     <div>
-                      <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500">ITS Part A / Rules</p>
+                      <p className="text-xs font-bold uppercase tracking-wide text-slate-600">ITS Part A / Rules</p>
                       <p className="mt-1 text-xs leading-relaxed text-slate-700">{b.its}</p>
                     </div>
                     <div>
-                      <p className="text-[11px] font-bold uppercase tracking-wide text-teal-700">Nota Dinas BKI 87/SVY/III/2020</p>
+                      <p className="text-xs font-bold uppercase tracking-wide text-teal-700">Nota Dinas BKI 87/SVY/III/2020</p>
                       <p className="mt-1 text-xs leading-relaxed text-slate-700">{b.nd}</p>
                     </div>
                   </div>
                 </div>
               );
             })}
-            <p className="text-[11px] text-slate-500">
+            <p className="text-xs text-slate-600">
               ITS Part A bersumber dari Rules. Nota Dinas adalah penjelasan internal BKI untuk menyeragamkan penentuan status dan tanggal. Bila ragu, hubungi SM Mempertahankan Klas (Nota Dinas poin 7).
             </p>
           </div>

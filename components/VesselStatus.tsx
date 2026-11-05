@@ -500,7 +500,7 @@ export default function VesselStatus({ refreshKey, vesselName, onApply }: { refr
               <li key={r.kind} className="py-3">
                 <div className="flex items-start justify-between gap-3">
                   <p className="text-sm font-semibold text-slate-900">{r.kind}</p>
-                  <span className={'inline-block shrink-0 whitespace-nowrap rounded-full px-2.5 py-0.5 text-[11px] font-semibold ' + (STATE_TONE[r.state] ?? 'bg-slate-100 text-slate-600')}>{r.state}</span>
+                  <span className={'inline-block shrink-0 whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-semibold ' + (STATE_TONE[r.state] ?? 'bg-slate-100 text-slate-600')}>{r.state}</span>
                 </div>
                 {r.note && <p className="mt-0.5 text-xs leading-snug text-slate-500">{r.note}</p>}
                 {r.warn && <p className="mt-0.5 text-xs font-semibold leading-snug text-amber-700">⚠ {r.warn}</p>}
@@ -521,18 +521,18 @@ export default function VesselStatus({ refreshKey, vesselName, onApply }: { refr
               <tbody className="divide-y divide-slate-100">
                 {result.rows.map((r) => (
                   <tr key={r.kind} className="align-top">
-                    <td className="py-2 pr-3 font-medium">{r.kind}{r.note && <span className="block text-[11px] font-normal text-slate-500">{r.note}</span>}{r.warn && <span className="block text-[11px] font-semibold text-amber-700">⚠ {r.warn}</span>}</td>
+                    <td className="py-2 pr-3 font-medium">{r.kind}{r.note && <span className="block text-xs font-normal text-slate-600">{r.note}</span>}{r.warn && <span className="block text-xs font-semibold text-amber-700">⚠ {r.warn}</span>}</td>
                     <td className="pr-3">{r.due || '—'}</td>
                     <td className="pr-3">{r.range || '—'}</td>
                     <td className="pr-3">{r.postponed || '—'}</td>
                     <td className="pr-3">{r.last || '—'}</td>
-                    <td><span className={'inline-block whitespace-nowrap rounded-full px-2.5 py-0.5 text-[11px] font-semibold ' + (STATE_TONE[r.state] ?? 'bg-slate-100 text-slate-600')}>{r.state}</span></td>
+                    <td><span className={'inline-block whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-semibold ' + (STATE_TONE[r.state] ?? 'bg-slate-100 text-slate-600')}>{r.state}</span></td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
-          {result.applied.length > 0 && <p className="mt-2 text-[11px] text-slate-500">Diperbarui oleh: {result.applied.join(', ')}</p>}
+          {result.applied.length > 0 && <p className="mt-2 text-xs text-slate-600">Diperbarui oleh: {result.applied.join(', ')}</p>}
         </div>
       )}
     </div>

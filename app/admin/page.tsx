@@ -62,7 +62,7 @@ export default function AdminPage() {
               <p className="text-xs text-slate-500">Mendaftar {dmy(r.created_at)}</p>
             </div>
             <div className="flex items-center gap-2">
-              <span className={'rounded-full px-2.5 py-0.5 text-[11px] font-semibold ' + (r.approved ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-900')}>
+              <span className={'rounded-full px-2.5 py-0.5 text-xs font-semibold ' + (r.approved ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-900')}>
                 {r.approved ? 'DISETUJUI' : 'MENUNGGU'}
               </span>
               {r.user_id !== user.id &&

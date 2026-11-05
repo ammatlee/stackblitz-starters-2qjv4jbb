@@ -81,7 +81,7 @@ export default function FleetView({ items, currentUserId }: { items: FleetItem[]
                     {it.type || 'Jenis belum diisi'}
                     {it.expiry ? ` · sertifikat s/d ${dmy(it.expiry)}` : ''}
                   </p>
-                  {currentUserId && it.owner && it.owner !== currentUserId && <p className="mt-0.5 text-[11px] font-semibold text-violet-700">Data akun lain</p>}
+                  {currentUserId && it.owner && it.owner !== currentUserId && <p className="mt-0.5 text-xs font-semibold text-violet-700">Data akun lain</p>}
                 </div>
                 {u && <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${u.badge}`}>{u.label}</span>}
               </div>

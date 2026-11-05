@@ -32,7 +32,7 @@ function Row({ label, sub, tags, mark, onTap }: { label: string; sub?: string; t
         type="button"
         onClick={onTap}
         className={cx(
-          'mt-0.5 w-[4.6rem] shrink-0 rounded-md px-2 py-1 text-[11px] font-bold print:ring-1 print:ring-slate-400',
+          'mt-0.5 w-[4.6rem] shrink-0 rounded-md px-2 py-1 text-xs font-bold print:ring-1 print:ring-slate-400',
           mark === 'ok' ? 'bg-emerald-100 text-emerald-800' : mark === 'na' ? 'bg-slate-200 text-slate-500' : 'bg-amber-50 text-amber-800 ring-1 ring-amber-300'
         )}
       >
@@ -40,8 +40,8 @@ function Row({ label, sub, tags, mark, onTap }: { label: string; sub?: string; t
       </button>
       <div className="min-w-0 flex-1">
         <p className={cx('text-sm leading-snug', mark === 'na' && 'text-slate-400 line-through')}>{label}</p>
-        {sub && <p className="mt-0.5 text-[11px] text-slate-500">{sub}</p>}
-        {tags && <p className="mt-0.5 text-[10px] font-semibold uppercase tracking-wide text-teal-700">{tags}</p>}
+        {sub && <p className="mt-0.5 text-xs text-slate-600">{sub}</p>}
+        {tags && <p className="mt-0.5 text-xs font-semibold uppercase tracking-wide text-teal-700">{tags}</p>}
       </div>
     </li>
   );
@@ -230,13 +230,13 @@ export default function ReportDocsModule({ vType, sel, name, agenda, docs, setDo
             </select>
           </Field>
         </div>
-        {catInfo && <p className="mt-2 text-[11px] text-slate-500">Tabel {catInfo.id}: {catInfo.label}</p>}
-        <p className="mt-3 text-[11px] text-slate-500">Ketuk tombol di kiri tiap item: Belum → ✓ Siap → N/A (tidak berlaku). N/A pada form dan lampiran inti diingat untuk jenis kapal dan jenis survei yang sama, dan disembunyikan di agenda berikutnya.</p>
+        {catInfo && <p className="mt-2 text-xs text-slate-600">Tabel {catInfo.id}: {catInfo.label}</p>}
+        <p className="mt-3 text-xs text-slate-600">Ketuk tombol di kiri tiap item: Belum → ✓ Siap → N/A (tidak berlaku). N/A pada form dan lampiran inti diingat untuk jenis kapal dan jenis survei yang sama, dan disembunyikan di agenda berikutnya.</p>
       </Fold>
 
       {err && <p className="rounded-xl bg-rose-50 p-3 text-xs text-rose-800">{err}</p>}
       {cols.length > 0 && (hiddenCount > 0 || prefs.size > 0 || !canSave) && (
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl bg-slate-50 px-3 py-2 text-[11px] text-slate-600 print:hidden">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl bg-slate-50 px-3 py-2 text-xs text-slate-600 print:hidden">
           {!canSave ? (
             <span>{vType ? 'Masuk ke akun agar N/A bisa diingat untuk agenda berikutnya.' : 'Pilih jenis kapal agar N/A bisa diingat untuk agenda berikutnya.'}</span>
           ) : (
@@ -318,7 +318,7 @@ export default function ReportDocsModule({ vType, sel, name, agenda, docs, setDo
         />
       </Card>
 
-      <p className="rounded-xl bg-slate-50 p-3 text-[11px] leading-relaxed text-slate-600">
+      <p className="rounded-xl bg-slate-50 p-3 text-xs leading-relaxed text-slate-600">
         Sumber: Standard Pemeriksaan Laporan Survey — Penerimaan Klas dan Mempertahankan Klas (Divisi Survey, 2026, rev4). Daftar ini alat bantu; ikuti ketentuan BKI terbaru bila ada perubahan.
       </p>
     </>

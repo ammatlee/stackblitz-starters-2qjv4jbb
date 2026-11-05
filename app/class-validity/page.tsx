@@ -340,7 +340,7 @@ export default function Page() {
     <div className="min-h-screen bg-slate-100 text-slate-800">
       {/* kop laporan: hanya tampil saat dicetak */}
       <div className="hidden px-3 pb-3 pt-1 print:block">
-        <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-500">RDK — Laporan Class Validity</p>
+        <p className="text-xs font-semibold uppercase tracking-widest text-slate-600">RDK — Laporan Class Validity</p>
         <h1 className="mt-1 text-xl font-bold text-slate-900">
           {name || 'Kapal'}
           {vType ? ` · ${vType}` : ''}
@@ -432,7 +432,7 @@ export default function Page() {
         {shownTab === 5 && (
           <MemoModule ctx={memoCtx} memo={memo} setMemo={setMemo} ownerDefault={vmeta.owner} surveyorDefault={surveyorDefault} anchor={anchor} setAnchor={setAnchor} chain={chain} setChain={setChain} />
         )}
-        <p className="pb-6 text-center text-[11px] text-slate-500">Alat bantu perhitungan; keputusan akhir mengacu pada aturan BKI dan penilaian Surveyor. · Versi 2026.10.21-a</p>
+        <p className="pb-6 text-center text-xs text-slate-600">Alat bantu perhitungan; keputusan akhir mengacu pada aturan BKI dan penilaian Surveyor. · Versi 2026.10.21-a</p>
       </main>
     </div>
   );

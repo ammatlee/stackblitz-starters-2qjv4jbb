@@ -44,7 +44,7 @@ export default function ScopeModule(p: ScopeProps) {
     const p = prog(ids);
     return <Progress done={p.done} total={p.total} def={p.def} />;
   };
-  const hiddenNote = (n: number) => n > 0 && <p className="mt-2 text-[11px] text-slate-400">{n} item tidak berlaku untuk {vType}/umur kapal — disembunyikan.</p>;
+  const hiddenNote = (n: number) => n > 0 && <p className="mt-2 text-xs text-slate-600">{n} item tidak berlaku untuk {vType}/umur kapal — disembunyikan.</p>;
   
   const checklist = (id: string, items: Item[]) => {
     const all = items.map((it, i) => ({ it, id: `${id}-${i}`, ap: applicability(it.a, it.g, vType, age) }));
@@ -122,7 +122,7 @@ export default function ScopeModule(p: ScopeProps) {
         <>
           <Fold title={`Renewal — Tangki (${A.rnLabel})`} sub="Pemeriksaan internal & pressure test" right={<P ids={tank.ids} />} open>
             {tblUi(tank.live)}{hiddenNote(tank.hidden)}
-            <p className="mt-2 text-[11px] text-slate-500">Peak tank (semua jenis) diperiksa internal di setiap Renewal. Bila hanya sebagian tangki FO/LO/FW yang dipilih, tangki yang diperiksa harus bergantian dari Renewal ke Renewal (Tabel 3.3, catatan 2). Tabel berlaku untuk tangki tipe integral/struktural.</p>
+            <p className="mt-2 text-xs text-slate-600">Peak tank (semua jenis) diperiksa internal di setiap Renewal. Bila hanya sebagian tangki FO/LO/FW yang dipilih, tangki yang diperiksa harus bergantian dari Renewal ke Renewal (Tabel 3.3, catatan 2). Tabel berlaku untuk tangki tipe integral/struktural.</p>
           </Fold>
           <Fold title={`Renewal — UT Thickness (${A.rnLabel})`} sub="Lokasi pengukuran minimum" right={<P ids={ut.ids} />} open>
             {tblUi(ut.live)}{hiddenNote(ut.hidden)}
@@ -144,7 +144,7 @@ export default function ScopeModule(p: ScopeProps) {
         const qid = (k: string) => `PQ-${sv.plan}-${k}`;
         const ids = [...sv.scope.map((x) => sid(x.k)), ...sv.prereq.map((x) => qid(x.k))];
         const pill = (on: boolean) => cx('rounded-full border px-3 py-1.5 text-xs font-semibold transition', on ? 'border-teal-600 bg-teal-600 text-white' : 'border-slate-300 bg-white text-slate-600 hover:border-teal-500');
-        const step = (n: number, t: string) => <p className="mb-2 mt-4 text-xs font-bold text-slate-700"><span className="mr-1.5 inline-flex h-5 w-5 items-center justify-center rounded-full bg-slate-800 text-[11px] text-white">{n}</span>{t}</p>;
+        const step = (n: number, t: string) => <p className="mb-2 mt-4 text-xs font-bold text-slate-700"><span className="mr-1.5 inline-flex h-5 w-5 items-center justify-center rounded-full bg-slate-800 text-xs text-white">{n}</span>{t}</p>;
         const ext = extensionRules(shaftSys);
         return (
           <Fold title="Propeller Shaft Survey" sub="Ikuti langkah 1–3; checklist menyesuaikan pilihan Anda" right={plan ? <P ids={ids} /> : undefined} open>
@@ -174,17 +174,17 @@ export default function ScopeModule(p: ScopeProps) {
               <p className="font-bold text-teal-900">{sv.intervalText}</p>
               {sv.methods.length > 0 && <p className="mt-1">Method yang boleh dipakai: <b>{sv.methods.map((m) => PLANS[m].title).join(', ')}</b></p>}
               {!propConn && <p className="mt-1">Pilih tipe sambungan propeller untuk melihat Method yang boleh dipakai.</p>}
-              <ul className="mt-2 list-disc space-y-0.5 pl-4 text-[11px] text-slate-600">{sv.notes.map((n) => <li key={n}>{n}</li>)}</ul>
+              <ul className="mt-2 list-disc space-y-0.5 pl-4 text-xs text-slate-600">{sv.notes.map((n) => <li key={n}>{n}</li>)}</ul>
             </div>
 
             {propConn && (
               <>
                 {step(3, 'Yang dikerjakan pada survei ini')}
-                <p className="mb-1 text-[11px] font-semibold text-slate-500">Survei poros penuh</p>
+                <p className="mb-1 text-xs font-semibold text-slate-600">Survei poros penuh</p>
                 <div className="flex flex-wrap gap-2">
                   {sv.methods.map((m) => <button key={m} onClick={() => setShaftPlan(m)} className={pill(sv.plan === m)}>{PLANS[m].title}</button>)}
                 </div>
-                <p className="mb-1 mt-3 text-[11px] font-semibold text-slate-500">Atau perpanjangan (extension)</p>
+                <p className="mb-1 mt-3 text-xs font-semibold text-slate-600">Atau perpanjangan (extension)</p>
                 <div className="flex flex-wrap gap-2">
                   {sv.exts.map((m) => <button key={m} onClick={() => setShaftPlan(m)} className={pill(sv.plan === m)}>{PLANS[m].title}</button>)}
                 </div>
@@ -249,7 +249,7 @@ export default function ScopeModule(p: ScopeProps) {
             ))}
           </div>
           {hiddenNote(MACHINERY.length - mach.length)}
-          <div className="mt-4 rounded-xl bg-slate-50 p-3 text-[11px] leading-relaxed text-slate-600">
+          <div className="mt-4 rounded-xl bg-slate-50 p-3 text-xs leading-relaxed text-slate-600">
             <p className="font-bold text-slate-700">Method / Source Notes</p>
             <p><b>Method 1:</b> Pemeriksaan visual dengan membuka sebagian/seluruhnya sesuai penilaian Surveyor; uji fungsi atau tekanan bila relevan.</p>
             <p><b>Method 2:</b> Pemeriksaan visual tanpa bongkar; performance test wajib; open-up bila dinilai perlu; verifikasi overhaul terakhir.</p>

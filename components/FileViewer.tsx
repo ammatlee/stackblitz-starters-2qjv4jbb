@@ -238,7 +238,7 @@ export default function FileViewer({ url, name, type, label, onClose }: Props) {
         </button>
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-bold text-white">{name}</p>
-          {isPdf && pages > 0 && <p className="text-[11px] text-slate-400">Halaman {cur} / {pages}</p>}
+          {isPdf && pages > 0 && <p className="text-xs text-slate-600">Halaman {cur} / {pages}</p>}
         </div>
         <button onClick={zoomOut} disabled={zi <= 0} className={btn} aria-label="Perkecil">
           −

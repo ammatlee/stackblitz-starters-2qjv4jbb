@@ -123,7 +123,7 @@ export default function MemoModule({ ctx, memo, setMemo, ownerDefault, surveyorD
                   <Field label="Diameter rantai original (mm)">{numIn(chain.o, (v) => setChain((x) => ({ ...x, o: v })))}</Field>
                   <Field label="Jumlah segel rantai (27,5 m)">{numIn(memo.segels, (v) => setF('segels', v))}</Field>
                 </div>
-                <p className="mt-2 text-[11px] text-slate-500">Minimum dihitung otomatis: jangkar 90% dan diameter rantai 88% dari nilai original. Bila kosong, memo menampilkan titik-titik (……) untuk diisi.</p>
+                <p className="mt-2 text-xs text-slate-600">Minimum dihitung otomatis: jangkar 90% dan diameter rantai 88% dari nilai original. Bila kosong, memo menampilkan titik-titik (……) untuk diisi.</p>
               </div>
             )}
           </>
@@ -155,7 +155,7 @@ export default function MemoModule({ ctx, memo, setMemo, ownerDefault, surveyorD
             {msg && <p className="mt-2 text-xs text-teal-800">{msg}</p>}
             <details className="mt-3">
               <summary className="cursor-pointer text-xs font-semibold text-slate-700">Pratinjau teks</summary>
-              <pre className="mt-2 max-h-96 overflow-auto whitespace-pre-wrap rounded-lg bg-slate-50 p-3 text-[11px] leading-relaxed text-slate-800">{text}</pre>
+              <pre className="mt-2 max-h-96 overflow-auto whitespace-pre-wrap rounded-lg bg-slate-50 p-3 text-xs leading-relaxed text-slate-800">{text}</pre>
             </details>
           </Card>
         </>

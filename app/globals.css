@@ -57,3 +57,31 @@ body {
 .rich th { background: #f1f5f9; font-weight: 600; text-align: left; }
 .rich td p, .rich th p { margin: 0; }
 .rich .selectedCell { background: #ccfbf1; }
+
+/* ---- Layar sentuh: target ketuk minimal 40px (tombol bergaya tautan "underline" dikecualikan) ---- */
+@media (pointer: coarse) {
+  button:not(.underline):not([data-compact]),
+  select,
+  input:not([type='checkbox']):not([type='radio']):not([type='file']):not([type='range']) {
+    min-height: 40px;
+  }
+  input[type='checkbox'],
+  input[type='radio'] {
+    width: 1.25rem;
+    height: 1.25rem;
+  }
+  header nav a {
+    display: inline-flex;
+    align-items: center;
+    min-height: 40px;
+  }
+}
+
+/* ---- Fokus keyboard yang terlihat ---- */
+button:focus-visible,
+a:focus-visible,
+select:focus-visible,
+summary:focus-visible {
+  outline: 2px solid #0d9488;
+  outline-offset: 2px;
+}

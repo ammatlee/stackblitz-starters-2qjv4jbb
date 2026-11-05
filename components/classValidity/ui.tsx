@@ -11,7 +11,7 @@ export function Field({ label, hint, children }: { label: string; hint?: string;
     <label className="block">
       <span className="mb-1 block text-xs font-semibold text-slate-600">{label}</span>
       {children}
-      {hint && <span className="mt-1 block text-[11px] leading-snug text-slate-500">{hint}</span>}
+      {hint && <span className="mt-1 block text-xs leading-snug text-slate-600">{hint}</span>}
     </label>
   );
 }
@@ -59,7 +59,7 @@ export function Badge({ v, big }: { v: string; big?: boolean }) {
     <span
       className={cx(
         'inline-flex items-center whitespace-nowrap rounded-full font-semibold ring-1 ring-inset',
-        big ? 'px-4 py-1.5 text-sm' : 'px-2.5 py-0.5 text-[11px]',
+        big ? 'px-4 py-1.5 text-sm' : 'px-2.5 py-0.5 text-xs',
         BADGE[v] ?? 'bg-slate-100 text-slate-600 ring-slate-400/20'
       )}
     >
@@ -84,10 +84,10 @@ export function CheckRow({ title, desc, meta, chip, value, onChange }: { title: 
       <div className="sm:max-w-[72%]">
         <p className="text-sm font-semibold">
           {title}
-          {chip && <span className="ml-2 rounded-md bg-teal-100 px-2 py-0.5 text-[11px] font-bold text-teal-800">{chip}</span>}
+          {chip && <span className="ml-2 rounded-md bg-teal-100 px-2 py-0.5 text-xs font-bold text-teal-800">{chip}</span>}
         </p>
         {desc && <p className="text-xs leading-relaxed text-slate-600">{desc}</p>}
-        {meta && <p className="mt-0.5 text-[11px] text-slate-500">{meta}</p>}
+        {meta && <p className="mt-0.5 text-xs text-slate-600">{meta}</p>}
       </div>
       <select
         value={value}
