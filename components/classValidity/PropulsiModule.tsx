@@ -229,6 +229,38 @@ export default function PropulsiModule(p: PropulsiProps) {
             </Card>
           )}
 
+          {showShaft && shaftSys === 'oil' && (
+            <Card title="Aus Shaft Liner (oil lubricated)" sub={`ITS Part A 1.10.2 iii: maks. ${LINER_WEAR_PCT.bearing}% tebal liner di area bearing, ${LINER_WEAR_PCT.packing}% di area packing`}>
+              <div className="grid gap-4 md:grid-cols-2">
+                {S.linerRes.map((r, i) => (
+                  <div key={i} className="rounded-xl border border-slate-200 p-4">
+                    <p className="text-sm font-bold">Poros {i + 1}</p>
+                    <div className="mt-3 max-w-[50%]">
+                      <Field label="Tebal liner original (mm)">{numIn(shafts[i].t ?? '', (v) => setShaftRow(i, 't', v))}</Field>
+                    </div>
+                    <div className="mt-3 grid grid-cols-2 gap-3">
+                      <div>
+                        <Field label="Aus area bearing (mm)">{numIn(shafts[i].wb ?? '', (v) => setShaftRow(i, 'wb', v))}</Field>
+                        <div className="mt-1 flex items-center justify-between gap-2 text-xs text-slate-600">
+                          <span>{r.maxB === null ? 'Maks. —' : `Maks. ${f2(r.maxB)} mm`}{r.pctB !== null ? ` · ${r.pctB.toFixed(1)}%` : ''}</span>
+                          <Badge v={r.vb || 'BELUM DIUKUR'} />
+                        </div>
+                      </div>
+                      <div>
+                        <Field label="Aus area packing (mm)">{numIn(shafts[i].wp ?? '', (v) => setShaftRow(i, 'wp', v))}</Field>
+                        <div className="mt-1 flex items-center justify-between gap-2 text-xs text-slate-600">
+                          <span>{r.maxP === null ? 'Maks. —' : `Maks. ${f2(r.maxP)} mm`}{r.pctP !== null ? ` · ${r.pctP.toFixed(1)}%` : ''}</span>
+                          <Badge v={r.vp || 'BELUM DIUKUR'} />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <p className="mt-3 text-xs text-slate-600">Isi tebal liner original dulu agar batas maksimum aus terhitung. Hasil ikut dihitung pada ringkasan Propulsi.</p>
+            </Card>
+          )}
+
           {showRudder && (
           <Card title="Rudder Stock Clearance" sub={RUDDER_RULE_SHORT}>
             <div className="grid gap-4 md:grid-cols-2">

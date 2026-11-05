@@ -150,3 +150,24 @@ describe('computePropulsi — hitungan ringkasan', () => {
     expect(r.fails).toBe(1);
   });
 });
+
+describe('aus shaft liner (oil) — 25% bearing, 50% packing', () => {
+  const liner = (o: Partial<PropulsiInput['shafts'][0]>, extra: Partial<PropulsiInput> = {}) => run({ shafts: [{ ...SHAFT0, ...o }], ...extra }).linerRes[0];
+  it('tepat di batas (t=20: bearing 5, packing 10) → COMPLIANT', () => {
+    const r = liner({ t: '20', wb: '5', wp: '10' });
+    expect(r.vb).toBe('COMPLIANT');
+    expect(r.vp).toBe('COMPLIANT');
+  });
+  it('melewati batas → NON-COMPLIANT', () => {
+    const r = liner({ t: '20', wb: '5.1', wp: '10.1' });
+    expect(r.vb).toBe('NON-COMPLIANT');
+    expect(r.vp).toBe('NON-COMPLIANT');
+  });
+  it('tebal liner kosong → belum dinilai', () => expect(liner({ wb: '3' }).vb).toBe(''));
+  it('bukan sistem oil → tidak dinilai', () => expect(liner({ t: '20', wb: '9' }, { shaftSys: 'open' }).vb).toBe(''));
+  it('ikut dihitung pada ringkasan: satu gagal dari satu terukur', () => {
+    const r = run({ shafts: [{ ...SHAFT0, t: '20', wb: '6' }] });
+    expect(r.measured).toBe(1);
+    expect(r.fails).toBe(1);
+  });
+});

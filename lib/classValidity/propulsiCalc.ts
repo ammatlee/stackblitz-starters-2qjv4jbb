@@ -1,6 +1,6 @@
 /** Kalkulasi Modul 3 (Propulsi): clearance poros, diameter minimum, rudder, jangkar & rantai. Fungsi murni, tanpa React. */
 import { num } from './dateUtils';
-import { minDiameter, shaftLimits, rudderMax, segelsFor, SEGEL_M, ANCHOR_MIN_RATIO, CHAIN_MIN_RATIO } from './surveyRules';
+import { minDiameter, shaftLimits, rudderMax, segelsFor, SEGEL_M, ANCHOR_MIN_RATIO, CHAIN_MIN_RATIO, LINER_WEAR_PCT } from './surveyRules';
 import type { DminCfg, ShaftRow, ShaftSys, Verdict } from './surveyRules';
 
 export type PropulsiInput = {
@@ -38,6 +38,14 @@ export function computePropulsi(input: PropulsiInput) {
     if (a !== null && hi !== null) v = lo !== null ? (a >= lo && a <= hi ? 'COMPLIANT' : 'NON-COMPLIANT') : a <= hi ? 'COMPLIANT' : 'NON-COMPLIANT';
     return { d, a, lo, hi, v, manual: manual !== null };
   });
+  // Aus shaft liner (hanya sistem oil, ITS Part A 1.10.2 iii): maks. 25% tebal liner di area bearing, 50% di area packing
+  const linerRes = shafts.map((r) => {
+    const t = num(r.t ?? ''), wb = num(r.wb ?? ''), wp = num(r.wp ?? '');
+    const maxB = t !== null && t > 0 ? (t * LINER_WEAR_PCT.bearing) / 100 : null;
+    const maxP = t !== null && t > 0 ? (t * LINER_WEAR_PCT.packing) / 100 : null;
+    const judge = (w: number | null, mx: number | null): Verdict => (shaftSys === 'oil' && w !== null && mx !== null ? (w <= mx + 1e-9 ? 'COMPLIANT' : 'NON-COMPLIANT') : '');
+    return { t, wb, wp, maxB, maxP, pctB: t && wb !== null ? (wb / t) * 100 : null, pctP: t && wp !== null ? (wp / t) * 100 : null, vb: judge(wb, maxB), vp: judge(wp, maxP) };
+  });
   const wdA = num(wd.a), wdT = num(wd.then), wdN = num(wd.now);
   const wdFinal = wdA !== null && wdT !== null && wdN !== null ? wdA + (wdN - wdT) : null;
   const ao = num(anchor.o), aa = num(anchor.a), co2 = num(chain.o), ca = num(chain.a);
@@ -56,8 +64,8 @@ export function computePropulsi(input: PropulsiInput) {
     return { item, d, a, mx, v };
   });
   // kapal tanpa penggerak: hanya jangkar dan rantai jangkar yang dinilai
-  const all: Verdict[] = [...(propelled ? [...(showShaft ? shaftRes.map((x) => x.v) : []), ...(showRudder ? rudderRes.map((x) => x.v) : []), ...(showDmin ? dminRes.map((x) => x.v) : [])] : []), ...(showAnchor ? [anchorV, chainV] : [])];
-  return { shaftRes, dminRes, wdFinal, anchorMin, chainMin, chainLen, chainSegels, chainLenFinal, anchorV, chainV, rudderRes, measured: all.filter((v) => v !== '').length, fails: all.filter((v) => v === 'NON-COMPLIANT').length, total: all.length };
+  const all: Verdict[] = [...(propelled ? [...(showShaft ? [...shaftRes.map((x) => x.v), ...linerRes.flatMap((x) => [x.vb, x.vp]).filter((v) => v !== '')] : []), ...(showRudder ? rudderRes.map((x) => x.v) : []), ...(showDmin ? dminRes.map((x) => x.v) : [])] : []), ...(showAnchor ? [anchorV, chainV] : [])];
+  return { shaftRes, linerRes, dminRes, wdFinal, anchorMin, chainMin, chainLen, chainSegels, chainLenFinal, anchorV, chainV, rudderRes, measured: all.filter((v) => v !== '').length, fails: all.filter((v) => v === 'NON-COMPLIANT').length, total: all.length };
 }
 
 export type PropulsiResult = ReturnType<typeof computePropulsi>;

@@ -236,8 +236,9 @@ export const K_OPTS: Record<ShaftKind, { id: string; k: number; label: string }[
 };
 export type DminCfg = { kind: ShaftKind; kId: string; f: string; mat: 'cmn' | 'alloy'; rm: string };
 export const DMIN0: DminCfg = { kind: 'prop', kId: 'p122', f: '100', mat: 'cmn', rm: '' };
-export type ShaftRow = { d: string; a: string; m: string; p: string; n: string; b: string; l?: string };
-export const SHAFT0: ShaftRow = { d: '', a: '', m: '', p: '', n: '', b: '', l: '' };
+/** t = tebal liner original (mm); wb / wp = aus liner terukur di area bearing / packing (mm) — hanya sistem oil. */
+export type ShaftRow = { d: string; a: string; m: string; p: string; n: string; b: string; l?: string; t?: string; wb?: string; wp?: string };
+export const SHAFT0: ShaftRow = { d: '', a: '', m: '', p: '', n: '', b: '', l: '', t: '', wb: '', wp: '' };
 
 /**
  * Diameter minimum poros, Rules BKI formula (1): da ≥ d ≥ F·k·∛[ Pw / (n·(1 − (di/da)⁴)) · Cw ], Cw = 560/(Rm+160) (formula (2)).
