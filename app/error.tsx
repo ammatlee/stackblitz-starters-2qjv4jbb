@@ -3,6 +3,7 @@
 import React, { useEffect } from 'react';
 import Link from 'next/link';
 
+import { Button } from '../components/Controls';
 /** Penjaga error tingkat halaman: satu kesalahan di sebuah halaman tidak lagi membuat layar putih. Header dan menu tetap tampil. */
 export default function RouteError({ error, reset }: { error: Error & { digest?: string }; reset: () => void }) {
   useEffect(() => {
@@ -18,12 +19,12 @@ export default function RouteError({ error, reset }: { error: Error & { digest?:
         </p>
         {error.message && <p className="mt-3 break-words rounded-lg bg-slate-50 px-3 py-2 text-left text-xs text-slate-500">{error.message}</p>}
         <div className="mt-5 flex flex-wrap justify-center gap-2">
-          <button onClick={() => reset()} className="rounded-lg bg-teal-600 px-5 py-2 text-sm font-semibold text-white hover:bg-teal-700">
+          <Button onClick={() => reset()} variant="primary">
             Coba lagi
-          </button>
-          <button onClick={() => window.location.reload()} className="rounded-lg border border-slate-300 px-5 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">
+          </Button>
+          <Button onClick={() => window.location.reload()}>
             Muat ulang
-          </button>
+          </Button>
           <Link href="/" className="rounded-lg border border-slate-300 px-5 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">
             Ke menu
           </Link>

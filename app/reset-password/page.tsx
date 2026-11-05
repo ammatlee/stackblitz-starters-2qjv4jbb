@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '../../components/AuthProvider';
 
+import { Button } from '../../components/Controls';
 /** Halaman tujuan tautan "Lupa password" dari email. Supabase otomatis membuat sesi sementara dari tautan itu. */
 export default function ResetPasswordPage() {
   const { user, loading, updatePassword } = useAuth();
@@ -51,9 +52,9 @@ export default function ResetPasswordPage() {
               </label>
             </div>
             {msg && <p className={'mt-3 text-sm ' + (msg.kind === 'err' ? 'text-red-700' : 'text-emerald-700')}>{msg.text}</p>}
-            <button disabled={busy || !pw || !pw2} onClick={submit} className="mt-5 w-full rounded-lg bg-teal-600 py-2 text-sm font-semibold text-white hover:bg-teal-700 disabled:opacity-50">
+            <Button disabled={busy || !pw || !pw2} onClick={submit} variant="primary" className="mt-5 w-full">
               {busy ? 'Menyimpan…' : 'Simpan password baru'}
-            </button>
+            </Button>
           </>
         )}
       </div>

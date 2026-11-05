@@ -10,6 +10,7 @@ import type { Sel } from '../../lib/classValidity/surveyRules';
 import { ATT_BY_COL, ATT_CONFIRM, ATT_GENERAL, ATT_OTHER, ATT_TESTS, CATEGORIES, COLS, COL_OF_SURVEY, SPECIAL, categoryOfType, formsFor } from '../../lib/reportDocs';
 import type { Att, Col, FormRow } from '../../lib/reportDocs';
 
+import { Chip } from '../Controls';
 export type Mark = '' | 'ok' | 'na';
 export type DocsState = { done: Record<string, Mark>; specials: string[]; extraCols: Col[]; cat: string; notes: string };
 export const DOCS0: DocsState = { done: {}, specials: [], extraCols: [], cat: '', notes: '' };
@@ -212,9 +213,9 @@ export default function ReportDocsModule({ vType, sel, name, agenda, docs, setDo
         <div className="mt-3 flex flex-wrap gap-2 text-xs font-semibold">
           <span className="self-center text-slate-500">Tambahkan:</span>
           {(['EC', 'OS'] as Col[]).map((c) => (
-            <button key={c} type="button" onClick={() => toggleExtra(c)} className={cx('rounded-full border px-3 py-1.5 transition', docs.extraCols.includes(c) ? 'border-teal-600 bg-teal-600 text-white' : 'border-slate-300 bg-white text-slate-600 hover:border-teal-500')}>
+            <Chip key={c} type="button" onClick={() => toggleExtra(c)} selected={docs.extraCols.includes(c)}>
               {labelOf(c)}
-            </button>
+            </Chip>
           ))}
         </div>
         <div className="mt-4 max-w-md">

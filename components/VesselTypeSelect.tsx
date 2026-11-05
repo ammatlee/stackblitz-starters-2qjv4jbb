@@ -5,6 +5,7 @@ import { supabase } from '../lib/supabase';
 import { useAuth } from './AuthProvider';
 import { VESSEL_TYPES } from '../lib/vesselTypes';
 
+import { Button } from './Controls';
 const OTHER = '__other__';
 
 /** Pilihan jenis kapal. "Others" memungkinkan mengetik jenis baru yang disimpan di database dan muncul lagi di pilihan berikutnya. */
@@ -69,7 +70,7 @@ export default function VesselTypeSelect({ value, onChange, className }: { value
       {adding && (
         <div className="mt-2 flex gap-2">
           <input className={className} placeholder="Nama jenis kapal" value={text} onChange={(e) => setText(e.target.value)} />
-          <button type="button" onClick={add} className="shrink-0 rounded-lg bg-teal-600 px-3 py-2 text-xs font-semibold text-white hover:bg-teal-700">Simpan jenis</button>
+          <Button type="button" onClick={add} variant="primary" size="sm" className="shrink-0">Simpan jenis</Button>
         </div>
       )}
       {adding && (

@@ -5,6 +5,7 @@ import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../components/AuthProvider';
 import { useDialog } from '../../components/DialogProvider';
 
+import { Button } from '../../components/Controls';
 type P = { user_id: string; email: string | null; approved: boolean; created_at: string };
 const dmy = (s: string) => s.slice(0, 10).split('-').reverse().join('.');
 
@@ -69,7 +70,7 @@ export default function AdminPage() {
                 (r.approved ? (
                   <button onClick={() => setApproved(r.user_id, false)} className="rounded-md px-2.5 py-1 text-xs font-semibold text-red-700 hover:bg-red-50">Cabut</button>
                 ) : (
-                  <button onClick={() => setApproved(r.user_id, true)} className="rounded-md bg-teal-600 px-3 py-1 text-xs font-semibold text-white hover:bg-teal-700">Setujui</button>
+                  <Button onClick={() => setApproved(r.user_id, true)} variant="primary" size="sm">Setujui</Button>
                 ))}
             </div>
           </li>

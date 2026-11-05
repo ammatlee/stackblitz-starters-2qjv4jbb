@@ -10,6 +10,7 @@ import type { StatusCalc } from '../../lib/classValidity/statusCalc';
 import type { Conn, OpenCfg, PlanKey } from '../../lib/shaftRules';
 import type { Item, Sel, ShaftSys, Status, SurveyKey, TRow } from '../../lib/classValidity/surveyRules';
 
+import { Button, Notice, Chip } from '../Controls';
 export type ScopeProps = {
   A: StatusCalc;
   checks: Record<string, string>;
@@ -84,7 +85,7 @@ export default function ScopeModule(p: ScopeProps) {
   return (
     <>
       <Card title="Scope Aktif" sub={`${name || 'Kapal'} · ${vType} · ${age ?? '—'} th · ${A.rnLabel}`}
-        right={<button onClick={() => setChecks({})} className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-semibold hover:bg-slate-50">Reset checklist</button>}>
+        right={<Button onClick={() => setChecks({})} size="sm">Reset checklist</Button>}>
         <div className="flex flex-wrap gap-2 text-xs">
           {nothing && <span className="text-slate-500">Pilih survei di tab Status.</span>}
           {([['annual', 'Annual'], ['inter', 'Intermediate'], ['renewal', 'Renewal'], ['docking', 'Docking'], ['shaft', 'Propeller Shaft'], ['machinery', 'Mesin & Utilitas']] as const)
@@ -92,11 +93,11 @@ export default function ScopeModule(p: ScopeProps) {
             .map(([k, l]) => <span key={k} className="rounded-full bg-teal-100 px-3 py-1 font-semibold text-teal-800">{l}</span>)}
         </div>
         {A.c && (
-          <div className="mt-3 rounded-xl border border-teal-200 bg-teal-50 p-3 text-xs text-slate-700">
+          <Notice tone="success" size="xs" className="mt-3">
             <p className="font-bold">Reinstatement — {A.caseTitle[A.c]}</p>
             <p className="mt-1">{A.reinst[A.c][0]}</p>
             <p className="mt-1 font-semibold">{A.reinst[A.c][1]}</p>
-          </div>
+          </Notice>
         )}
         {A.active.renewal && <p className="mt-3 text-xs text-slate-600">Tangki, UT, dan air pipe head dihitung otomatis dari Year Built {yearBuilt} dan expiry {fmt(A.exp)} → umur {age ?? '—'} tahun, <b>{A.rnLabel}</b>{A.rnBumped ? ` (naik karena Renewal sebelumnya ke-${roman(lastNo ?? 0)})` : ''}. Aturan scope tangki/UT mengikuti tabel &quot;IV dan seterusnya&quot; untuk Renewal IV ke atas.</p>}
         {sel.INT && sel.REN && <p className="mt-3 rounded-lg bg-amber-50 p-2 text-xs text-amber-900">Intermediate & Renewal tidak boleh dikreditkan bersamaan.</p>}
@@ -143,19 +144,18 @@ export default function ScopeModule(p: ScopeProps) {
         const sid = (k: string) => `PS-${sv.plan}-${k}`;
         const qid = (k: string) => `PQ-${sv.plan}-${k}`;
         const ids = [...sv.scope.map((x) => sid(x.k)), ...sv.prereq.map((x) => qid(x.k))];
-        const pill = (on: boolean) => cx('rounded-full border px-3 py-1.5 text-xs font-semibold transition', on ? 'border-teal-600 bg-teal-600 text-white' : 'border-slate-300 bg-white text-slate-600 hover:border-teal-500');
         const step = (n: number, t: string) => <p className="mb-2 mt-4 text-xs font-bold text-slate-700"><span className="mr-1.5 inline-flex h-5 w-5 items-center justify-center rounded-full bg-slate-800 text-xs text-white">{n}</span>{t}</p>;
         const ext = extensionRules(shaftSys);
         return (
           <Fold title="Propeller Shaft Survey" sub="Ikuti langkah 1–3; checklist menyesuaikan pilihan Anda" right={plan ? <P ids={ids} /> : undefined} open>
             {step(1, 'Sistem pelumasan poros')}
             <div className="flex flex-wrap gap-2">
-              {SHAFT_SYS.map(([k, l]) => <button key={k} onClick={() => setShaftSys(k)} className={pill(shaftSys === k)}>{l}</button>)}
+              {SHAFT_SYS.map(([k, l]) => <Chip key={k} onClick={() => setShaftSys(k)} selected={shaftSys === k}>{l}</Chip>)}
             </div>
 
             {step(2, 'Tipe sambungan propeller')}
             <div className="flex flex-wrap gap-2">
-              {(['flanged', 'keyless', 'keyed'] as Conn[]).map((c) => <button key={c} onClick={() => setPropConn(c)} className={pill(propConn === c)}>{CONN_LABEL[c]}</button>)}
+              {(['flanged', 'keyless', 'keyed'] as Conn[]).map((c) => <Chip key={c} onClick={() => setPropConn(c)} selected={propConn === c}>{CONN_LABEL[c]}</Chip>)}
             </div>
             {shaftSys === 'open' && (
               <div className="mt-3">
@@ -170,23 +170,23 @@ export default function ScopeModule(p: ScopeProps) {
               </div>
             )}
 
-            <div className="mt-4 rounded-xl border border-teal-200 bg-teal-50 p-3 text-xs text-slate-700">
+            <Notice tone="success" size="xs" className="mt-4">
               <p className="font-bold text-teal-900">{sv.intervalText}</p>
               {sv.methods.length > 0 && <p className="mt-1">Method yang boleh dipakai: <b>{sv.methods.map((m) => PLANS[m].title).join(', ')}</b></p>}
               {!propConn && <p className="mt-1">Pilih tipe sambungan propeller untuk melihat Method yang boleh dipakai.</p>}
               <ul className="mt-2 list-disc space-y-0.5 pl-4 text-xs text-slate-600">{sv.notes.map((n) => <li key={n}>{n}</li>)}</ul>
-            </div>
+            </Notice>
 
             {propConn && (
               <>
                 {step(3, 'Yang dikerjakan pada survei ini')}
                 <p className="mb-1 text-xs font-semibold text-slate-600">Survei poros penuh</p>
                 <div className="flex flex-wrap gap-2">
-                  {sv.methods.map((m) => <button key={m} onClick={() => setShaftPlan(m)} className={pill(sv.plan === m)}>{PLANS[m].title}</button>)}
+                  {sv.methods.map((m) => <Chip key={m} onClick={() => setShaftPlan(m)} selected={sv.plan === m}>{PLANS[m].title}</Chip>)}
                 </div>
                 <p className="mb-1 mt-3 text-xs font-semibold text-slate-600">Atau perpanjangan (extension)</p>
                 <div className="flex flex-wrap gap-2">
-                  {sv.exts.map((m) => <button key={m} onClick={() => setShaftPlan(m)} className={pill(sv.plan === m)}>{PLANS[m].title}</button>)}
+                  {sv.exts.map((m) => <Chip key={m} onClick={() => setShaftPlan(m)} selected={sv.plan === m}>{PLANS[m].title}</Chip>)}
                 </div>
                 <details className="mt-3 rounded-xl bg-slate-50 p-3 text-xs text-slate-700">
                   <summary className="cursor-pointer font-semibold">Apa itu extension?</summary>

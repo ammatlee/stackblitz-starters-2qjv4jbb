@@ -6,6 +6,7 @@ import { buildMemo, dateLong, memoSubject, memoText, resolveMemo } from '../../l
 import type { MemoCtx, MemoItem, MemoState } from '../../lib/memo';
 import { useAuth } from '../AuthProvider';
 
+import { Button } from '../Controls';
 type Pair = { o: string; a: string };
 type Props = {
   ctx: MemoCtx;
@@ -138,19 +139,19 @@ export default function MemoModule({ ctx, memo, setMemo, ownerDefault, surveyorD
               {(memo.extra[s.id] ?? []).map((t, i) => (
                 <div key={i} className="mt-2 flex items-start gap-2">
                   <textarea className={cx(inputCls, 'text-xs')} rows={2} value={t} placeholder="Butir tambahan…" onChange={(e) => editExtra(s.id, i, e.target.value)} />
-                  <button type="button" onClick={() => delExtra(s.id, i)} className="shrink-0 rounded-lg border border-slate-300 px-2 py-2 text-xs font-semibold text-red-700 hover:bg-slate-50">Hapus</button>
+                  <Button type="button" onClick={() => delExtra(s.id, i)} size="sm" className="shrink-0">Hapus</Button>
                 </div>
               ))}
-              <button type="button" onClick={() => addExtra(s.id)} className="mt-3 rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-semibold hover:bg-slate-50">+ Tambah butir</button>
+              <Button type="button" onClick={() => addExtra(s.id)} size="sm" className="mt-3">+ Tambah butir</Button>
             </Card>
           ))}
 
           <Card title="Pratinjau & Kirim" sub="Memo dikirim dari email kantor Anda sendiri; web tidak mengirim email.">
             <div className="flex flex-wrap gap-2">
-              <button type="button" onClick={download} className="rounded-lg bg-teal-600 px-4 py-2 text-xs font-semibold text-white hover:bg-teal-700">Unduh Word (.docx)</button>
-              <button type="button" onClick={copy} className="rounded-lg border border-slate-300 px-4 py-2 text-xs font-semibold hover:bg-slate-50">Salin teks</button>
-              <button type="button" onClick={mail} className="rounded-lg border border-slate-300 px-4 py-2 text-xs font-semibold hover:bg-slate-50">Buka di email</button>
-              <button type="button" onClick={resetEdits} className="rounded-lg border border-slate-300 px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50">Kembalikan ke otomatis</button>
+              <Button type="button" onClick={download} variant="primary" size="sm">Unduh Word (.docx)</Button>
+              <Button type="button" onClick={copy} size="sm">Salin teks</Button>
+              <Button type="button" onClick={mail} size="sm">Buka di email</Button>
+              <Button type="button" onClick={resetEdits} size="sm">Kembalikan ke otomatis</Button>
             </div>
             {msg && <p className="mt-2 text-xs text-teal-800">{msg}</p>}
             <details className="mt-3">

@@ -8,6 +8,7 @@ import { Card, Field, Fold, inputCls } from './ui';
 import { cx } from '../../lib/classValidity/dateUtils';
 import type { Sel } from '../../lib/classValidity/surveyRules';
 
+import { Button } from '../Controls';
 export type Visit = {
   id: string;
   ds: string; // tanggal mulai (yyyy-mm-dd)
@@ -225,7 +226,7 @@ export default function VisitsModule({ visits, setVisits, vesselName, agenda, co
             <div className="w-44">
               <Field label="Laporan selesai pada"><DateInput value={reportDone} onChange={setReportDone} className={inputCls} /></Field>
             </div>
-            <button type="button" onClick={() => setReportDone(todayISO())} className="rounded-lg bg-teal-600 px-4 py-2 text-sm font-semibold text-white hover:bg-teal-700">Selesai hari ini</button>
+            <Button type="button" onClick={() => setReportDone(todayISO())} variant="primary">Selesai hari ini</Button>
           </div>
         )}
         <p className="mt-2 text-xs text-slate-600">Setelah tanggal diisi, tekan <b>Simpan agenda</b>; pengingat di Riwayat hilang.</p>
@@ -292,7 +293,7 @@ export default function VisitsModule({ visits, setVisits, vesselName, agenda, co
           </details>
         ))}
       </div>
-      <button type="button" onClick={add} className="mt-3 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">+ Tambah kunjungan</button>
+      <Button type="button" onClick={add} className="mt-3">+ Tambah kunjungan</Button>
       <p className="mt-2 text-xs text-slate-600">Ingat menekan <b>Simpan agenda</b> di tab Status agar kunjungan tersimpan.</p>
     </Fold>
     {visits.length > 0 && (

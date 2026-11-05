@@ -12,6 +12,7 @@ import type { ApplyValues } from '../../components/VesselStatus';
 import type { StatusCalc } from '../../lib/classValidity/statusCalc';
 import type { Sel, Status, SurveyKey, VType, ShaftSys } from '../../lib/classValidity/surveyRules';
 
+import { Notice, Chip } from '../Controls';
 export type StatusProps = {
   A: StatusCalc;
   agenda: string;
@@ -89,9 +90,9 @@ export default function StatusModule(p: StatusProps) {
       </section>
   
       {sel.INT && sel.REN && (
-        <p className="rounded-xl border border-amber-300 bg-amber-50 p-3 text-xs text-amber-900">
+        <Notice tone="warn" size="xs">
           PERINGATAN: Intermediate dan Class Renewal tidak boleh dikreditkan bersamaan (termasuk thickness measurement). Pengecualian (ITS Part A 1.1.3): bila Intermediate dikerjakan lebih awal sebagai Annual in advance, scope-nya boleh dikreditkan ke Renewal.
-        </p>
+        </Notice>
       )}
   
       {A.c && (
@@ -201,13 +202,13 @@ export default function StatusModule(p: StatusProps) {
           <p className="mb-2 text-xs font-semibold text-slate-600">Lingkup survei yang dikerjakan (boleh lebih dari satu)</p>
           <div className="flex flex-wrap gap-2">
             {SURVEYS.filter((s) => chipVisible(s.key)).map((s) => (
-              <button
+              <Chip
                 key={s.key}
                 onClick={() => setSel((p) => ({ ...p, [s.key]: !p[s.key] }))}
-                className={cx('rounded-full border px-3 py-1.5 text-xs font-semibold transition', sel[s.key] ? 'border-teal-600 bg-teal-600 text-white' : 'border-slate-300 bg-white text-slate-600 hover:border-teal-500')}
+                selected={sel[s.key]}
               >
                 {sel[s.key] ? '✓ ' : ''}{s.label.replace('Annual Survey — ', 'Annual ').replace('Renewal Survey + Docking 2', 'Renewal + Docking 2')}
-              </button>
+              </Chip>
             ))}
           </div>
           {statusInfo && <p className="mt-2 text-xs text-slate-600">Hanya survei yang belum dikerjakan pada periode ini yang ditampilkan. Untuk memilih survei yang sudah tercatat, hapus dulu pembaruan manual atau agendanya.</p>}

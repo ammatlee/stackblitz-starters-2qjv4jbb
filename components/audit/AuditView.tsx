@@ -4,6 +4,7 @@ import React, { useMemo, useState } from 'react';
 import { actorLabel, describeAudit, fmtWhen } from '../../lib/audit';
 import type { AuditRow } from '../../lib/audit';
 
+import { Notice, Chip } from '../Controls';
 const OP_TONE: Record<string, string> = {
   INSERT: 'bg-emerald-100 text-emerald-800',
   UPDATE: 'bg-amber-100 text-amber-900',
@@ -20,19 +21,14 @@ export default function AuditView({ rows, vesselFilterName, isAdmin = false, use
   }, [rows, q, kind, isAdmin]);
 
   const chip = (k: typeof kind, label: string) => (
-    <button
-      type="button"
-      onClick={() => setKind(k)}
-      aria-pressed={kind === k}
-      className={`rounded-full border px-3 py-1 text-xs font-semibold ${kind === k ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-300 bg-white text-slate-700'}`}
-    >
+    <Chip tone="dark" selected={kind === k} onClick={() => setKind(k)}>
       {label}
-    </button>
+    </Chip>
   );
 
   return (
     <div className="space-y-3">
-      {vesselFilterName && <p className="rounded-xl bg-teal-50 px-3 py-2 text-xs text-teal-900">Menampilkan riwayat untuk kapal: <b>{vesselFilterName}</b></p>}
+      {vesselFilterName && <Notice tone="success" size="xs">Menampilkan riwayat untuk kapal: <b>{vesselFilterName}</b></Notice>}
       <div className="flex flex-wrap gap-2">
         {chip('all', 'Semua')}
         {chip('vessels', 'Data kapal')}

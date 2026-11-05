@@ -9,6 +9,7 @@ import { useAuth } from './AuthProvider';
 import { useDialog } from './DialogProvider';
 import { dueLabel, dueTone, reportDue, todayISO } from './classValidity/VisitsModule';
 
+import { Button } from './Controls';
 type Snapshot = Record<string, unknown>;
 type VesselRef = { name: string; vessel_type: string | null };
 type Row = {
@@ -298,12 +299,12 @@ export default function AgendaPanel({ vesselName, vesselType, yearBuilt, agendaN
   return (
     <div>
       <div className="flex flex-wrap items-center gap-2">
-        <button disabled={busy} onClick={() => save(false)} className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50">
+        <Button disabled={busy} onClick={() => save(false)}>
           Simpan agenda
-        </button>
-        <button disabled={busy} onClick={() => save(true)} className="rounded-lg bg-teal-600 px-4 py-2 text-sm font-semibold text-white hover:bg-teal-700 disabled:opacity-50">
+        </Button>
+        <Button disabled={busy} onClick={() => save(true)} variant="primary">
           Finish agenda
-        </button>
+        </Button>
         <span className="text-xs text-slate-500">Kapal: {vesselName || '—'} · No. Agenda: {agendaNo || '—'}</span>
       </div>
       {msg && <p className={'mt-2 text-sm ' + (msg.k === 'err' ? 'text-red-700' : 'text-emerald-700')}>{msg.t}</p>}
@@ -319,7 +320,7 @@ export default function AgendaPanel({ vesselName, vesselType, yearBuilt, agendaN
                 </span>
                 <span className="flex items-center gap-2">
                   <span className={'rounded-full px-2.5 py-0.5 text-xs font-bold ' + dueTone(info.days)}>{dueLabel(info.days)}</span>
-                  <button onClick={() => markReport(r)} className="rounded-md border border-slate-300 bg-white px-2.5 py-1 text-xs font-semibold hover:bg-slate-50">Laporan selesai</button>
+                  <Button onClick={() => markReport(r)} size="sm">Laporan selesai</Button>
                 </span>
               </li>
             ))}
@@ -337,7 +338,7 @@ export default function AgendaPanel({ vesselName, vesselType, yearBuilt, agendaN
                 <span className="min-w-0">
                   <span className="font-semibold">{vname(r)}</span> · {r.agenda_no} · kunjungan terakhir {dmy(r.inspection_completion)} ({ago} hari lalu)
                 </span>
-                <button onClick={() => openRow(r, false)} className="rounded-md border border-slate-300 bg-white px-2.5 py-1 text-xs font-semibold hover:bg-slate-50">Buka</button>
+                <Button onClick={() => openRow(r, false)} size="sm">Buka</Button>
               </li>
             ))}
           </ul>
@@ -382,9 +383,9 @@ export default function AgendaPanel({ vesselName, vesselType, yearBuilt, agendaN
                       </div>
                       <div className="flex items-center gap-2">
                         {r.status && <span className={'rounded-full px-2.5 py-0.5 text-xs font-semibold ' + (TONE[r.status] ?? 'bg-slate-100 text-slate-600')}>{r.status}</span>}
-                        <button onClick={() => openRow(r, r.finished)} className="rounded-md border border-slate-300 px-2.5 py-1 text-xs font-semibold hover:bg-slate-50">
+                        <Button onClick={() => openRow(r, r.finished)} size="sm">
                           Buka
-                        </button>
+                        </Button>
                         <button onClick={() => remove(r)} className="rounded-md px-2 py-1 text-xs font-semibold text-red-700 hover:bg-red-50">
                           Hapus
                         </button>
@@ -399,9 +400,9 @@ export default function AgendaPanel({ vesselName, vesselType, yearBuilt, agendaN
       )}
 
       <div className="mt-5 flex flex-wrap items-center gap-3 border-t border-slate-100 pt-3 print:hidden">
-        <button type="button" disabled={bkBusy} onClick={backup} className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50">
+        <Button type="button" disabled={bkBusy} onClick={backup} size="sm">
           {bkBusy ? 'Menyiapkan…' : 'Unduh cadangan data (JSON)'}
-        </button>
+        </Button>
         <span className="text-xs text-slate-600">Isi: kapal, agenda (beserta kunjungan), dan pembaruan manual. Simpan file ini di tempat aman, misalnya Google Drive.</span>
       </div>
       {bkMsg && <p className={'mt-1 text-xs ' + (bkMsg.k === 'err' ? 'text-red-700' : 'text-emerald-700')}>{bkMsg.t}</p>}

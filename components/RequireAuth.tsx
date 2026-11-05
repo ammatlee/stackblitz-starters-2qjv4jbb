@@ -5,6 +5,7 @@ import type { ReactNode } from 'react';
 import Link from 'next/link';
 import { useAuth } from './AuthProvider';
 
+import { Button } from './Controls';
 /** Membungkus halaman yang butuh login dan persetujuan admin. Tanpa konfigurasi Supabase, halaman tetap terbuka (mode demo). */
 export default function RequireAuth({ children }: { children: ReactNode }) {
   const { user, loading, configured, approved, signOut, recheck } = useAuth();
@@ -54,9 +55,9 @@ export default function RequireAuth({ children }: { children: ReactNode }) {
             <button onClick={() => recheck()} className="rounded-lg bg-amber-600 px-5 py-2 text-sm font-semibold text-white hover:bg-amber-700">
               Cek sekarang
             </button>
-            <button onClick={() => signOut()} className="rounded-lg border border-amber-400 px-5 py-2 text-sm font-semibold text-amber-950 hover:bg-amber-100">
+            <Button onClick={() => signOut()} variant="warn">
               Keluar
-            </button>
+            </Button>
           </div>
         </div>
       </div>

@@ -6,6 +6,7 @@ import type { DminCfg, ShaftKind, ShaftRow, ShaftSys, Status } from '../../lib/c
 import { num, cx } from '../../lib/classValidity/dateUtils';
 import type { PropulsiResult } from '../../lib/classValidity/propulsiCalc';
 
+import { Button, Notice, Chip } from '../Controls';
 type Pair = { o: string; a: string };
 
 export type PropulsiProps = {
@@ -65,14 +66,14 @@ export default function PropulsiModule(p: PropulsiProps) {
         </p>
       </Card>
 
-      <p className="rounded-xl bg-sky-50 p-3 text-xs text-sky-900">
+      <Notice tone="info" size="xs">
         {[
           showShaft ? 'clearance poros baling-baling' : '',
           showRudder ? 'rudder stock (neck & pintle)' : '',
           showDmin && propelled ? 'diameter minimum poros' : '',
           showAnchor ? 'berat jangkar dan diameter rantai jangkar' : '',
         ].filter(Boolean).join(' · ') || 'Tidak ada item yang diukur untuk survei dan jenis kapal ini'}
-      </p>
+      </Notice>
 
       {propelled && (
         <>
@@ -80,9 +81,9 @@ export default function PropulsiModule(p: PropulsiProps) {
           <Card title="Poros Baling-baling (Propeller Shaft Clearance)" sub="Pilih sistem pelumasan; hanya aturan yang sesuai yang dipakai.">
             <div className="flex flex-wrap gap-2">
               {SHAFT_SYS.map(([k, l]) => (
-                <button key={k} onClick={() => setShaftSys(k)} className={cx('rounded-full border px-3 py-1.5 text-xs font-semibold transition', shaftSys === k ? 'border-teal-600 bg-teal-600 text-white' : 'border-slate-300 bg-white text-slate-600 hover:border-teal-500')}>
+                <Chip key={k} onClick={() => setShaftSys(k)} selected={shaftSys === k}>
                   {l}
-                </button>
+                </Chip>
               ))}
             </div>
             {shaftSys !== 'fw' && (
@@ -95,7 +96,7 @@ export default function PropulsiModule(p: PropulsiProps) {
                 </Field>
               </div>
             )}
-            {shaftSys === 'oil' && <p className="mt-3 rounded-lg bg-amber-50 p-3 text-xs text-amber-900">Pengingat (oil lubricated, ITS Part A 1.10.2 iii): toleransi aus maksimum shaft liner adalah 25% dari tebal liner di area bearing dan 50% di area packing. Ukur dan catat pada laporan.</p>}
+            {shaftSys === 'oil' && <Notice tone="warn" size="xs" className="mt-3">Pengingat (oil lubricated, ITS Part A 1.10.2 iii): toleransi aus maksimum shaft liner adalah 25% dari tebal liner di area bearing dan 50% di area packing. Ukur dan catat pada laporan.</Notice>}
             {shaftSys === 'fw' && <p className="mt-3 rounded-lg bg-slate-50 p-3 text-xs text-slate-600">Closed loop fresh water: batas maksimum clearance mengikuti manual pabrikan (ITS Part A 1.10.3). Isi nilainya pada kolom di tiap poros.</p>}
 
             <div className="mt-4 grid gap-4 md:grid-cols-2">
@@ -139,9 +140,9 @@ export default function PropulsiModule(p: PropulsiProps) {
               ))}
             </div>
             {shafts.length < 4 && (
-              <button onClick={() => setShafts((rows) => [...rows, SHAFT0])} className="mt-3 rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-semibold hover:bg-slate-50">
+              <Button onClick={() => setShafts((rows) => [...rows, SHAFT0])} size="sm" className="mt-3">
                 + Tambah poros (mis. twin screw)
-              </button>
+              </Button>
             )}
           </Card>
           )}
@@ -221,9 +222,9 @@ export default function PropulsiModule(p: PropulsiProps) {
               <p className="mt-3 text-sm">Clearance akhir: <b>{S.wdFinal === null ? '—' : `${f2(S.wdFinal)} mm`}</b></p>
               <p className="mt-1 text-xs text-slate-600">Clearance akhir = actual clearance saat poros ditarik + selisih nilai wear-down (sekarang − saat itu).</p>
               {S.wdFinal !== null && (
-                <button onClick={() => setShaftRow(0, 'a', String(Math.round((S.wdFinal as number) * 10000) / 10000))} className="mt-2 rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-semibold hover:bg-slate-50">
+                <Button onClick={() => setShaftRow(0, 'a', String(Math.round((S.wdFinal as number) * 10000) / 10000))} size="sm" className="mt-2">
                   Pakai sebagai Actual pada Poros 1
-                </button>
+                </Button>
               )}
             </Card>
           )}

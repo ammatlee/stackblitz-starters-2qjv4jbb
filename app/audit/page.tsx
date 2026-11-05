@@ -6,6 +6,7 @@ import { useAuth } from '../../components/AuthProvider';
 import AuditView from '../../components/audit/AuditView';
 import type { AuditRow } from '../../lib/audit';
 
+import { Button } from '../../components/Controls';
 const PAGE = 100;
 
 export default function AuditPage() {
@@ -55,14 +56,14 @@ export default function AuditPage() {
         </div>
         <div className="flex gap-2">
           {vessel && (
-            <button onClick={() => setVessel('')} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50">
+            <Button onClick={() => setVessel('')} size="sm">
               Semua kapal
-            </button>
+            </Button>
           )}
           {supabase && (
-            <button onClick={load} disabled={busy} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50">
+            <Button onClick={load} disabled={busy} size="sm">
               {busy ? 'Memuat…' : 'Muat ulang'}
-            </button>
+            </Button>
           )}
         </div>
       </div>
@@ -78,9 +79,9 @@ export default function AuditPage() {
           <>
             <AuditView rows={rows} vesselFilterName={filterName} isAdmin={isAdmin} userId={user?.id} />
             {rows.length >= limit && (
-              <button onClick={() => setLimit(limit + PAGE)} disabled={busy} className="mt-4 w-full rounded-xl border border-slate-300 bg-white py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50">
+              <Button onClick={() => setLimit(limit + PAGE)} disabled={busy} className="mt-4 w-full">
                 Muat lebih banyak
-              </button>
+              </Button>
             )}
           </>
         )}

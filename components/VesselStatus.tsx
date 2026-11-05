@@ -16,6 +16,7 @@ import { plansQuery, withPlans, SHAFT_PLAN_OPTS, shaftPlanLabel } from '../lib/s
 import type { PlanRow } from '../lib/shaftPlans';
 import type { Baseline, Ev } from '../lib/surveyStatus';
 
+import { Button, Notice } from './Controls';
 type VesselRow = Baseline & { id: string; owner: string; version?: number; name: string; vessel_type: string | null; last_shaft: string | null; anchor_notation: boolean | null; propelled: boolean | null; shaft_system: string | null; prop_connection: string | null; open_config: string | null };
 type AgRow = { vessel_id: string; agenda_no: string; plan?: string | null; surveys: string[] | null; inspection_start: string | null; inspection_completion: string | null; scenario: string | null; finished_at: string | null };
 type EvRow = { id: string; vessel_id: string; surveys: string[] | null; completion: string; created_at: string; shaft_plan?: string | null };
@@ -330,11 +331,11 @@ export default function VesselStatus({ refreshKey, vesselName, onApply }: { refr
             ))}
           </select>
         </div>
-        <button onClick={() => openBaseline(true)} className="rounded-lg border border-slate-300 px-3 py-2 text-xs font-semibold hover:bg-slate-50">+ Kapal baru</button>
+        <Button onClick={() => openBaseline(true)} size="sm">+ Kapal baru</Button>
       </div>
       {sel && (
         <div className="mt-2 flex flex-wrap gap-2">
-          <button onClick={() => openBaseline(false)} className="rounded-lg border border-slate-300 px-3 py-2 text-xs font-semibold hover:bg-slate-50">Edit data kapal &amp; status awal</button>
+          <Button onClick={() => openBaseline(false)} size="sm">Edit data kapal &amp; status awal</Button>
           <a href={`/audit?vessel=${sel.id}`} className="rounded-lg border border-slate-300 px-3 py-2 text-xs font-semibold hover:bg-slate-50">Riwayat perubahan</a>
           <button onClick={() => { setPanel(panel === 'manual' ? 'none' : 'manual'); setMsg(null); }} className="rounded-lg bg-slate-900 px-3 py-2 text-xs font-semibold text-white hover:bg-slate-700">Update status (tanpa agenda)</button>
         </div>
@@ -419,7 +420,7 @@ export default function VesselStatus({ refreshKey, vesselName, onApply }: { refr
             {fld('Postponed s/d (opsional)', <DateInput className={inp} value={f.postponed} onChange={setD('postponed')} />)}
           </div>
           <div className="mt-4 flex gap-2">
-            <button disabled={busy} onClick={saveBaseline} className="rounded-lg bg-teal-600 px-4 py-2 text-sm font-semibold text-white hover:bg-teal-700 disabled:opacity-50">Simpan status awal</button>
+            <Button disabled={busy} onClick={saveBaseline} variant="primary">Simpan status awal</Button>
             <button onClick={() => setPanel('none')} className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold hover:bg-white">Batal</button>
           </div>
         </div>
@@ -457,7 +458,7 @@ export default function VesselStatus({ refreshKey, vesselName, onApply }: { refr
             </div>
           )}
           <div className="mt-4 flex gap-2">
-            <button disabled={busy} onClick={saveManual} className="rounded-lg bg-teal-600 px-4 py-2 text-sm font-semibold text-white hover:bg-teal-700 disabled:opacity-50">Simpan pembaruan</button>
+            <Button disabled={busy} onClick={saveManual} variant="primary">Simpan pembaruan</Button>
             <button onClick={() => setPanel('none')} className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold hover:bg-white">Tutup</button>
           </div>
           {selEvents.length > 0 && (
@@ -477,7 +478,7 @@ export default function VesselStatus({ refreshKey, vesselName, onApply }: { refr
       )}
 
       {sel && !result && panel === 'none' && (
-        <p className="mt-4 rounded-lg bg-amber-50 p-3 text-sm text-amber-900">Kapal ini belum punya status awal. Ketuk <b>Edit status awal</b> dan isi tanggal expiry sertifikat.</p>
+        <Notice tone="warn" className="mt-4">Kapal ini belum punya status awal. Ketuk <b>Edit status awal</b> dan isi tanggal expiry sertifikat.</Notice>
       )}
 
       {/* ---------- tabel Survey Status ---------- */}

@@ -10,6 +10,7 @@ import { fetchAllRows } from '../../lib/fetchAll';
 import type { PlanRow } from '../../lib/shaftPlans';
 import type { AgInput, EvInput, FleetItem, VesselInput } from '../../lib/fleet';
 
+import { Button } from '../../components/Controls';
 export default function FleetPage() {
   const { user, configured, isAdmin } = useAuth();
   const [items, setItems] = useState<FleetItem[] | null>(null);
@@ -52,9 +53,9 @@ export default function FleetPage() {
           <p className="mt-1 text-sm text-slate-600">Survei yang paling dekat jatuh tempo, diurutkan dari yang paling mendesak.</p>
         </div>
         {supabase && (
-          <button onClick={load} disabled={busy} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50">
+          <Button onClick={load} disabled={busy} size="sm">
             {busy ? 'Memuat…' : 'Muat ulang'}
-          </button>
+          </Button>
         )}
       </div>
       {at && <p className="mt-1 text-xs text-slate-400">Diperbarui pukul {at}</p>}

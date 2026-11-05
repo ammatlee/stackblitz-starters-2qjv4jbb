@@ -35,6 +35,7 @@ import type { MemoCtx, MemoState } from '../../lib/memo';
 import { Badge } from '../../components/classValidity/ui';
 import { useAuth } from '../../components/AuthProvider';
 
+import { Button } from '../../components/Controls';
 export default function Page() {
   const [tab, setTab] = useState<1 | 2 | 3 | 4 | 5>(1);
   // StatusModule memakai tipe tab lama (1 | 2 | 3)
@@ -393,8 +394,8 @@ export default function Page() {
               {' · '}{new Date(draftPrompt.savedAt).toLocaleString('id-ID', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
             </span>
             <span className="flex gap-2">
-              <button type="button" onClick={resumeDraft} className="rounded-lg bg-teal-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-teal-700">Lanjutkan</button>
-              <button type="button" onClick={dropDraft} className="rounded-lg border border-amber-400 bg-white px-3 py-1.5 text-xs font-semibold text-amber-900 hover:bg-amber-100">Buang</button>
+              <Button type="button" onClick={resumeDraft} variant="primary" size="sm">Lanjutkan</Button>
+              <Button type="button" onClick={dropDraft} variant="warn" size="sm">Buang</Button>
             </span>
           </div>
         </div>

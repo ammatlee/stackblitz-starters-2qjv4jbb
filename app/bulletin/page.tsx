@@ -10,6 +10,7 @@ import FileViewer from '../../components/FileViewer';
 import { legacyToHtml } from '../../lib/legacyBody';
 import { uploadAttachment, uploadImage, removeFiles, removeAttachments, attachmentUrl, pathsInHtml, fmtSize, MAX_MB, type Attachment } from '../../lib/uploads';
 
+import { Button, Notice } from '../../components/Controls';
 type Visibility = 'private' | 'members' | 'public';
 type Status = 'pending' | 'approved' | 'rejected';
 type Entry = {
@@ -446,15 +447,15 @@ export default function BulletinPage() {
               </label>
             )}
             {!isAdmin && (
-              <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-900">
+              <Notice tone="warn" size="xs">
                 Entri ini akan tampil untuk umum setelah disetujui admin.{cur && cur.status === 'approved' ? ' Perubahan akan dikirim ulang untuk persetujuan, dan entri disembunyikan sampai disetujui.' : ''}
-              </p>
+              </Notice>
             )}
           </div>
           {msg && <p className={'mt-3 text-sm ' + (msg.k === 'err' ? 'text-red-700' : 'text-emerald-700')}>{msg.t}</p>}
-          <button disabled={busy} onClick={save} className="mt-4 w-full rounded-lg bg-teal-600 py-2.5 text-sm font-semibold text-white hover:bg-teal-700 disabled:opacity-50">
+          <Button disabled={busy} onClick={save} variant="primary" className="mt-4 w-full">
             {busy ? 'Menyimpan…' : 'Simpan'}
-          </button>
+          </Button>
         </div>
       </main>
     );
@@ -479,7 +480,7 @@ export default function BulletinPage() {
           </div>
           <h1 className="mt-3 text-xl font-extrabold tracking-tight">{cur.title}</h1>
           <p className="mt-1 text-xs text-slate-500">Diperbarui {dmy(cur.updated_at)}</p>
-          {cur.summary && <p className="mt-3 rounded-lg bg-teal-50 px-3 py-2 text-sm text-teal-900">{cur.summary}</p>}
+          {cur.summary && <Notice tone="success" className="mt-3">{cur.summary}</Notice>}
           {cur.status === 'rejected' && cur.review_note && <p className="mt-2 rounded-lg bg-rose-50 px-3 py-2 text-xs text-rose-800">Alasan penolakan: {cur.review_note}</p>}
           <div className="mt-4">{cur.body_html ? <RichView html={cur.body_html} /> : <Body text={cur.body} />}</div>
           {(cur.attachments ?? []).length > 0 && (
@@ -506,9 +507,9 @@ export default function BulletinPage() {
           )}
           {user && (isAdmin || (canWrite && cur.owner === user.id)) && (
             <div className="mt-5 flex flex-wrap gap-2">
-              {isAdmin && cur.status !== 'approved' && <button onClick={() => review(cur, 'approved')} className="rounded-lg bg-teal-600 px-4 py-2 text-sm font-semibold text-white hover:bg-teal-700">Setujui</button>}
+              {isAdmin && cur.status !== 'approved' && <Button onClick={() => review(cur, 'approved')} variant="primary">Setujui</Button>}
               {isAdmin && cur.status === 'pending' && <button onClick={() => review(cur, 'rejected')} className="rounded-lg border border-rose-300 px-4 py-2 text-sm font-semibold text-rose-700 hover:bg-rose-50">Tolak</button>}
-              <button onClick={() => openEdit(cur)} className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold hover:bg-slate-50">Ubah</button>
+              <Button onClick={() => openEdit(cur)}>Ubah</Button>
               <button onClick={() => remove(cur)} className="rounded-lg px-4 py-2 text-sm font-semibold text-red-700 hover:bg-red-50">Hapus</button>
             </div>
           )}
@@ -521,7 +522,7 @@ export default function BulletinPage() {
     <main className="mx-auto max-w-3xl px-4 py-6">
       <div className="flex items-center justify-between gap-2">
         <h1 className="text-2xl font-extrabold tracking-tight text-slate-900">Bulletin</h1>
-        {canWrite && <button onClick={openNew} className="rounded-lg bg-teal-600 px-4 py-2 text-sm font-semibold text-white hover:bg-teal-700">+ Tulis baru</button>}
+        {canWrite && <Button onClick={openNew} variant="primary">+ Tulis baru</Button>}
       </div>
       <p className="mt-1 text-sm text-slate-600">Catatan, materi, dan pengingat.{!user && ' Masuk untuk melihat entri anggota.'}</p>
       {msg && <p className={'mt-2 text-sm ' + (msg.k === 'err' ? 'text-red-700' : 'text-emerald-700')}>{msg.t}</p>}
