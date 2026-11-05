@@ -80,7 +80,7 @@ export function buildMemo(c: MemoCtx): MemoSection[] {
   const sections: MemoSection[] = [];
   const rnEff = Math.min(c.rnNo ?? 4, 4);
   const rnLabel = roman(c.rnNo ?? 4);
-  const T = renewalTables(rnEff, c.age, c.vType);
+  const T = renewalTables(rnEff, c.age, c.vType, c.propelled);
   const bottom = c.renewal || c.docking;
   const hull: MemoItem[] = [];
   const mach: MemoItem[] = [];
@@ -169,8 +169,8 @@ export function buildMemo(c: MemoCtx): MemoSection[] {
 
   /* ---------------- INSTALASI MESIN DAN LISTRIK ---------------- */
   if (c.renewal) {
-    mach.push({ id: 'm-open', text: 'Mesin induk, mesin bantu dan seluruh pompa-pompa (OWS, bilga, balas, GS dan lain-lain) agar dibuka lengkap dan diperiksa oleh BKI Class.' });
-    mach.push({ id: 'm-crank', text: 'Agar dilaksanakan pengukuran crankweb deflection untuk M/E dan A/E yang memiliki crankcase door setelah kapal turun dok dan dibuatkan laporan.' });
+    mach.push({ id: 'm-open', text: `${c.propelled ? 'Mesin induk, mesin bantu' : 'Mesin bantu (bila ada)'} dan seluruh pompa-pompa (OWS, bilga, balas, GS dan lain-lain) agar dibuka lengkap dan diperiksa oleh BKI Class.` });
+    if (c.propelled) mach.push({ id: 'm-crank', text: 'Agar dilaksanakan pengukuran crankweb deflection untuk M/E dan A/E yang memiliki crankcase door setelah kapal turun dok dan dibuatkan laporan.' });
     mach.push({ id: 'm-megger', text: 'Agar dilaksanakan pengukuran tahanan isolasi seluruh generator, electromotor, panel listrik dan MSB dan dibuatkan laporan.' });
   }
   const showShaftClear = c.propelled && (c.renewal || c.docking || c.shaft);
@@ -201,7 +201,7 @@ export function buildMemo(c: MemoCtx): MemoSection[] {
       mach.push({ id: 'm-draw', text: 'Poros baling-baling (ki/ka) agar dicabut dan dilaksanakan pengujian tak merusak (NDT) di area tirus dan rumah pasak dan dibuatkan laporan.' });
       mach.push({ id: 'm-prop', text: 'Baling-baling (ki/ka) agar dilaksanakan pengujian tak merusak (NDT) di area pangkal dan ujung daun serta dilaksanakan balancing test dan dibuatkan laporan.' });
     }
-  } else if (c.renewal || c.docking) {
+  } else if ((c.renewal || c.docking) && c.propelled) {
     mach.push({ id: 'm-stern', text: 'Baling-baling dan stern bush agar diperiksa; clearance stern bush dan efisiensi oil gland agar diukur dan dicatat.' });
   }
   if (c.renewal || c.docking) {
@@ -213,7 +213,7 @@ export function buildMemo(c: MemoCtx): MemoSection[] {
     mach.push({ id: 'm-drip', text: 'Got-got tumpahan minyak dan air pada engine room dan steering gear room agar dibersihkan.' });
     mach.push({ id: 'm-fire', text: 'Fire detection, fire alarm dan fire water hydrant agar dipastikan berfungsi untuk diuji fungsi saat final survei.' });
   }
-  if (c.renewal || c.docking || c.shaft) mach.push({ id: 'm-trial', text: 'Setelah turun dok agar dilaksanakan sea trial dan disaksikan BKI Class.' });
+  if ((c.renewal || c.docking || c.shaft) && c.propelled) mach.push({ id: 'm-trial', text: 'Setelah turun dok agar dilaksanakan sea trial dan disaksikan BKI Class.' });
   mach.push({ id: 'm-rec', text: 'Rekomendasi tambahan (jika ada) akan diberikan pada kesempatan pertama setelah dilaksanakan pemeriksaan di kapal.' });
   if (mach.length > 1 || hull.length === 0) sections.push({ id: 'mach', title: 'INSTALASI MESIN DAN LISTRIK', items: mach });
 
@@ -221,8 +221,8 @@ export function buildMemo(c: MemoCtx): MemoSection[] {
   const docs: MemoItem[] = [{ id: 'd-cert', text: 'Sertifikat BKI Lama' }];
   if (bottom) docs.push({ id: 'd-dock', text: 'Laporan Dok' });
   if (c.renewal) docs.push({ id: 'd-utm', text: 'Laporan UTM' });
-  if (c.shaft || c.renewal) docs.push({ id: 'd-ndt', text: 'Laporan NDT Poros Baling-Baling (ka/ki)' });
-  if (c.renewal) docs.push({ id: 'd-megger', text: 'Laporan Megger Test' }, { id: 'd-crank', text: 'Laporan Crankshaft Deflection' }, { id: 'd-laut', text: 'Surat Laut' }, { id: 'd-ukur', text: 'Surat Ukur' }, { id: 'd-plate', text: 'Sertifikat Pelat Pengganti (jika dilaksanakan replating)' });
+  if (c.shaft || (c.renewal && c.propelled)) docs.push({ id: 'd-ndt', text: 'Laporan NDT Poros Baling-Baling (ka/ki)' });
+  if (c.renewal) docs.push({ id: 'd-megger', text: 'Laporan Megger Test' }, ...(c.propelled ? [{ id: 'd-crank', text: 'Laporan Crankshaft Deflection' }] : []), { id: 'd-laut', text: 'Surat Laut' }, { id: 'd-ukur', text: 'Surat Ukur' }, { id: 'd-plate', text: 'Sertifikat Pelat Pengganti (jika dilaksanakan replating)' });
   if (c.shaft) {
     const sv = shaftView(c.shaftSys, c.propConn, c.openCfg, c.shaftPlan);
     sv.prereq.forEach((s) => docs.push({ id: `d-pre-${s.k}`, text: s.t }));

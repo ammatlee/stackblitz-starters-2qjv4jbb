@@ -56,14 +56,15 @@ export type StatusProps = {
   setRecDone: Dispatch<SetStateAction<string>>;
   recAssess: string;
   setRecAssess: Dispatch<SetStateAction<string>>;
-  shaftSys: ShaftSys;
+  shaftSys?: ShaftSys;
+  shaftMaster?: { shaft_system: string | null; prop_connection: string | null; open_config: string | null } | null;
   statusInfo: NonNullable<ApplyValues['info']> | null;
   setTab: Dispatch<SetStateAction<1 | 2 | 3>>;
 };
 
 /** MODUL 1 — Class Status: data kapal, survei yang dikerjakan, hasil validitas, window survei, dan agenda. */
 export default function StatusModule(p: StatusProps) {
-  const { A, agenda, setAgenda, agendaSummary, snapshot, restoreAgenda, applyVessel, changeName, clearAll, chipVisible, refreshKey, setRefreshKey, name, vType, setVType, yearBuilt, setYearBuilt, expiry, setExpiry, setAnnivD, setAnnivM, extension, setExtension, startDate, setStartDate, compDate, setCompDate, sel, setSel, notation, setNotation, propelled, propelledFlag, setPropelledFlag, lastNo, setLastNo, recDue, setRecDue, recDone, setRecDone, recAssess, setRecAssess, shaftSys, statusInfo, setTab } = p;
+  const { A, agenda, setAgenda, agendaSummary, snapshot, restoreAgenda, applyVessel, changeName, clearAll, chipVisible, refreshKey, setRefreshKey, name, vType, setVType, yearBuilt, setYearBuilt, expiry, setExpiry, setAnnivD, setAnnivM, extension, setExtension, startDate, setStartDate, compDate, setCompDate, sel, setSel, notation, setNotation, propelled, propelledFlag, setPropelledFlag, lastNo, setLastNo, recDue, setRecDue, recDone, setRecDone, recAssess, setRecAssess, shaftMaster, statusInfo, setTab } = p;
   // data induk kapal (jenis, tahun, expiry, anniversary, renewal ke-) terisi otomatis dari database: lipat bila kapal sudah dimuat
   const loaded = statusInfo !== null;
   const [masterOpen, setMasterOpen] = useState(!loaded);
@@ -134,7 +135,7 @@ export default function StatusModule(p: StatusProps) {
           onSaved={() => setRefreshKey((k) => k + 1)}
           anchorNotation={notation}
           propelled={propelledFlag}
-          shaftSystem={shaftSys}
+          shaftMaster={shaftMaster}
           onClear={clearAll}
         />
       </Fold>

@@ -1,7 +1,7 @@
 import React from 'react';
 import type { Dispatch, SetStateAction } from 'react';
 import { Card, Fold, Progress, CheckRow } from '../../components/classValidity/ui';
-import { ANNUAL, INTERMEDIATE, RENEWAL, DOCKING, MACHINERY, METHOD, applicability, renewalTables, SHAFT_SYS } from '../../lib/classValidity/surveyRules';
+import { ANNUAL, INTERMEDIATE, RENEWAL, DOCKING, MACHINERY, METHOD, applicability, renewalTables, SHAFT_SYS, NA_UNPROPELLED } from '../../lib/classValidity/surveyRules';
 import { fmt, cx } from '../../lib/classValidity/dateUtils';
 import { PLANS, CONN_LABEL, OPEN_CFG_LABEL, extensionRules, shaftView } from '../../lib/shaftRules';
 import { CARGO_SYSTEM_TYPES } from '../../lib/vesselTypes';
@@ -23,6 +23,7 @@ export type ScopeProps = {
   extension: string;
   yearBuilt: string;
   lastNo: number | null;
+  propelled?: boolean;
   shaftSys: ShaftSys;
   setShaftSys: Dispatch<SetStateAction<ShaftSys>>;
   shaftPlan: PlanKey | '';
@@ -37,8 +38,9 @@ export type ScopeProps = {
 export default function ScopeModule(p: ScopeProps) {
   const { A, checks, setCheck, setChecks, name, vType, sel, expiry, extension, yearBuilt, lastNo, shaftSys, setShaftSys, shaftPlan, setShaftPlan, propConn, setPropConn, openCfg, setOpenCfg } = p;
   const age = A.age;
+  const propelled = p.propelled !== false; // kapal tanpa penggerak: item kemudi, propeller, dan mesin penggerak disembunyikan
   const rn = A.rn ?? 4;
-  const t = renewalTables(Math.min(rn, 4), age, vType); // tabel scope: IV dan seterusnya memakai aturan yang sama
+  const t = renewalTables(Math.min(rn, 4), age, vType, propelled); // tabel scope: IV dan seterusnya memakai aturan yang sama
   const val = (id: string) => checks[id] ?? 'NOT CHECKED';
   const prog = (ids: string[]) => ({ total: ids.length, done: ids.filter((i) => val(i) !== 'NOT CHECKED').length, def: ids.filter((i) => val(i) === 'DEFICIENCY').length });
   const P = ({ ids }: { ids: string[] }) => {
@@ -49,7 +51,7 @@ export default function ScopeModule(p: ScopeProps) {
   
   const checklist = (id: string, items: Item[]) => {
     const all = items.map((it, i) => ({ it, id: `${id}-${i}`, ap: applicability(it.a, it.g, vType, age) }));
-    const rows = all.filter((r) => r.ap !== 'N/A');
+    const rows = all.filter((r) => r.ap !== 'N/A' && (propelled || !NA_UNPROPELLED.includes(r.it.s)));
     return { rows, ids: rows.map((r) => r.id), hidden: all.length - rows.length };
   };
   const listOf = (rows: { it: Item; id: string; ap: string }[]) => (
@@ -76,7 +78,7 @@ export default function ScopeModule(p: ScopeProps) {
   const tank = tableList(t.tanks);
   const ut = tableList(t.ut);
   const air = tableList(t.air);
-  const mach = MACHINERY.map((m, i) => ({ m, id: `M-${i}` })).filter((r) => r.m[3] !== 'N/A' || CARGO_SYSTEM_TYPES.includes(vType));
+  const mach = MACHINERY.map((m, i) => ({ m, id: `M-${i}` })).filter((r) => r.m[3] !== 'N/A' || CARGO_SYSTEM_TYPES.includes(vType)).filter((r) => propelled || r.m[0] !== 'Propulsion');
   const systems = Array.from(new Set(mach.map((r) => r.m[0])));
   const nothing = !Object.values(A.active).some(Boolean);
   // judul "Annual" hanya dipakai bila Annual memang dipilih atau pada kasus khusus (reinstatement A/C/D)

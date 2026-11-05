@@ -174,15 +174,17 @@ export type TRow = { id: string; cat: string; item: string; scope: string; note:
 /** Jenis kapal dengan hatch cover & coaming palka kargo (UT wajib mulai Renewal III). Tanker/gas carrier tidak masuk: tidak punya palka kargo. */
 export const HATCH_TYPES = ['General Cargo', 'Bulk Carrier', 'Container Ship'];
 const NO_CARGO_FO = ['Tugboat', 'Anchor Handling Tug', 'Pontoon', 'Oil Barge'];
-export function renewalTables(rnIn: number, age: number | null, vt?: string) {
+/** Item checklist yang tidak berlaku untuk kapal tanpa penggerak (tongkang, ponton). */
+export const NA_UNPROPELLED = ['Steering & Communications', 'Machinery Control & Ventilation', 'Rudder & Steering Parts', 'Propeller & Stern Bush', 'Side Thrusters / Other Propulsors'];
+export function renewalTables(rnIn: number, age: number | null, vt?: string, propelled = true) {
   const rn = Math.min(rnIn, 4); // Renewal IV dan seterusnya memakai aturan yang sama (tabel hanya sampai IV)
   const none = 'NONE';
   const tanks: TRow[] = [
     { id: 'T1', cat: 'Internal', item: 'Ballast-water, Forepeak & Afterpeak Tanks', scope: 'ALL', note: 'Berlaku di setiap Renewal.' },
-    { id: 'T2', cat: 'Internal', item: 'FO Tank di Engine Room', scope: rn <= 2 ? none : 'ONE', note: 'Renewal I–II: tidak ada; III & IV+: satu tangki.' },
+    { id: 'T2', cat: 'Internal', item: 'FO Tank di Engine Room', scope: !propelled ? 'N/A' : rn <= 2 ? none : 'ONE', note: 'Renewal I–II: tidak ada; III & IV+: satu tangki. Kapal tanpa penggerak tidak punya engine room.' },
     {
       id: 'T3', cat: 'Internal', item: 'FO Tank di Cargo Length Area',
-      scope: !vt || NO_CARGO_FO.includes(vt) ? 'N/A' : rn === 1 ? none : rn === 2 ? 'ONE' : rn === 3 ? 'TWO' : 'HALF, MIN. 2',
+      scope: !propelled || !vt || NO_CARGO_FO.includes(vt) ? 'N/A' : rn === 1 ? none : rn === 2 ? 'ONE' : rn === 3 ? 'TWO' : 'HALF, MIN. 2',
       note: 'I: tidak ada; II: satu; III: dua; IV+: setengah, minimum 2 (bila ada tangki FO di area ini).' + (rn >= 3 ? ' Termasuk satu deep tank FO bila ada (catatan 4).' : ''),
     },
     { id: 'T4', cat: 'Internal', item: 'FO Tank Tambahan di luar Engine Room', scope: rn === 1 ? none : rn <= 3 ? 'ONE' : 'TWO', note: 'Hanya bila tidak ada tangki FO di Cargo Length Area. I: tidak ada; II–III: satu; IV+: dua.' },

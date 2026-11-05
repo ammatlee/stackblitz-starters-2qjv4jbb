@@ -11,7 +11,7 @@
  */
 
 import { useEffect, useMemo, useState } from 'react';
-import type { SetStateAction } from 'react';
+import type { Dispatch, SetStateAction } from 'react';
 import { isNonPropelled } from '../../lib/vesselTypes';
 import type { ApplyValues } from '../../components/VesselStatus';
 
@@ -89,6 +89,12 @@ export default function Page() {
   const [anchor, setAnchor] = useState({ o: '', a: '' });
   const [chain, setChain] = useState({ o: '', a: '' });
   const [rudder, setRudder] = useState([{ d: '', a: '' }, { d: '', a: '' }]);
+  // pengaturan poros (sistem, sambungan, konfigurasi) adalah data kapal: hanya ditulis ke database bila pengguna mengubahnya di Scope/Propulsi
+  const [shaftDirty, setShaftDirty] = useState(false);
+  const touched = <T,>(set: Dispatch<SetStateAction<T>>): Dispatch<SetStateAction<T>> => (v) => {
+    set(v);
+    setShaftDirty(true);
+  };
   // kapal berpenggerak: otomatis dari jenis kapal (pontoon, barge, crane barge = tanpa penggerak), bisa dikoreksi per kapal
   const propelled = propelledFlag ?? !isNonPropelled(vType);
 
@@ -147,10 +153,7 @@ export default function Page() {
     if (typeof d.recDone === 'string') setRecDone(d.recDone);
     if (typeof d.recAssess === 'string') setRecAssess(d.recAssess);
     if (d.checks && typeof d.checks === 'object') setChecks(d.checks as Record<string, string>);
-    if (d.shaftSys === 'open' || d.shaftSys === 'oil' || d.shaftSys === 'fw') setShaftSys(d.shaftSys);
     if (d.shaftCond === 'new' || d.shaftCond === 'max') setShaftCond(d.shaftCond);
-    if (d.propConn === 'flanged' || d.propConn === 'keyless' || d.propConn === 'keyed') setPropConn(d.propConn);
-    if (d.openCfg === 'five' || d.openCfg === 'three') setOpenCfg(d.openCfg);
     if (typeof d.shaftPlan === 'string') setShaftPlan(d.shaftPlan as PlanKey | '');
     if (Array.isArray(d.shafts) && d.shafts.length > 0) setShafts((d.shafts as Partial<ShaftRow>[]).map((x) => ({ ...SHAFT0, ...x })));
     if (d.dmin && typeof d.dmin === 'object') setDmin({ ...DMIN0, ...(d.dmin as Partial<DminCfg>) });
@@ -217,6 +220,11 @@ export default function Page() {
     if (!draftPrompt) return;
     const d = draftPrompt.data;
     restoreAgenda(d);
+    // draf belum tersimpan: pengaturan poros ikut dipulihkan (agenda tersimpan memakai data kapal dari database)
+    if (d.shaftSys === 'open' || d.shaftSys === 'oil' || d.shaftSys === 'fw') setShaftSys(d.shaftSys);
+    if (d.propConn === 'flanged' || d.propConn === 'keyless' || d.propConn === 'keyed') setPropConn(d.propConn);
+    if (d.openCfg === 'five' || d.openCfg === 'three') setOpenCfg(d.openCfg);
+    setShaftDirty(true);
     const m = (d.master && typeof d.master === 'object' ? d.master : {}) as Record<string, unknown>;
     if (typeof m.vType === 'string') setVType(m.vType as VType);
     if (typeof m.yearBuilt === 'string') setYearBuilt(m.yearBuilt);
@@ -249,6 +257,7 @@ export default function Page() {
     setOpenCfg(v.openConfig === 'five' || v.openConfig === 'three' ? v.openConfig : '');
     setStatusInfo(v.info ?? null);
     setStatusName(v.name);
+    setShaftDirty(false);
   };
 
   // isian PER AGENDA (dikosongkan setelah agenda tersimpan / di-Finish dan saat berganti kapal)
@@ -270,6 +279,7 @@ export default function Page() {
   const clearMaster = () => {
     setVType(''); setYearBuilt(''); setExpiry(''); setAnnivD(null); setAnnivM(null); setLastNo(null);
     setNotation(false); setPropelledFlag(null); setShaftSys('open'); setPropConn(''); setOpenCfg(''); setStatusInfo(null); setStatusName('');
+    setShaftDirty(false);
   };
   // berganti ke kapal lain: isian agenda dan data kapal sebelumnya dikosongkan; data kapal baru dimuat otomatis bila ada di database
   const changeName = (n: string) => {
@@ -404,22 +414,22 @@ export default function Page() {
       <main className="mx-auto max-w-5xl space-y-4 px-3 py-5 sm:px-4">
         {shownTab === 1 && (
           <StatusModule
-            A={A} agenda={agenda} setAgenda={setAgenda} agendaSummary={agendaSummary} snapshot={snapshot} restoreAgenda={restoreAgenda} applyVessel={applyVessel} changeName={changeName} clearAll={clearAll} chipVisible={chipVisible} refreshKey={refreshKey} setRefreshKey={setRefreshKey} name={name} vType={vType} setVType={setVType} yearBuilt={yearBuilt} setYearBuilt={setYearBuilt} expiry={expiry} setExpiry={setExpiry} setAnnivD={setAnnivD} setAnnivM={setAnnivM} extension={extension} setExtension={setExtension} startDate={startDate} setStartDate={setStartDate} compDate={compDate} setCompDate={setCompDate} sel={sel} setSel={setSel} notation={notation} setNotation={setNotation} propelled={propelled} propelledFlag={propelledFlag} setPropelledFlag={setPropelledFlag} lastNo={lastNo} setLastNo={setLastNo} recDue={recDue} setRecDue={setRecDue} recDone={recDone} setRecDone={setRecDone} recAssess={recAssess} setRecAssess={setRecAssess} shaftSys={shaftSys} statusInfo={statusInfo} setTab={goTab}
+            A={A} agenda={agenda} setAgenda={setAgenda} agendaSummary={agendaSummary} snapshot={snapshot} restoreAgenda={restoreAgenda} applyVessel={applyVessel} changeName={changeName} clearAll={clearAll} chipVisible={chipVisible} refreshKey={refreshKey} setRefreshKey={setRefreshKey} name={name} vType={vType} setVType={setVType} yearBuilt={yearBuilt} setYearBuilt={setYearBuilt} expiry={expiry} setExpiry={setExpiry} setAnnivD={setAnnivD} setAnnivM={setAnnivM} extension={extension} setExtension={setExtension} startDate={startDate} setStartDate={setStartDate} compDate={compDate} setCompDate={setCompDate} sel={sel} setSel={setSel} notation={notation} setNotation={setNotation} propelled={propelled} propelledFlag={propelledFlag} setPropelledFlag={setPropelledFlag} lastNo={lastNo} setLastNo={setLastNo} recDue={recDue} setRecDue={setRecDue} recDone={recDone} setRecDone={setRecDone} recAssess={recAssess} setRecAssess={setRecAssess} shaftMaster={shaftDirty ? { shaft_system: shaftSys, prop_connection: propConn || null, open_config: shaftSys === 'open' ? openCfg || null : null } : null} statusInfo={statusInfo} setTab={goTab}
           />
         )}
         {shownTab === 2 && (
           <ScopeModule
-            A={A} checks={checks} setCheck={setCheck} setChecks={setChecks} name={name} vType={vType} sel={sel}
+            A={A} checks={checks} setCheck={setCheck} setChecks={setChecks} name={name} vType={vType} sel={sel} propelled={propelled}
             expiry={expiry} extension={extension} yearBuilt={yearBuilt} lastNo={lastNo}
-            shaftSys={shaftSys} setShaftSys={setShaftSys} shaftPlan={shaftPlan} setShaftPlan={setShaftPlan}
-            propConn={propConn} setPropConn={setPropConn} openCfg={openCfg} setOpenCfg={setOpenCfg}
+            shaftSys={shaftSys} setShaftSys={touched(setShaftSys)} shaftPlan={shaftPlan} setShaftPlan={setShaftPlan}
+            propConn={propConn} setPropConn={touched(setPropConn)} openCfg={openCfg} setOpenCfg={touched(setOpenCfg)}
           />
         )}
         {shownTab === 3 && (
           <PropulsiModule
             S={S} dimActive={dimActive} propelled={propelled} propelledFlag={propelledFlag} vType={vType}
             showShaft={showShaft} showRudder={showRudder} showDmin={showDmin} showAnchor={showAnchor} showClear={showClear}
-            shaftSys={shaftSys} setShaftSys={setShaftSys} shaftCond={shaftCond} setShaftCond={setShaftCond}
+            shaftSys={shaftSys} setShaftSys={touched(setShaftSys)} shaftCond={shaftCond} setShaftCond={setShaftCond}
             shafts={shafts} setShafts={setShafts} dmin={dmin} setDmin={setDmin} wd={wd} setWd={setWd}
             anchor={anchor} setAnchor={setAnchor} chain={chain} setChain={setChain} rudder={rudder} setRudder={setRudder}
           />

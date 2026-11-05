@@ -30,4 +30,11 @@ export const HOLD_TYPES = ['General Cargo', 'Bulk Carrier', 'Container Ship', 'O
 export const CARGO_SYSTEM_TYPES = ['Oil Tanker', 'Chemical Tanker', 'Gas Carrier'];
 /** Kapal tanpa penggerak sendiri: tidak memiliki Propeller Shaft Survey. Jenis buatan sendiri yang memuat kata barge/pontoon/tongkang dianggap tanpa penggerak. */
 export const NON_PROPELLED = ['Pontoon', 'Barge', 'Crane Barge', 'Oil Barge', 'Accommodation Barge'];
-export const isNonPropelled = (t: string | null | undefined) => !!t && (NON_PROPELLED.includes(t) || /barge|pontoon|tongkang/i.test(t));
+export const isNonPropelled = (t: string | null | undefined): boolean => {
+  if (!t) return false;
+  if (NON_PROPELLED.includes(t)) return true;
+  if (/(non|un|not)[\s-]?(self[\s-]?)?propelled|tanpa penggerak|dumb/i.test(t)) return true;
+  // jenis buatan sendiri yang jelas bermesin (mis. "Self Propelled Barge", "Motor Barge") tidak dianggap tanpa penggerak
+  if (/self[\s-]?propelled|\bspob\b|\bsplb\b|bermesin|motor barge/i.test(t)) return false;
+  return /barge|pontoon|tongkang/i.test(t);
+};

@@ -41,7 +41,7 @@ type Props = {
   onSaved?: () => void;
   anchorNotation?: boolean;
   propelled?: boolean | null;
-  shaftSystem?: string;
+  shaftMaster?: { shaft_system: string | null; prop_connection: string | null; open_config: string | null } | null; // hanya diisi bila pengguna mengubah pengaturan poros; null = jangan timpa data kapal
   onClear?: () => void; // dipanggil setelah agenda tersimpan: form dikosongkan
 };
 
@@ -66,7 +66,7 @@ const daysSince = (iso: string) => {
   return Math.round((new Date(n.getFullYear(), n.getMonth(), n.getDate()).getTime() - new Date(y, m - 1, d).getTime()) / 86400000);
 };
 
-export default function AgendaPanel({ vesselName, vesselType, yearBuilt, agendaNo, start, completion, snapshot, summary, onRestore, onSaved, anchorNotation, propelled, shaftSystem, onClear }: Props) {
+export default function AgendaPanel({ vesselName, vesselType, yearBuilt, agendaNo, start, completion, snapshot, summary, onRestore, onSaved, anchorNotation, propelled, shaftMaster, onClear }: Props) {
   const { user, configured, loading, isAdmin } = useAuth();
   const { confirm } = useDialog();
   const [rows, setRows] = useState<Row[]>([]);
@@ -130,7 +130,7 @@ export default function AgendaPanel({ vesselName, vesselType, yearBuilt, agendaN
     setBusy(true);
     setMsg(null);
     const yb = parseInt(yearBuilt, 10);
-    const vinfo = { vessel_type: vesselType || null, year_built: Number.isFinite(yb) ? yb : null, anchor_notation: anchorNotation ?? false, propelled: propelled ?? null, shaft_system: shaftSystem || null };
+    const vinfo = { vessel_type: vesselType || null, year_built: Number.isFinite(yb) ? yb : null, anchor_notation: anchorNotation ?? false, propelled: propelled ?? null, ...(shaftMaster ?? {}) };
 
     // admin boleh menyimpan di kapal milik anggota; akun biasa hanya di kapalnya sendiri
     let vq = supabase.from('vessels').select('id,owner').eq('name', name);
