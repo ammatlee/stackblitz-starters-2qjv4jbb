@@ -1,8 +1,9 @@
 'use client';
 
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { downloadBackup } from '../lib/backup';
+import { parseBackup, planRestore, runRestore, RESTORE_TABLES, TABLE_LABEL } from '../lib/restore';
 import { updateWithVersion } from '../lib/optimisticLock';
 import type { LockClient } from '../lib/optimisticLock';
 import { useAuth } from './AuthProvider';
@@ -76,6 +77,9 @@ export default function AgendaPanel({ vesselName, vesselType, yearBuilt, agendaN
   const [msg, setMsg] = useState<{ k: 'err' | 'ok'; t: string } | null>(null);
   const [bkBusy, setBkBusy] = useState(false);
   const [bkMsg, setBkMsg] = useState<{ k: 'err' | 'ok'; t: string } | null>(null);
+  const [rsBusy, setRsBusy] = useState(false);
+  const [rsMsg, setRsMsg] = useState<{ k: 'err' | 'ok'; t: string } | null>(null);
+  const rsFile = useRef<HTMLInputElement>(null);
   // agenda yang sedang dilanjutkan dari riwayat (tombol Buka): disimpan versinya untuk mendeteksi perubahan orang lain
   const [opened, setOpened] = useState<{ id: string; agendaNo: string; version: number } | null>(null);
   const openRow = (r: Row, finished: boolean) => {
@@ -220,6 +224,50 @@ export default function AgendaPanel({ vesselName, vesselType, yearBuilt, agendaN
       setBkMsg({ k: 'err', t: e instanceof Error ? e.message : 'Gagal membuat cadangan.' });
     }
     setBkBusy(false);
+  };
+
+  // Pulihkan dari file cadangan: hanya menambah data yang belum ada, tidak menimpa (lihat lib/restore.ts).
+  const restoreBackup = async (file: File | undefined) => {
+    if (!file || !user) return;
+    setRsBusy(true);
+    setRsMsg(null);
+    try {
+      const b = parseBackup(await file.text());
+      const plan = await planRestore(b, user.id);
+      const sum = (o: Record<string, number>) => RESTORE_TABLES.reduce((n, t) => n + o[t], 0);
+      const toAdd = RESTORE_TABLES.reduce((n, t) => n + plan.toAdd[t].length, 0);
+      const skip = [
+        sum(plan.exists) ? `${sum(plan.exists)} sudah ada di server` : '',
+        sum(plan.notMine) ? `${sum(plan.notMine)} milik akun lain` : '',
+        plan.conflict ? `${plan.conflict} agenda bentrok nomor` : '',
+      ].filter(Boolean).join(', ');
+      if (toAdd === 0) {
+        setRsMsg({ k: 'ok', t: 'Tidak ada yang perlu dipulihkan: semua data di file ini sudah ada di server' + (skip ? ` (${skip}).` : '.') });
+      } else {
+        const list = RESTORE_TABLES.map((t) => `${plan.toAdd[t].length} ${TABLE_LABEL[t]}`).join(', ');
+        const yes = await confirm({
+          title: 'Pulihkan dari cadangan?',
+          message: `Akan ditambahkan: ${list}. Data yang sudah ada di server tidak diubah.` + (skip ? ` Dilewati: ${skip}.` : ''),
+          confirmText: 'Pulihkan',
+        });
+        if (yes) {
+          const r = await runRestore(plan);
+          const done = RESTORE_TABLES.map((t) => `${r.added[t]} ${TABLE_LABEL[t]}`).join(', ');
+          const bad = r.failed.map((f) => `${f.count} ${TABLE_LABEL[f.table]} gagal (${f.message})`).join('; ');
+          const orphan = RESTORE_TABLES.reduce((n, t) => n + r.orphan[t], 0);
+          setRsMsg({
+            k: r.failed.length || orphan ? 'err' : 'ok',
+            t: `Dipulihkan: ${done}.` + (bad ? ` ${bad}.` : '') + (orphan ? ` ${orphan} data dilewati karena kapalnya tidak ada.` : ''),
+          });
+          load();
+          onSaved?.();
+        }
+      }
+    } catch (e) {
+      setRsMsg({ k: 'err', t: e instanceof Error ? e.message : 'Gagal memulihkan cadangan.' });
+    }
+    setRsBusy(false);
+    if (rsFile.current) rsFile.current.value = '';
   };
 
   const remove = async (r: Row) => {
@@ -406,6 +454,14 @@ export default function AgendaPanel({ vesselName, vesselType, yearBuilt, agendaN
         <span className="text-xs text-slate-600">Isi: kapal, agenda (beserta kunjungan), dan pembaruan manual. Simpan file ini di tempat aman, misalnya Google Drive.</span>
       </div>
       {bkMsg && <p className={'mt-1 text-xs ' + (bkMsg.k === 'err' ? 'text-red-700' : 'text-emerald-700')}>{bkMsg.t}</p>}
+      <div className="mt-3 flex flex-wrap items-center gap-3 print:hidden">
+        <input ref={rsFile} type="file" accept=".json,application/json" className="hidden" onChange={(e) => restoreBackup(e.target.files?.[0])} />
+        <Button type="button" disabled={rsBusy} onClick={() => rsFile.current?.click()} size="sm">
+          {rsBusy ? 'Memeriksa…' : 'Pulihkan dari cadangan'}
+        </Button>
+        <span className="text-xs text-slate-600">Pilih file rdk-cadangan-….json. Hanya menambah data yang belum ada; data yang sudah ada tidak ditimpa.</span>
+      </div>
+      {rsMsg && <p className={'mt-1 text-xs ' + (rsMsg.k === 'err' ? 'text-red-700' : 'text-emerald-700')}>{rsMsg.t}</p>}
     </div>
   );
 }
