@@ -17,6 +17,7 @@ export type StatusInput = {
   annivD: number | null;
   annivM: number | null;
   sel: Sel;
+  shaftPlan?: string; // Method / extension poros yang dikerjakan pada agenda ini ('' = belum dipilih)
   recDue: string;
   recDone: string;
   recAssess: string;
@@ -26,6 +27,7 @@ export type StatusInput = {
 
 export function computeStatus(input: StatusInput) {
   const { expiry, startDate, compDate, extension, yearBuilt, annivD, annivM, sel, recDue, recDone, recAssess, lastNo, statusInfo } = input;
+  const shaftPlan = input.shaftPlan ?? '';
   const exp = parseD(expiry);
   const noInt = hasNoIntermediate(input.vType);
   const st = parseD(startDate);
@@ -51,6 +53,9 @@ export function computeStatus(input: StatusInput) {
   // Tanggal dari Survey Status dibaca lewat parseD: teks rusak menjadi null (kembali ke hitungan dasar), bukan Invalid Date yang merambat jadi NaN
   const nextAnnivD = statusInfo ? parseD(statusInfo.nextAnniv) : null;
   const lastDockD = statusInfo?.lastDock ? parseD(statusInfo.lastDock) : null;
+  // Jatuh tempo poros efektif (interval + extension yang sudah tercatat) dihitung di Survey Status; di sini hanya dibandingkan dengan inspeksi.
+  const shaftDueD = statusInfo?.shaftDue ? parseD(statusInfo.shaftDue) : null;
+  const isExtPlan = shaftPlan === 'E25' || shaftPlan === 'E1' || shaftPlan === 'E3';
 
   const win: Partial<Record<SurveyKey, { start: Date; end: Date }>> = {};
   if (exp && prev) {
@@ -92,7 +97,14 @@ export function computeStatus(input: StatusInput) {
     return k === 'REN' ? addM(exp, 6) : addM(w.end, 6);
   };
   const evalS = (k: SurveyKey): Status => {
-    if (k === 'PS') return st && co ? 'VALID' : 'INPUT REQUIRED'; // interval 5 tahun, dicatat di Survey Status
+    if (k === 'PS') {
+      // Interval dan extension dicatat di Survey Status (jatuh tempo efektif sudah memasukkan extension yang dikerjakan SEBELUM due date).
+      // Dimulai setelah jatuh tempo → SUSPENDED; selesai lebih dari 6 bulan setelah jatuh tempo → WITHDRAWN.
+      // Bila jatuh tempo belum diketahui (Survey Status belum terisi), tidak bisa dinilai terlambat.
+      if (!st || !co) return 'INPUT REQUIRED';
+      if (!shaftDueD || +st <= +shaftDueD) return 'VALID';
+      return +co > +addM(shaftDueD, 6) ? 'WITHDRAWN' : 'SUSPENDED';
+    }
     const w = win[k];
     if (!w || !exp || !st || !co) return 'INPUT REQUIRED';
     if (k === 'D1') {
@@ -175,11 +187,21 @@ export function computeStatus(input: StatusInput) {
   const why = (r: (typeof rows)[number]) => {
     if (r.key === 'PS') {
       // jatuh tempo poros dihitung di Survey Status (interval, extension, Method terakhir); di sini hanya dibandingkan dengan tanggal inspeksi
-      const sd = statusInfo?.shaftDue ? parseD(statusInfo.shaftDue) : null;
-      if (!sd || !st) return '';
-      return +st > +sd
-        ? `Inspeksi poros dimulai ${fmt(st)}, setelah jatuh tempo poros ${fmt(sd)} (sudah termasuk extension yang tercatat). Pastikan ada extension yang disetujui.`
-        : `Jatuh tempo poros menurut Survey Status: ${fmt(sd)}.`;
+      if (!shaftDueD || !st) return '';
+      if (+st > +shaftDueD) {
+        const late = daysBetween(shaftDueD, st);
+        const lim = addM(shaftDueD, 6);
+        const wd = !!co && +co > +lim;
+        const head = `Inspeksi poros dimulai ${fmt(st)}, ${late} hari setelah jatuh tempo poros ${fmt(shaftDueD)} (sudah termasuk extension yang tercatat).`;
+        const stat = wd
+          ? ` Completion ${fmt(co!)} lebih dari 6 bulan setelah jatuh tempo (batas ${fmt(lim)}) → WITHDRAWN.`
+          : ` Masih dalam 6 bulan setelah jatuh tempo (batas ${fmt(lim)}) → SUSPENDED; lewat tanggal itu menjadi WITHDRAWN.`;
+        const tail = isExtPlan
+          ? ' Extension hanya sah bila dikerjakan SEBELUM jatuh tempo. Lakukan survei poros penuh (Method), atau catat extension yang telah disetujui BKI di Survey Status agar jatuh tempo bergeser.'
+          : `${shaftPlan ? '' : ' Method/extension belum dipilih.'} Bila ada extension yang dikerjakan sebelum jatuh tempo, catat di Survey Status (Update status) agar jatuh tempo bergeser dan status dihitung ulang.`;
+        return head + stat + tail;
+      }
+      return `Jatuh tempo poros menurut Survey Status: ${fmt(shaftDueD)}${isExtPlan ? '. Extension harus selesai sebelum tanggal ini.' : '.'}`;
     }
     const w = r.w;
     if (!w || !st || !co || !exp) return '';

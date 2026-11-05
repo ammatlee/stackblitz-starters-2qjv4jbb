@@ -17,8 +17,8 @@ import type { ApplyValues } from '../../components/VesselStatus';
 
 import type { Conn, OpenCfg, PlanKey } from '../../lib/shaftRules';
 import { cx, fmt, num, parseD } from '../../lib/classValidity/dateUtils';
-import { SURVEYS, DMIN0, SHAFT0 } from '../../lib/classValidity/surveyRules';
-import type { SurveyKey, Status, VType, Item, DminCfg, ShaftRow, ShaftSys, Sel } from '../../lib/classValidity/surveyRules';
+import { SURVEYS, DMIN0, SHAFT0, CHAIN0, SEGEL_M } from '../../lib/classValidity/surveyRules';
+import type { SurveyKey, Status, VType, Item, DminCfg, ShaftRow, ShaftSys, Sel, ChainState } from '../../lib/classValidity/surveyRules';
 
 import { computePropulsi } from '../../lib/classValidity/propulsiCalc';
 import { computeStatus } from '../../lib/classValidity/statusCalc';
@@ -87,7 +87,7 @@ export default function Page() {
   const [dmin, setDmin] = useState<DminCfg>(DMIN0);
   const [wd, setWd] = useState({ a: '', then: '', now: '' }); // wear-down gauge (oil lubricated)
   const [anchor, setAnchor] = useState({ o: '', a: '' });
-  const [chain, setChain] = useState({ o: '', a: '' });
+  const [chain, setChain] = useState<ChainState>(CHAIN0);
   const [rudder, setRudder] = useState([{ d: '', a: '' }, { d: '', a: '' }]);
   // pengaturan poros (sistem, sambungan, konfigurasi) adalah data kapal: hanya ditulis ke database bila pengguna mengubahnya di Scope/Propulsi
   const [shaftDirty, setShaftDirty] = useState(false);
@@ -100,8 +100,8 @@ export default function Page() {
 
   /* ======================= MODUL 1: kalkulasi (mengikuti sheet Class Status) ======================= */
   const A = useMemo(
-    () => computeStatus({ vType, expiry, startDate, compDate, extension, yearBuilt, annivD, annivM, sel, recDue, recDone, recAssess, lastNo, statusInfo }),
-    [vType, expiry, startDate, compDate, extension, yearBuilt, annivD, annivM, sel, recDue, recDone, recAssess, lastNo, statusInfo]
+    () => computeStatus({ vType, expiry, startDate, compDate, extension, yearBuilt, annivD, annivM, sel, shaftPlan, recDue, recDone, recAssess, lastNo, statusInfo }),
+    [vType, expiry, startDate, compDate, extension, yearBuilt, annivD, annivM, sel, shaftPlan, recDue, recDone, recAssess, lastNo, statusInfo]
   );
 
   /* ======================= MODUL 3: kalkulasi (sheet Dimensi Kemudi) ======================= */
@@ -159,7 +159,7 @@ export default function Page() {
     if (d.dmin && typeof d.dmin === 'object') setDmin({ ...DMIN0, ...(d.dmin as Partial<DminCfg>) });
     if (d.wd && typeof d.wd === 'object') setWd(d.wd as typeof wd);
     if (d.anchor && typeof d.anchor === 'object') setAnchor(d.anchor as typeof anchor);
-    if (d.chain && typeof d.chain === 'object') setChain(d.chain as typeof chain);
+    if (d.chain && typeof d.chain === 'object') setChain({ ...CHAIN0, ...(d.chain as Partial<ChainState>) });
     if (Array.isArray(d.rudder)) setRudder(d.rudder as typeof rudder);
     setReportDone(typeof d.reportDone === 'string' ? d.reportDone : '');
     setFinished(d.finished === true);
@@ -266,7 +266,7 @@ export default function Page() {
     setSel({ A1: false, A2: false, A3: false, A4: false, A5: false, INT: false, D1: false, REN: false, PS: false });
     setRecDue(''); setRecDone(''); setRecAssess(''); setChecks({});
     setShaftPlan(''); setShaftCond('max'); setShafts([SHAFT0]); setDmin(DMIN0); setWd({ a: '', then: '', now: '' });
-    setAnchor({ o: '', a: '' }); setChain({ o: '', a: '' }); setRudder([{ d: '', a: '' }, { d: '', a: '' }]);
+    setAnchor({ o: '', a: '' }); setChain(CHAIN0); setRudder([{ d: '', a: '' }, { d: '', a: '' }]);
     setDocs(DOCS0);
     setVisits([]);
     setReportDone('');
@@ -323,9 +323,13 @@ export default function Page() {
       shaftSys, propConn, openCfg, shaftPlan,
       shaftD: shafts.map((r) => num(r.l ?? '') ?? num(r.d)),
       rudderD: rudder.map((r) => num(r.d)),
-      anchorO: num(anchor.o), chainO: num(chain.o), segels: num(memo.segels),
+      shaftManual: shafts.map((r) => num(r.m ?? '')),
+      notation,
+      anchorO: num(anchor.o), chainO: num(chain.o),
+      // data lama menyimpan jumlah segel di memo; dipakai hanya bila panjang minimum belum diisi
+      chainLen: num(chain.len) ?? (num(memo.segels) !== null ? (num(memo.segels) as number) * SEGEL_M : null),
     }),
-    [name, vType, A.age, A.rn, A.active.renewal, A.active.docking, A.active.shaft, propelled, shaftSys, propConn, openCfg, shaftPlan, shafts, rudder, anchor.o, chain.o, memo.segels]
+    [name, vType, A.age, A.rn, A.active.renewal, A.active.docking, A.active.shaft, propelled, shaftSys, propConn, openCfg, shaftPlan, shafts, rudder, notation, anchor.o, chain.o, chain.len, memo.segels]
   );
   const surveyorDefault = [...visits].sort((a, b) => (a.ds + a.ts).localeCompare(b.ds + b.ts))[0]?.surveyor || '';
   const tabs: [1 | 2 | 3 | 4 | 5, string, string][] = [
@@ -442,7 +446,7 @@ export default function Page() {
           </>
         )}
         {shownTab === 5 && (
-          <MemoModule ctx={memoCtx} memo={memo} setMemo={setMemo} ownerDefault={vmeta.owner} surveyorDefault={surveyorDefault} anchor={anchor} setAnchor={setAnchor} chain={chain} setChain={setChain} />
+          <MemoModule ctx={memoCtx} memo={memo} setMemo={setMemo} ownerDefault={vmeta.owner} surveyorDefault={surveyorDefault} anchor={anchor} setAnchor={setAnchor} chain={chain} setChain={setChain} onGoPropulsi={() => setTab(3)} />
         )}
         <p className="pb-6 text-center text-xs text-slate-600">Alat bantu perhitungan; keputusan akhir mengacu pada aturan BKI dan penilaian Surveyor. · Versi 2026.10.21-a</p>
       </main>

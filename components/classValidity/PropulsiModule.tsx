@@ -2,7 +2,7 @@ import React from 'react';
 import type { Dispatch, SetStateAction } from 'react';
 import { inputCls, Field, Card, Badge, Gauge } from '../../components/classValidity/ui';
 import { K_OPTS, SHAFT0, SHAFT_SYS, ANCHOR_MIN_RATIO, CHAIN_MIN_RATIO, LINER_WEAR_PCT, RUDDER_RULE_SHORT } from '../../lib/classValidity/surveyRules';
-import type { DminCfg, ShaftKind, ShaftRow, ShaftSys, Status } from '../../lib/classValidity/surveyRules';
+import type { ChainState, DminCfg, ShaftKind, ShaftRow, ShaftSys, Status } from '../../lib/classValidity/surveyRules';
 import { num, cx } from '../../lib/classValidity/dateUtils';
 import type { PropulsiResult } from '../../lib/classValidity/propulsiCalc';
 
@@ -32,8 +32,8 @@ export type PropulsiProps = {
   setWd: Dispatch<SetStateAction<{ a: string; then: string; now: string }>>;
   anchor: Pair;
   setAnchor: Dispatch<SetStateAction<Pair>>;
-  chain: Pair;
-  setChain: Dispatch<SetStateAction<Pair>>;
+  chain: ChainState;
+  setChain: Dispatch<SetStateAction<ChainState>>;
   rudder: { d: string; a: string }[];
   setRudder: Dispatch<SetStateAction<{ d: string; a: string }[]>>;
 };
@@ -126,7 +126,7 @@ export default function PropulsiModule(p: PropulsiProps) {
                   </div>
                   <p className="mt-3 text-xs text-slate-600">
                     {r.hi === null
-                      ? shaftSys === 'fw' ? 'Isi batas maksimum dari manual pabrikan.' : 'Isi diameter poros untuk melihat batas.'
+                      ? shaftSys === 'fw' ? 'Isi batas maksimum dari manual pabrikan agar tampil pada Memo.' : 'Isi diameter poros / liner dulu agar clearance maksimum terhitung (dipakai pada Memo).'
                       : r.lo !== null
                       ? `Lower ${f2(r.lo)} · Upper ${f2(r.hi)} mm`
                       : `Maksimum ${f2(r.hi)} mm`}
@@ -240,6 +240,7 @@ export default function PropulsiModule(p: PropulsiProps) {
                     <Field label="Actual (mm)">{numIn(rudder[i].a, (v) => setRudder((s) => s.map((x, j) => (j === i ? { ...x, a: v } : x))))}</Field>
                   </div>
                   <p className="mt-3 text-sm">Maksimum: <b>{r.mx === null ? '—' : `${r.mx.toFixed(2)} mm`}</b></p>
+                  {r.mx === null && <p className="mt-1 text-xs font-semibold text-amber-800">Isi diameter dulu agar clearance maksimum terhitung; angkanya dipakai pada Memo.</p>}
                   <Gauge lo={null} hi={r.mx} a={r.a} />
                 </div>
               ))}
@@ -264,6 +265,13 @@ export default function PropulsiModule(p: PropulsiProps) {
             <Field label="Actual (mm)">{numIn(chain.a, (v) => setChain((x) => ({ ...x, a: v })))}</Field>
           </div>
           <p className="mt-3 text-sm">Minimum: <b>{S.chainMin === null ? '—' : `${S.chainMin.toFixed(2)} mm`}</b></p>
+          <div className="mt-4 border-t border-slate-100 pt-3">
+            <Field label="Panjang minimum rantai (m)" hint="Hasil perhitungan engineer. Dipakai pada memo; segel dihitung otomatis.">{numIn(chain.len, (v) => setChain((x) => ({ ...x, len: v })))}</Field>
+            <p className="mt-2 text-sm">
+              Jumlah segel: <b>{S.chainSegels === null ? '—' : `${S.chainSegels} segel`}</b>
+              {S.chainSegels !== null && S.chainLenFinal !== null && <span className="text-slate-600"> · {S.chainSegels} × 27,5 m = {String(S.chainLenFinal).replace('.', ',')} m</span>}
+            </p>
+          </div>
         </Card>
       </div>
       )}

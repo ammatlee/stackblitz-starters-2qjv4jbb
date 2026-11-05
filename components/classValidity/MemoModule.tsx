@@ -2,11 +2,14 @@ import React, { useMemo, useState } from 'react';
 import type { Dispatch, SetStateAction } from 'react';
 import { Card, Field, inputCls } from './ui';
 import { cx } from '../../lib/classValidity/dateUtils';
-import { buildMemo, dateLong, memoSubject, memoText, resolveMemo } from '../../lib/memo';
+import { buildMemo, dateLong, memoGaps, memoSubject, memoText, resolveMemo } from '../../lib/memo';
+import { SEGEL_M, segelsFor } from '../../lib/classValidity/surveyRules';
+import type { ChainState } from '../../lib/classValidity/surveyRules';
+import { num } from '../../lib/classValidity/dateUtils';
 import type { MemoCtx, MemoItem, MemoState } from '../../lib/memo';
 import { useAuth } from '../AuthProvider';
 
-import { Button } from '../Controls';
+import { Button, Notice } from '../Controls';
 type Pair = { o: string; a: string };
 type Props = {
   ctx: MemoCtx;
@@ -16,8 +19,9 @@ type Props = {
   surveyorDefault: string; // nama surveyor dari kunjungan
   anchor: Pair;
   setAnchor: Dispatch<SetStateAction<Pair>>;
-  chain: Pair;
-  setChain: Dispatch<SetStateAction<Pair>>;
+  chain: ChainState;
+  setChain: Dispatch<SetStateAction<ChainState>>;
+  onGoPropulsi?: () => void; // pindah ke tab Propulsi untuk mengisi diameter yang masih kosong
 };
 
 const todayISO = () => {
@@ -26,7 +30,7 @@ const todayISO = () => {
 };
 
 /** MODUL 5 — Memorandum awal survei untuk owner: daftar item dibuat otomatis dari data survei, bisa diedit, lalu diunduh / disalin / dikirim lewat email sendiri. */
-export default function MemoModule({ ctx, memo, setMemo, ownerDefault, surveyorDefault, anchor, setAnchor, chain, setChain }: Props) {
+export default function MemoModule({ ctx, memo, setMemo, ownerDefault, surveyorDefault, anchor, setAnchor, chain, setChain, onGoPropulsi }: Props) {
   const { user } = useAuth();
   const [msg, setMsg] = useState('');
   const savedName = String((user?.user_metadata as Record<string, unknown> | undefined)?.surveyor_name ?? '');
@@ -35,6 +39,9 @@ export default function MemoModule({ ctx, memo, setMemo, ownerDefault, surveyorD
   const resolved = resolveMemo(secs, eff);
   const text = memoText(ctx, eff, resolved);
   const subject = memoSubject(ctx);
+  const gaps = memoGaps(ctx);
+  const lenN = num(chain.len);
+  const segN = segelsFor(ctx.chainLen);
 
   const setF = (k: keyof MemoState, v: string) => setMemo((m) => ({ ...m, [k]: v }));
   const toggle = (id: string) => setMemo((m) => ({ ...m, off: { ...m.off, [id]: !m.off[id] } }));
@@ -116,16 +123,33 @@ export default function MemoModule({ ctx, memo, setMemo, ownerDefault, surveyorD
               <Field label="Tanggal memo" hint={dateLong(eff.date)}><input type="date" className={inputCls} value={eff.date} onChange={(e) => setF('date', e.target.value)} /></Field>
               <Field label="Email penerima (opsional)" hint="Hanya dipakai untuk mengisi kolom penerima saat membuka email."><input type="email" className={inputCls} value={memo.email} onChange={(e) => setF('email', e.target.value)} placeholder="owner@perusahaan.co.id" /></Field>
             </div>
-            {ctx.renewal && (
+            {ctx.renewal && ctx.notation && (
               <div className="mt-4 rounded-xl border border-slate-200 p-3">
-                <p className="text-xs font-semibold text-slate-700">Data jangkar (daftar perlengkapan BKI)</p>
+                <p className="text-xs font-semibold text-slate-700">Data jangkar &amp; rantai (daftar perlengkapan BKI)</p>
                 <div className="mt-2 grid gap-3 sm:grid-cols-3">
                   <Field label="Berat jangkar original (kg)">{numIn(anchor.o, (v) => setAnchor((x) => ({ ...x, o: v })))}</Field>
                   <Field label="Diameter rantai original (mm)">{numIn(chain.o, (v) => setChain((x) => ({ ...x, o: v })))}</Field>
-                  <Field label="Jumlah segel rantai (27,5 m)">{numIn(memo.segels, (v) => setF('segels', v))}</Field>
+                  <Field label="Panjang minimum rantai (m)" hint="Hasil perhitungan engineer. Jumlah segel dihitung otomatis.">{numIn(chain.len, (v) => setChain((x) => ({ ...x, len: v })))}</Field>
                 </div>
-                <p className="mt-2 text-xs text-slate-600">Minimum dihitung otomatis: jangkar 90% dan diameter rantai 88% dari nilai original. Bila kosong, memo menampilkan titik-titik (……) untuk diisi.</p>
+                <p className="mt-2 text-xs text-slate-600">
+                  {segN !== null && ctx.chainLen !== null
+                    ? <>Jumlah segel: <b>{segN} segel</b> ({segN} × {String(SEGEL_M).replace('.', ',')} m = {String(segN * SEGEL_M).replace('.', ',')} m, dibulatkan ke atas dari {String(Number(ctx.chainLen.toFixed(2))).replace('.', ',')} m){lenN === null ? ' — dari data lama (jumlah segel)' : ''}. </>
+                    : 'Jumlah segel muncul otomatis setelah panjang minimum diisi. '}
+                  Minimum berat jangkar 90% dan diameter rantai 88% dari nilai original. Bila kosong, memo menampilkan titik-titik (……) untuk diisi.
+                </p>
               </div>
+            )}
+            {ctx.renewal && !ctx.notation && (
+              <p className="mt-4 rounded-xl bg-slate-50 p-3 text-xs text-slate-600">Kapal tanpa notasi jangkar: butir jangkar dan rantai jangkar tidak dimuat dalam memo. Bila kapal ini sebenarnya bernotasi jangkar, aktifkan notasi di data kapal (tab Status).</p>
+            )}
+            {gaps.length > 0 && (
+              <Notice tone="warn" size="xs" className="mt-4">
+                <p className="font-semibold">Isian yang belum lengkap (di memo tampil sebagai ……):</p>
+                <ul className="mt-1 list-disc pl-4">{gaps.map((g, i) => <li key={i}>{g.text}</li>)}</ul>
+                {onGoPropulsi && gaps.some((g) => g.tab === 'propulsi') && (
+                  <Button type="button" onClick={onGoPropulsi} size="sm" className="mt-2">Buka tab Propulsi untuk mengisi diameter</Button>
+                )}
+              </Notice>
             )}
           </>
         )}

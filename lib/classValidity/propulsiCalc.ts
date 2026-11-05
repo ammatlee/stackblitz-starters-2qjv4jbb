@@ -1,6 +1,6 @@
 /** Kalkulasi Modul 3 (Propulsi): clearance poros, diameter minimum, rudder, jangkar & rantai. Fungsi murni, tanpa React. */
 import { num } from './dateUtils';
-import { minDiameter, shaftLimits, rudderMax, ANCHOR_MIN_RATIO, CHAIN_MIN_RATIO } from './surveyRules';
+import { minDiameter, shaftLimits, rudderMax, segelsFor, SEGEL_M, ANCHOR_MIN_RATIO, CHAIN_MIN_RATIO } from './surveyRules';
 import type { DminCfg, ShaftRow, ShaftSys, Verdict } from './surveyRules';
 
 export type PropulsiInput = {
@@ -10,7 +10,7 @@ export type PropulsiInput = {
   shaftCond: 'new' | 'max';
   wd: { a: string; then: string; now: string };
   anchor: { o: string; a: string };
-  chain: { o: string; a: string };
+  chain: { o: string; a: string; len?: string };
   rudder: { d: string; a: string }[];
   propelled: boolean;
   showShaft: boolean;
@@ -41,6 +41,9 @@ export function computePropulsi(input: PropulsiInput) {
   const wdA = num(wd.a), wdT = num(wd.then), wdN = num(wd.now);
   const wdFinal = wdA !== null && wdT !== null && wdN !== null ? wdA + (wdN - wdT) : null;
   const ao = num(anchor.o), aa = num(anchor.a), co2 = num(chain.o), ca = num(chain.a);
+  const chainLen = num(chain.len ?? '');
+  const chainSegels = segelsFor(chainLen);
+  const chainLenFinal = chainSegels !== null ? chainSegels * SEGEL_M : null; // panjang rantai yang dipesan per segel utuh
   const anchorMin = ao !== null ? ao * ANCHOR_MIN_RATIO : null;
   const chainMin = co2 !== null ? co2 * CHAIN_MIN_RATIO : null;
   const anchorV: Verdict = aa !== null && anchorMin !== null ? (aa >= anchorMin ? 'COMPLIANT' : 'NON-COMPLIANT') : '';
@@ -54,7 +57,7 @@ export function computePropulsi(input: PropulsiInput) {
   });
   // kapal tanpa penggerak: hanya jangkar dan rantai jangkar yang dinilai
   const all: Verdict[] = [...(propelled ? [...(showShaft ? shaftRes.map((x) => x.v) : []), ...(showRudder ? rudderRes.map((x) => x.v) : []), ...(showDmin ? dminRes.map((x) => x.v) : [])] : []), ...(showAnchor ? [anchorV, chainV] : [])];
-  return { shaftRes, dminRes, wdFinal, anchorMin, chainMin, anchorV, chainV, rudderRes, measured: all.filter((v) => v !== '').length, fails: all.filter((v) => v === 'NON-COMPLIANT').length, total: all.length };
+  return { shaftRes, dminRes, wdFinal, anchorMin, chainMin, chainLen, chainSegels, chainLenFinal, anchorV, chainV, rudderRes, measured: all.filter((v) => v !== '').length, fails: all.filter((v) => v === 'NON-COMPLIANT').length, total: all.length };
 }
 
 export type PropulsiResult = ReturnType<typeof computePropulsi>;

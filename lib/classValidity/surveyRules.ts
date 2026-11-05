@@ -322,6 +322,13 @@ export type Verdict = 'COMPLIANT' | 'NON-COMPLIANT' | '';
 /** Batas minimum jangkar dan rantai jangkar terhadap nilai asli (dipakai modul Propulsi dan Memorandum). */
 export const ANCHOR_MIN_RATIO = 0.9; // berat jangkar: minimum 90% dari berat asli
 export const CHAIN_MIN_RATIO = 0.88; // diameter rantai jangkar: minimum 88% dari diameter asli
+/** Panjang 1 segel (shackle) rantai jangkar, meter. */
+export const SEGEL_M = 27.5;
+/** Jumlah segel untuk panjang minimum rantai (m): dibulatkan ke atas karena rantai hanya tersedia per segel utuh. */
+export const segelsFor = (lenM: number | null): number | null => (lenM !== null && lenM > 0 ? Math.ceil(lenM / SEGEL_M - 1e-9) : null);
+/** Data rantai jangkar: o = diameter original (mm), a = diameter aktual (mm), len = panjang minimum yang dipersyaratkan (m, dari perhitungan engineer). */
+export type ChainState = { o: string; a: string; len: string };
+export const CHAIN0: ChainState = { o: '', a: '', len: '' };
 
 /* ============================================================================
  * 6. UI PRIMITIVES

@@ -3,7 +3,7 @@
  * (jenis survei, nomor Renewal, tabel UT/tangki, jangkar, clearance, Propeller Shaft).
  * Murni fungsi (tanpa React / Supabase) supaya mudah diuji.
  */
-import { renewalTables, rudderMax, shaftLimits, shaftMaxRule, LINER_WEAR_PCT, RUDDER_RULE_MEMO, ANCHOR_MIN_RATIO, CHAIN_MIN_RATIO } from './classValidity/surveyRules';
+import { renewalTables, rudderMax, shaftLimits, LINER_WEAR_PCT, ANCHOR_MIN_RATIO, CHAIN_MIN_RATIO, SEGEL_M, segelsFor } from './classValidity/surveyRules';
 import type { ShaftSys, TRow } from './classValidity/surveyRules';
 import { PLANS, shaftView } from './shaftRules';
 import type { Conn, OpenCfg, PlanKey } from './shaftRules';
@@ -26,14 +26,16 @@ export type MemoCtx = {
   openCfg: OpenCfg | '';
   shaftPlan: PlanKey | '';
   shaftD: (number | null)[]; // D tiap poros (diameter liner bila ada)
+  shaftManual: (number | null)[]; // batas maksimum dari manual pabrikan per poros (menggantikan batas Rules; wajib untuk closed loop fresh water)
   rudderD: (number | null)[]; // [neck, pintle]
+  notation: boolean; // notasi jangkar: tanpa notasi, butir jangkar & rantai tidak dimuat
   anchorO: number | null;
   chainO: number | null;
-  segels: number | null; // jumlah segel (1 segel = 27,5 m)
+  chainLen: number | null; // panjang minimum rantai (m) dari perhitungan engineer; jumlah segel dihitung otomatis
 };
 
 export type MemoState = {
-  to: string; cc: string; from: string; place: string; date: string; surveyor: string; email: string; segels: string;
+  to: string; cc: string; from: string; place: string; date: string; surveyor: string; email: string; segels: string; /* segels: data lama, kini digantikan panjang minimum rantai (chain.len) */
   off: Record<string, boolean>; // id butir yang dimatikan
   text: Record<string, string>; // id butir yang teksnya diubah
   extra: Record<string, string[]>; // butir tambahan per bagian
@@ -44,7 +46,6 @@ const nf = (n: number, dp = 2) => String(Number(n.toFixed(dp))).replace('.', ','
 const DOTS = '……';
 const hidden = ['NONE', 'N/A', '—'];
 const live = (rows: TRow[]) => rows.filter((r) => !hidden.includes(r.scope));
-const SEGEL_M = 27.5;
 
 const words = (scope: string): string => {
   const m: Record<string, string> = {
@@ -76,6 +77,42 @@ const joinId = (a: string[]) => (a.length <= 1 ? a.join('') : a.slice(0, -1).joi
 export const memoSubject = (c: MemoCtx) => `Memorandum Awal ${joinId(memoParts(c))} Kapal ${c.vesselName.toUpperCase() || DOTS}`;
 export const memoIntro = (c: MemoCtx) => `Dalam rangka ${joinId(memoParts(c))}, item berikut agar dilaksanakan:`;
 
+/** Clearance maksimum tiap poros (mm): manual pabrikan bila diisi (menggantikan Rules, ITS Part A 1.10.2), selain itu rumus Rules dari D (diameter liner / poros). */
+export function shaftMaxes(c: Pick<MemoCtx, 'shaftSys' | 'shaftD' | 'shaftManual'>): (number | null)[] {
+  return c.shaftD.map((d, i) => c.shaftManual[i] ?? shaftLimits(c.shaftSys, 'max', d).hi);
+}
+
+export type MemoGap = { text: string; tab: 'propulsi' | 'memo' };
+/** Isian yang masih kosong sehingga angka pada memo belum bisa dihitung (ditampilkan sebagai peringatan, tidak ikut tercetak). */
+export function memoGaps(c: MemoCtx): MemoGap[] {
+  const g: MemoGap[] = [];
+  const bottom = c.renewal || c.docking;
+  if (c.propelled && bottom) {
+    if (rudderMax('Neck Bearing', c.rudderD[0] ?? null) === null) g.push({ text: 'Diameter neck bearing (tongkat kemudi) belum diisi: clearance maksimum neck bearing belum dapat dihitung.', tab: 'propulsi' });
+    if (rudderMax('Pintle Bearing', c.rudderD[1] ?? null) === null) g.push({ text: 'Diameter pintle bearing (tongkat kemudi) belum diisi: clearance maksimum pintle bearing belum dapat dihitung.', tab: 'propulsi' });
+  }
+  if (c.propelled && (c.renewal || c.docking || c.shaft)) {
+    shaftMaxes(c).forEach((hi, i) => {
+      if (hi !== null) return;
+      const lbl = c.shaftD.length > 1 ? `Poros ${i + 1}` : 'Poros baling-baling';
+      g.push({
+        text: c.shaftSys === 'fw'
+          ? `${lbl}: closed loop fresh water, isi batas maksimum dari manual pabrikan agar clearance maksimum tampil.`
+          : `${lbl}: diameter poros / liner belum diisi, clearance maksimum belum dapat dihitung.`,
+        tab: 'propulsi',
+      });
+    });
+  }
+  if (c.renewal && c.notation) {
+    if ((c.rnNo ?? 4) >= 2) {
+      if (c.anchorO === null) g.push({ text: 'Berat jangkar original belum diisi.', tab: 'memo' });
+      if (c.chainO === null) g.push({ text: 'Diameter rantai original belum diisi.', tab: 'memo' });
+      if (c.chainLen === null) g.push({ text: 'Panjang minimum rantai (dari perhitungan engineer) belum diisi: jumlah segel belum dapat dihitung.', tab: 'memo' });
+    }
+  }
+  return g;
+}
+
 export function buildMemo(c: MemoCtx): MemoSection[] {
   const sections: MemoSection[] = [];
   const rnEff = Math.min(c.rnNo ?? 4, 4);
@@ -100,37 +137,39 @@ export function buildMemo(c: MemoCtx): MemoSection[] {
       id: 'h-ut-co',
       text: 'Perusahaan pelaksana pengukuran ketebalan harus memiliki sertifikat persetujuan penyedia jasa dari BKI. Jika dalam pelaksanaan terdapat hasil pengukuran dibawah 20% dari ketebalan original, agar pelat diganti baru dengan menggunakan pelat bersertifikat klas dan hasil pengelasan dan pengujian kekedapan agar diperiksakan kepada Surveyor.',
     });
-    const chainMin = c.chainO !== null ? nf(c.chainO * CHAIN_MIN_RATIO) : DOTS;
-    const anchorMin = c.anchorO !== null ? nf(c.anchorO * ANCHOR_MIN_RATIO, 1) : DOTS;
-    const gauge = (c.rnNo ?? 4) >= 2;
-    hull.push({
-      id: 'h-anchor',
-      text: gauge
-        ? 'Jangkar dan rantai jangkar agar diturunkan, direntangkan, dibersihkan dan dilaksanakan pengukuran diameter 3 tautan per segel (27,5 m):'
-        : 'Jangkar dan rantai jangkar agar diturunkan, direntangkan, dan dibersihkan; chain locker, holdfast, hawse pipe dan stopper agar diperiksa.',
-      sub: gauge
-        ? [
-            { id: 'h-anchor-d', text: `Ukuran rantai jangkar sesuai daftar perlengkapan BKI: diameter rantai ${c.chainO !== null ? nf(c.chainO) : DOTS} mm dan minimum diameter: ${chainMin} mm;` },
-            { id: 'h-anchor-l', text: `Total panjang rantai yang dipersyaratkan ${c.segels !== null ? c.segels : DOTS} segel (${c.segels !== null ? nf(c.segels * SEGEL_M, 1) : DOTS} m);` },
-            { id: 'h-anchor-w', text: `Berat jangkar ${c.anchorO !== null ? nf(c.anchorO, 1) : DOTS} kg, minimum berat yang dipersyaratkan ${anchorMin} kg;` },
-            { id: 'h-anchor-r', text: 'Jika hasil pengukuran menunjukkan nilai di bawah data di atas, rantai jangkar agar diganti baru bersertifikat klas dan panjang rantai disesuaikan dengan data di atas.' },
-          ]
-        : undefined,
-    });
+    if (c.notation) {
+      const chainMin = c.chainO !== null ? nf(c.chainO * CHAIN_MIN_RATIO) : DOTS;
+      const anchorMin = c.anchorO !== null ? nf(c.anchorO * ANCHOR_MIN_RATIO, 1) : DOTS;
+      const gauge = (c.rnNo ?? 4) >= 2;
+      const segels = segelsFor(c.chainLen);
+      hull.push({
+        id: 'h-anchor',
+        text: gauge
+          ? 'Jangkar dan rantai jangkar agar diturunkan, direntangkan, dibersihkan dan dilaksanakan pengukuran diameter 3 tautan per segel (27,5 m):'
+          : 'Jangkar dan rantai jangkar agar diturunkan, direntangkan, dan dibersihkan; chain locker, holdfast, hawse pipe dan stopper agar diperiksa.',
+        sub: gauge
+          ? [
+              { id: 'h-anchor-d', text: `Ukuran rantai jangkar sesuai daftar perlengkapan BKI: diameter rantai ${c.chainO !== null ? nf(c.chainO) : DOTS} mm dan minimum diameter: ${chainMin} mm;` },
+              { id: 'h-anchor-l', text: `Total panjang rantai yang dipersyaratkan minimum ${c.chainLen !== null ? nf(c.chainLen, 1) : DOTS} m (${segels !== null ? `${segels} segel = ${nf(segels * SEGEL_M, 1)} m` : `${DOTS} segel`});` },
+              { id: 'h-anchor-w', text: `Berat jangkar ${c.anchorO !== null ? nf(c.anchorO, 1) : DOTS} kg, minimum berat yang dipersyaratkan ${anchorMin} kg;` },
+              { id: 'h-anchor-r', text: 'Jika hasil pengukuran menunjukkan nilai di bawah data di atas, rantai jangkar agar diganti baru bersertifikat klas dan panjang rantai disesuaikan dengan data di atas.' },
+            ]
+          : undefined,
+      });
+    }
   }
   if (bottom) {
     hull.push({ id: 'h-dock', text: 'Kapal agar dinaikkan ke dok / slipway (atau in-water survey bila disetujui BKI) dan bagian bawah air dibersihkan dari fouling untuk pemeriksaan pelat kulit, lunas, bilge keel, stern frame, dan rudder.' });
     hull.push({ id: 'h-seachest', text: 'Grating sea chest agar dibuka untuk pemeriksaan pelat sea chest.' });
     if (c.propelled) {
-      const neck = c.rudderD[0] ?? null;
-      const pin = c.rudderD[1] ?? null;
-      const nMax = rudderMax('Neck Bearing', neck);
-      const pMax = rudderMax('Pintle Bearing', pin);
+      const nMax = rudderMax('Neck Bearing', c.rudderD[0] ?? null);
+      const pMax = rudderMax('Pintle Bearing', c.rudderD[1] ?? null);
+      // hanya batas maksimum hasil perhitungan (tanpa rumus); bila diameter belum diisi tampil titik-titik dan muncul peringatan di tab Memo
       hull.push({
         id: 'h-rudder',
         text:
-          'Agar dilaksanakan pengukuran clearance tongkat kemudi (ki/ka) dengan bantalannya. ' + RUDDER_RULE_MEMO +
-          (nMax !== null || pMax !== null ? ` Untuk kapal ini:${nMax !== null ? ` neck bearing maks. ${nf(nMax)} mm` : ''}${nMax !== null && pMax !== null ? ',' : ''}${pMax !== null ? ` pintle bearing maks. ${nf(pMax)} mm` : ''}.` : '') +
+          'Agar dilaksanakan pengukuran clearance tongkat kemudi (ki/ka) dengan bantalannya. ' +
+          `Clearance maksimum untuk kapal ini: neck bearing ${nMax !== null ? nf(nMax) : DOTS} mm, pintle bearing ${pMax !== null ? nf(pMax) : DOTS} mm.` +
           ' Jika clearance telah melebihi batas, bantalan agar diganti baru.',
       });
     }
@@ -175,16 +214,16 @@ export function buildMemo(c: MemoCtx): MemoSection[] {
   }
   const showShaftClear = c.propelled && (c.renewal || c.docking || c.shaft);
   if (showShaftClear) {
-    const per = c.shaftD
-      .map((d, i) => ({ d, i, hi: shaftLimits(c.shaftSys, 'max', d).hi }))
-      .filter((x) => x.d !== null && x.hi !== null)
-      .map((x) => `poros ${x.i + 1}: D = ${nf(x.d as number)} mm → maks. ${nf(x.hi as number)} mm`);
-    const rule = shaftMaxRule(c.shaftSys);
+    // hanya batas maksimum hasil perhitungan (tanpa rumus); bila belum dapat dihitung tampil titik-titik dan muncul peringatan di tab Memo
+    const maxes = shaftMaxes(c);
+    const per = maxes.length === 1
+      ? `${maxes[0] !== null ? nf(maxes[0]) : DOTS} mm`
+      : maxes.map((hi, i) => `poros ${i + 1}: ${hi !== null ? nf(hi) : DOTS} mm`).join('; ');
     mach.push({
       id: 'm-clear',
       text:
-        `Agar dilaksanakan pengukuran clearance poros baling-baling (ki/ka) dengan bantalannya (Max. clearance = ${rule}${c.shaftSys === 'fw' ? '' : '; D = diameter liner'}).` +
-        (per.length ? ` Untuk kapal ini: ${per.join('; ')}.` : '') +
+        'Agar dilaksanakan pengukuran clearance poros baling-baling (ki/ka) dengan bantalannya. ' +
+        `Clearance maksimum untuk kapal ini: ${per}.` +
         ' Jika clearance telah melebihi batas, bantalan agar diganti baru.',
     });
     if (c.shaftSys === 'oil') mach.push({ id: 'm-liner', text: `Aus (wear) shaft liner agar diukur dan dicatat: toleransi maksimum ${LINER_WEAR_PCT.bearing}% dari tebal liner di area bearing dan ${LINER_WEAR_PCT.packing}% di area packing.` });
