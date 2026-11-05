@@ -47,6 +47,8 @@ export type ShaftStatus = {
   exts: string[];
   extMonths: number; // total extension yang berlaku (sudah dibatasi)
   due: Date; // jatuh tempo efektif
+  capDue: Date; // batas terjauh jatuh tempo bila extension dipakai penuh (jatuh tempo asli + batas extension)
+  lateExtOk: boolean; // true (sistem open): extension yang dikerjakan setelah jatuh tempo tetap sah, dihitung dari jatuh tempo asli
   lastPlan: string | null;
   lastMajor: Date | null;
   limit15: Date | null;
@@ -202,7 +204,17 @@ export function computeSurveyStatus(b: Baseline, evsAll: Ev[], today: Date): Sta
     if (hasShaft) {
       const plan = e.shaft_plan ?? '';
       if (EXT_MONTHS[plan]) {
-        shaftExts.push(plan); // extension menunda jatuh tempo; bukan survei poros penuh
+        const dueBefore = shaftDueNow();
+        const st0 = parse(e.start);
+        const lateExt = !!st0 && +st0 > +dueBefore;
+        if (lateExt && shSys !== 'open') {
+          // closed loop: extension hanya sah bila dikerjakan sebelum jatuh tempo → tidak dihitung (overdue tetap terbaca)
+          shaftNotes.push(`Agenda ${e.agenda_no}: extension dikerjakan setelah jatuh tempo poros (${toDMY(dueBefore)}). Pada sistem closed loop extension hanya sah bila dikerjakan sebelum jatuh tempo, jadi tidak dihitung.`);
+        } else {
+          // sistem open: extension tetap dihitung walau setelah jatuh tempo; penundaan dari jatuh tempo asli, dibatasi extCap
+          if (lateExt) shaftNotes.push(`Agenda ${e.agenda_no}: extension dikerjakan setelah jatuh tempo poros (${toDMY(dueBefore)}). Tetap dihitung dari jatuh tempo asli, maksimal ${extCap} bulan.`);
+          shaftExts.push(plan); // extension menunda jatuh tempo; bukan survei poros penuh
+        }
       } else if (!plan && shaftExts.length > 0) {
         // Method/extension tidak diisi padahal ada extension berjalan: jangan dianggap survei penuh (akan menghapus extension)
         shaftNotes.push(`Agenda ${e.agenda_no}: Propeller Shaft dipilih tanpa Method/extension, jadi tidak dihitung. Buka agenda itu dan pilih Method atau extension-nya.`);
@@ -372,7 +384,7 @@ export function computeSurveyStatus(b: Baseline, evsAll: Ev[], today: Date): Sta
         else if (+due >= +limit15) warnings.push(`Batas 15 tahun sejak ${ml} terakhir (${toDMY(lastMajor)}) jatuh ${toDMY(limit15)}: survei berikutnya harus ${ml}.`);
       } else warnings.push(`Tanggal ${ml} terakhir belum diisi: batas 15 tahun tidak dapat dipantau.`);
     }
-    shaft = { interval: intervalY, baseDue, exts: [...shaftExts], extMonths, due, lastPlan, lastMajor, limit15, warnings };
+    shaft = { interval: intervalY, baseDue, exts: [...shaftExts], extMonths, due, capDue: addM(baseDue, extCap), lateExtOk: shSys === 'open', lastPlan, lastMajor, limit15, warnings };
     const parts = [`Interval ${intervalY} tahun${shSys === 'open' && !b.open_config ? ' (konfigurasi open belum dipilih, dianggap 5)' : ''}`];
     if (shaftExts.length) parts.push(`extension ${shaftExts.map((k) => EXT_LABEL[k]).join(' + ')} dari jatuh tempo asli ${toDMY(baseDue)}`);
     if (!lastShaft) parts.push('tanggal terakhir belum diisi (dihitung dari Special Survey)');
