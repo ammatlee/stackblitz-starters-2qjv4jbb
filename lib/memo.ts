@@ -3,7 +3,7 @@
  * (jenis survei, nomor Renewal, tabel UT/tangki, jangkar, clearance, Propeller Shaft).
  * Murni fungsi (tanpa React / Supabase) supaya mudah diuji.
  */
-import { renewalTables, rudderMax, shaftLimits, ANCHOR_MIN_RATIO, CHAIN_MIN_RATIO } from './classValidity/surveyRules';
+import { renewalTables, rudderMax, shaftLimits, shaftMaxRule, LINER_WEAR_PCT, RUDDER_RULE_MEMO, ANCHOR_MIN_RATIO, CHAIN_MIN_RATIO } from './classValidity/surveyRules';
 import type { ShaftSys, TRow } from './classValidity/surveyRules';
 import { PLANS, shaftView } from './shaftRules';
 import type { Conn, OpenCfg, PlanKey } from './shaftRules';
@@ -129,7 +129,7 @@ export function buildMemo(c: MemoCtx): MemoSection[] {
       hull.push({
         id: 'h-rudder',
         text:
-          'Agar dilaksanakan pengukuran clearance tongkat kemudi (ki/ka) dengan bantalannya. Neck bearing: maks. 0,01·D + 2,0 mm (maks. 4,0 mm). Pintle bearing: d < 50 mm → 3,0 mm; 50–100 mm → 5,0 mm; d > 100 mm → 0,01·d + 4,0 mm (maks. 6,0 mm).' +
+          'Agar dilaksanakan pengukuran clearance tongkat kemudi (ki/ka) dengan bantalannya. ' + RUDDER_RULE_MEMO +
           (nMax !== null || pMax !== null ? ` Untuk kapal ini:${nMax !== null ? ` neck bearing maks. ${nf(nMax)} mm` : ''}${nMax !== null && pMax !== null ? ',' : ''}${pMax !== null ? ` pintle bearing maks. ${nf(pMax)} mm` : ''}.` : '') +
           ' Jika clearance telah melebihi batas, bantalan agar diganti baru.',
       });
@@ -179,7 +179,7 @@ export function buildMemo(c: MemoCtx): MemoSection[] {
       .map((d, i) => ({ d, i, hi: shaftLimits(c.shaftSys, 'max', d).hi }))
       .filter((x) => x.d !== null && x.hi !== null)
       .map((x) => `poros ${x.i + 1}: D = ${nf(x.d as number)} mm → maks. ${nf(x.hi as number)} mm`);
-    const rule = c.shaftSys === 'open' ? '0,01·D + 2,5 mm' : c.shaftSys === 'oil' ? '0,0015·D + 0,65 mm' : 'sesuai manual pabrikan';
+    const rule = shaftMaxRule(c.shaftSys);
     mach.push({
       id: 'm-clear',
       text:
@@ -187,7 +187,7 @@ export function buildMemo(c: MemoCtx): MemoSection[] {
         (per.length ? ` Untuk kapal ini: ${per.join('; ')}.` : '') +
         ' Jika clearance telah melebihi batas, bantalan agar diganti baru.',
     });
-    if (c.shaftSys === 'oil') mach.push({ id: 'm-liner', text: 'Aus (wear) shaft liner agar diukur dan dicatat: toleransi maksimum 25% dari tebal liner di area bearing dan 50% di area packing.' });
+    if (c.shaftSys === 'oil') mach.push({ id: 'm-liner', text: `Aus (wear) shaft liner agar diukur dan dicatat: toleransi maksimum ${LINER_WEAR_PCT.bearing}% dari tebal liner di area bearing dan ${LINER_WEAR_PCT.packing}% di area packing.` });
   }
   if (c.shaft) {
     const sv = shaftView(c.shaftSys, c.propConn, c.openCfg, c.shaftPlan);

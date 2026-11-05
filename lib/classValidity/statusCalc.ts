@@ -173,6 +173,14 @@ export function computeStatus(input: StatusInput) {
 
   // Penjelasan per survei terpilih
   const why = (r: (typeof rows)[number]) => {
+    if (r.key === 'PS') {
+      // jatuh tempo poros dihitung di Survey Status (interval, extension, Method terakhir); di sini hanya dibandingkan dengan tanggal inspeksi
+      const sd = statusInfo?.shaftDue ? parseD(statusInfo.shaftDue) : null;
+      if (!sd || !st) return '';
+      return +st > +sd
+        ? `Inspeksi poros dimulai ${fmt(st)}, setelah jatuh tempo poros ${fmt(sd)} (sudah termasuk extension yang tercatat). Pastikan ada extension yang disetujui.`
+        : `Jatuh tempo poros menurut Survey Status: ${fmt(sd)}.`;
+    }
     const w = r.w;
     if (!w || !st || !co || !exp) return '';
     if (r.key === 'D1')

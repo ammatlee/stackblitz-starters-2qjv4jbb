@@ -1,7 +1,7 @@
 import React from 'react';
 import type { Dispatch, SetStateAction } from 'react';
 import { inputCls, Field, Card, Badge, Gauge } from '../../components/classValidity/ui';
-import { K_OPTS, SHAFT0, SHAFT_SYS } from '../../lib/classValidity/surveyRules';
+import { K_OPTS, SHAFT0, SHAFT_SYS, ANCHOR_MIN_RATIO, CHAIN_MIN_RATIO, LINER_WEAR_PCT, RUDDER_RULE_SHORT } from '../../lib/classValidity/surveyRules';
 import type { DminCfg, ShaftKind, ShaftRow, ShaftSys, Status } from '../../lib/classValidity/surveyRules';
 import { num, cx } from '../../lib/classValidity/dateUtils';
 import type { PropulsiResult } from '../../lib/classValidity/propulsiCalc';
@@ -96,7 +96,7 @@ export default function PropulsiModule(p: PropulsiProps) {
                 </Field>
               </div>
             )}
-            {shaftSys === 'oil' && <Notice tone="warn" size="xs" className="mt-3">Pengingat (oil lubricated, ITS Part A 1.10.2 iii): toleransi aus maksimum shaft liner adalah 25% dari tebal liner di area bearing dan 50% di area packing. Ukur dan catat pada laporan.</Notice>}
+            {shaftSys === 'oil' && <Notice tone="warn" size="xs" className="mt-3">Pengingat (oil lubricated, ITS Part A 1.10.2 iii): toleransi aus maksimum shaft liner adalah {LINER_WEAR_PCT.bearing}% dari tebal liner di area bearing dan {LINER_WEAR_PCT.packing}% di area packing. Ukur dan catat pada laporan.</Notice>}
             {shaftSys === 'fw' && <p className="mt-3 rounded-lg bg-slate-50 p-3 text-xs text-slate-600">Closed loop fresh water: batas maksimum clearance mengikuti manual pabrikan (ITS Part A 1.10.3). Isi nilainya pada kolom di tiap poros.</p>}
 
             <div className="mt-4 grid gap-4 md:grid-cols-2">
@@ -230,7 +230,7 @@ export default function PropulsiModule(p: PropulsiProps) {
           )}
 
           {showRudder && (
-          <Card title="Rudder Stock Clearance" sub="Neck: min(0,01d + 2; 4). Pintle: d<50 → 3; 50–100 → 5; d>100 → min(0,01d + 4; 6)">
+          <Card title="Rudder Stock Clearance" sub={RUDDER_RULE_SHORT}>
             <div className="grid gap-4 md:grid-cols-2">
               {S.rudderRes.map((r, i) => (
                 <div key={r.item} className="rounded-xl border border-slate-200 p-4">
@@ -251,14 +251,14 @@ export default function PropulsiModule(p: PropulsiProps) {
 
       {showAnchor && (
       <div className="grid gap-4 md:grid-cols-2">
-        <Card title="Anchor Weight" sub="Minimum 90% berat asli" right={<Badge v={S.anchorV || 'BELUM DIUKUR'} />}>
+        <Card title="Anchor Weight" sub={`Minimum ${Math.round(ANCHOR_MIN_RATIO * 100)}% berat asli`} right={<Badge v={S.anchorV || 'BELUM DIUKUR'} />}>
           <div className="grid grid-cols-2 gap-3">
             <Field label="Original (kg)">{numIn(anchor.o, (v) => setAnchor((x) => ({ ...x, o: v })))}</Field>
             <Field label="Actual (kg)">{numIn(anchor.a, (v) => setAnchor((x) => ({ ...x, a: v })))}</Field>
           </div>
           <p className="mt-3 text-sm">Minimum: <b>{S.anchorMin === null ? '—' : `${S.anchorMin.toFixed(1)} kg`}</b></p>
         </Card>
-        <Card title="Anchor Chain Diameter" sub="Minimum 88% diameter asli" right={<Badge v={S.chainV || 'BELUM DIUKUR'} />}>
+        <Card title="Anchor Chain Diameter" sub={`Minimum ${Math.round(CHAIN_MIN_RATIO * 100)}% diameter asli`} right={<Badge v={S.chainV || 'BELUM DIUKUR'} />}>
           <div className="grid grid-cols-2 gap-3">
             <Field label="Original (mm)">{numIn(chain.o, (v) => setChain((x) => ({ ...x, o: v })))}</Field>
             <Field label="Actual (mm)">{numIn(chain.a, (v) => setChain((x) => ({ ...x, a: v })))}</Field>

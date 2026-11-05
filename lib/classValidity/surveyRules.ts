@@ -26,7 +26,7 @@ export const isAnnual = (k: SurveyKey) => k === 'A1' || k === 'A2' || k === 'A3'
 export const RULES = [
   ['Annual Year 1–4', 'Anniversary − 3 bulan', 'Anniversary + 3 bulan', 'Inspeksi pertama dimulai setelah window end', 'Completion > 6 bulan setelah window end'],
   ['Intermediate', 'Anniversary Year 2 − 3 bulan', 'Anniversary Year 3 + 3 bulan', 'Inspeksi pertama dimulai setelah window end', 'Completion > 6 bulan setelah window end'],
-  ['Docking Survey 1', 'Target bulan ke-24 setelah Renewal/Docking sebelumnya', 'Maks. 36 bulan setelah Bottom Survey sebelumnya', 'Mulai atau selesai setelah batas 36 bulan', 'Tidak ada perpanjangan; keterlambatan tetap SUSPENDED'],
+  ['Docking Survey 1', 'Tidak ada batas paling awal', 'Maks. 36 bulan setelah Bottom Survey sebelumnya', 'Mulai atau selesai setelah batas 36 bulan', 'Tidak ada perpanjangan; keterlambatan tetap SUSPENDED'],
   ['Renewal + Docking 2', 'Boleh mulai sebelum expiry (−3 bulan = acuan pergeseran)', 'Expiry atau extension disetujui (maks. 3 bulan)', 'Inspeksi pertama dimulai setelah batas berlaku', 'Completion > 6 bulan setelah expiry asli'],
 ];
 export const CASES = [
@@ -288,18 +288,36 @@ export const SHAFT_SYS: [ShaftSys, string][] = [
   ['fw', 'Closed loop — fresh water'],
 ];
 /** D = diameter LINER (bukan diameter poros) bila poros berliner. Open loop = rumus Water Lubricated; Closed loop oil = rumus Oil Lubricated; Closed loop fresh water = batas dari manual pabrikan. */
+/** Koefisien batas clearance poros: [pengali D, konstanta mm]. Satu-satunya sumber: dipakai perhitungan, Modul Propulsi, dan Memo. */
+export const SHAFT_COEF = {
+  open: { newLo: [0.003, 0.2], newHi: [0.004, 0.5], max: [0.01, 2.5] },
+  oil: { newLo: [0.001, 0.3], newHi: [0.001, 0.5], max: [0.0015, 0.65] },
+} as const;
+const lin = (c: readonly number[], d: number) => c[0] * d + c[1];
+export const idn = (n: number) => String(n).replace('.', ',');
+const f1 = (n: number) => n.toFixed(1).replace('.', ',');
 export function shaftLimits(sys: ShaftSys, cond: 'new' | 'max', d: number | null): { lo: number | null; hi: number | null } {
   if (d === null || sys === 'fw') return { lo: null, hi: null };
-  if (sys === 'open') return cond === 'new' ? { lo: 0.003 * d + 0.2, hi: 0.004 * d + 0.5 } : { lo: null, hi: 0.01 * d + 2.5 };
-  return cond === 'new' ? { lo: 0.001 * d + 0.3, hi: 0.001 * d + 0.5 } : { lo: null, hi: 0.0015 * d + 0.65 };
+  const k = SHAFT_COEF[sys];
+  return cond === 'new' ? { lo: lin(k.newLo, d), hi: lin(k.newHi, d) } : { lo: null, hi: lin(k.max, d) };
 }
+/** Teks rumus maksimum clearance (kondisi dalam pemakaian), mis. "0,01·D + 2,5 mm". */
+export const shaftMaxRule = (sys: ShaftSys): string => (sys === 'fw' ? 'sesuai manual pabrikan' : `${idn(SHAFT_COEF[sys].max[0])}·D + ${idn(SHAFT_COEF[sys].max[1])} mm`);
+/** Toleransi aus shaft liner pada sistem oil (persen dari tebal liner). */
+export const LINER_WEAR_PCT = { bearing: 25, packing: 50 };
+/** Batas clearance rudder stock (mm). Satu-satunya sumber untuk perhitungan, Modul Propulsi, dan Memo. */
+export const RUDDER = { neck: { k: 0.01, c: 2, cap: 4 }, pintle: { lo: 50, hi: 100, small: 3, mid: 5, k: 0.01, c: 4, cap: 6 } };
 export function rudderMax(item: 'Neck Bearing' | 'Pintle Bearing', d: number | null): number | null {
   if (d === null) return null;
-  if (item === 'Neck Bearing') return Math.min(0.01 * d + 2, 4);
-  if (d < 50) return 3;
-  if (d <= 100) return 5;
-  return Math.min(0.01 * d + 4, 6);
+  if (item === 'Neck Bearing') return Math.min(RUDDER.neck.k * d + RUDDER.neck.c, RUDDER.neck.cap);
+  const p = RUDDER.pintle;
+  if (d < p.lo) return p.small;
+  if (d <= p.hi) return p.mid;
+  return Math.min(p.k * d + p.c, p.cap);
 }
+const R = RUDDER;
+export const RUDDER_RULE_SHORT = `Neck: min(${idn(R.neck.k)}d + ${R.neck.c}; ${R.neck.cap}). Pintle: d<${R.pintle.lo} → ${R.pintle.small}; ${R.pintle.lo}–${R.pintle.hi} → ${R.pintle.mid}; d>${R.pintle.hi} → min(${idn(R.pintle.k)}d + ${R.pintle.c}; ${R.pintle.cap})`;
+export const RUDDER_RULE_MEMO = `Neck bearing: maks. ${idn(R.neck.k)}·D + ${f1(R.neck.c)} mm (maks. ${f1(R.neck.cap)} mm). Pintle bearing: d < ${R.pintle.lo} mm → ${f1(R.pintle.small)} mm; ${R.pintle.lo}–${R.pintle.hi} mm → ${f1(R.pintle.mid)} mm; d > ${R.pintle.hi} mm → ${idn(R.pintle.k)}·d + ${f1(R.pintle.c)} mm (maks. ${f1(R.pintle.cap)} mm).`;
 export type Verdict = 'COMPLIANT' | 'NON-COMPLIANT' | '';
 /** Batas minimum jangkar dan rantai jangkar terhadap nilai asli (dipakai modul Propulsi dan Memorandum). */
 export const ANCHOR_MIN_RATIO = 0.9; // berat jangkar: minimum 90% dari berat asli
