@@ -8,6 +8,7 @@ import type { ChainState } from '../../lib/classValidity/surveyRules';
 import { num } from '../../lib/classValidity/dateUtils';
 import type { MemoCtx, MemoItem, MemoState } from '../../lib/memo';
 import { useAuth } from '../AuthProvider';
+import { useDialog } from '../DialogProvider';
 
 import { Button, Notice } from '../Controls';
 type Pair = { o: string; a: string };
@@ -32,6 +33,7 @@ const todayISO = () => {
 /** MODUL 5 — Memorandum awal survei untuk owner: daftar item dibuat otomatis dari data survei, bisa diedit, lalu diunduh / disalin / dikirim lewat email sendiri. */
 export default function MemoModule({ ctx, memo, setMemo, ownerDefault, surveyorDefault, anchor, setAnchor, chain, setChain, onGoPropulsi }: Props) {
   const { user } = useAuth();
+  const { confirm } = useDialog();
   const [msg, setMsg] = useState('');
   const savedName = String((user?.user_metadata as Record<string, unknown> | undefined)?.surveyor_name ?? '');
   const eff: MemoState = { ...memo, to: memo.to || ownerDefault, surveyor: memo.surveyor || savedName || surveyorDefault, date: memo.date || todayISO() };
@@ -51,7 +53,17 @@ export default function MemoModule({ ctx, memo, setMemo, ownerDefault, surveyorD
   const delExtra = (sid: string, i: number) => setMemo((m) => ({ ...m, extra: { ...m.extra, [sid]: (m.extra[sid] ?? []).filter((_, j) => j !== i) } }));
   const resetEdits = () => setMemo((m) => ({ ...m, off: {}, text: {}, extra: {} }));
 
+  // memo yang masih punya isian kosong (tampil sebagai ……): minta konfirmasi sebelum disalin / diunduh / dikirim
+  const okToExport = async () =>
+    gaps.length === 0 ||
+    (await confirm({
+      title: 'Memo belum lengkap',
+      message: `Masih ada isian kosong yang tampil sebagai ……:\n\n${gaps.map((g) => `• ${g.text}`).join('\n')}\n\nLanjutkan tanpa melengkapi?`,
+      confirmText: 'Lanjutkan',
+    }));
+
   const copy = async () => {
+    if (!(await okToExport())) return;
     try {
       await navigator.clipboard.writeText(text);
       setMsg('Teks memorandum tersalin.');
@@ -60,6 +72,7 @@ export default function MemoModule({ ctx, memo, setMemo, ownerDefault, surveyorD
     }
   };
   const download = async () => {
+    if (!(await okToExport())) return;
     try {
       setMsg('Menyiapkan file Word…');
       const { memoDocxBlob } = await import('../../lib/memoDocx');
@@ -77,7 +90,8 @@ export default function MemoModule({ ctx, memo, setMemo, ownerDefault, surveyorD
       setMsg('Gagal membuat file Word. Coba lagi.');
     }
   };
-  const mail = () => {
+  const mail = async () => {
+    if (!(await okToExport())) return;
     const body = `Kepada Yth ${eff.to || ''},\n\nTerlampir ${subject.replace('Memorandum Awal', 'memorandum awal')}. Mohon item pada lampiran dapat dipersiapkan.\n\nHormat kami,\n${eff.surveyor}`;
     window.location.href = `mailto:${encodeURIComponent(eff.email.trim())}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
     setMsg('Email dibuka di aplikasi surat Anda. Lampiran file Word dipasang manual.');
@@ -171,6 +185,12 @@ export default function MemoModule({ ctx, memo, setMemo, ownerDefault, surveyorD
           ))}
 
           <Card title="Pratinjau & Kirim" sub="Memo dikirim dari email kantor Anda sendiri; web tidak mengirim email.">
+            {gaps.length > 0 && (
+              <Notice tone="warn" size="xs" className="mb-3">
+                <p className="font-semibold">Memo belum lengkap ({gaps.length} isian kosong, tampil sebagai ……):</p>
+                <ul className="mt-1 list-disc pl-4">{gaps.map((g, i) => <li key={i}>{g.text}</li>)}</ul>
+              </Notice>
+            )}
             <div className="flex flex-wrap gap-2">
               <Button type="button" onClick={download} variant="primary" size="sm">Unduh Word (.docx)</Button>
               <Button type="button" onClick={copy} size="sm">Salin teks</Button>
