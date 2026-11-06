@@ -78,7 +78,7 @@ export const RENEWAL: Item[] = [
   { s: 'Survey Crediting', t: 'Tidak boleh kredit bersamaan dengan Intermediate Survey atau thickness measurement.', a: 'REQUIRED' },
   { s: 'Hull, Equipment & Piping', t: 'Cakupan cukup untuk menegaskan kondisi memuaskan untuk class period 5 tahun baru.', a: 'ALL' },
   { s: 'Underwater Parts', t: 'Pemeriksaan bagian bawah air bersamaan dengan docking Renewal.', a: 'REQUIRED' },
-  { s: 'Anchors & Chain Cables', t: 'Range dan periksa jangkar/rantai, chain locker, holdfast, hawse pipe, stopper.', a: 'ALL', n: 'Gauge rantai mulai Renewal II (±3 link per 27,5 m).' },
+  { s: 'Anchors & Chain Cables', t: 'Range dan periksa jangkar/rantai, chain locker, holdfast, hawse pipe, stopper; uji sistem pemompaan chain locker.', a: 'ALL', n: 'Gauge rantai mulai Renewal II (±3 link per 27,5 m).' },
   { s: 'Internal Spaces', t: 'Periksa internal semua palka, tangki, pump room, tunnel, ruang mesin, cofferdam, void.', a: 'ALL FITTED SPACES', n: 'Rincian tangki: tabel di bawah.' },
   { s: 'Engine-Room Structure', t: 'Tank top, shell, bracket, sekat, bilge well, sea suction, pipa pendingin, overboard valve.', a: 'IF FITTED', n: 'UT bila ada wastage.' },
   { s: 'Ballast-Tank Coating', t: 'Sistem proteksi korosi; follow-up tahunan dan UT bila coating absent/soft/semi-hard/POOR.', a: 'IF BALLAST TANKS FITTED' },
@@ -92,6 +92,7 @@ export const RENEWAL: Item[] = [
   // Ditaruh di akhir daftar supaya nomor item lama (RN-0 … RN-14) dan checklist yang sudah tersimpan tidak bergeser.
   { s: 'Crank Web Deflection', t: 'Ukur crank web deflection main engine dan diesel bantu yang memiliki crankcase door (umumnya setelah kapal turun dok), atau buktikan dengan protokol terbaru; buat laporan.', a: 'ALL / WHERE RELEVANT', n: 'BKI 1.3.2.1 → 1.2.2.5(A). Lampiran: laporan crankweb deflection.' },
   { s: 'Insulation Resistance (Megger)', t: 'Tahanan isolasi generator, motor listrik esensial, kabel, panel listrik dan MSB, atau buktikan dengan protokol terbaru; buat laporan.', a: 'ALL / IF FITTED', n: 'BKI 1.3.2.1 → 1.2.2.5(A). Kapal tanpa penggerak: hanya bila ada instalasi listrik.' },
+  { s: 'Pushing / Being Pushed Arrangement', t: 'Periksa titik sambung dan area kontak dengan struktur penumpu, serta peralatan penyambung termasuk locking device.', a: 'IF FITTED', n: 'BKI 1.3.2.18. Tug pendorong dan tongkang yang didorong.' },
 ];
 export const DOCKING: Item[] = [
   { s: 'Survey Method', t: 'Normalnya dry-dock/slipway; In-water Survey dapat diterima sesuai ketentuan dan persetujuan.', a: 'ALL', n: 'Owner memberi tahu BKI saat bottom tersedia.' },
