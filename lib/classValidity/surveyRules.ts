@@ -39,7 +39,9 @@ export const CASES = [
 /* ============================================================================
  * 3. SURVEY SCOPE DATA (Sheet "Survey Scope")
  * ========================================================================== */
-export type Item = { s: string; t: string; a: string; n?: string; g?: 'mid' | 'old' };
+export type Item = { s: string; t: string; a: string; n?: string; g?: 'mid' | 'old'; x?: string[] };
+/** Jenis kapal pengangkut kargo kering saja dan gas carrier: dikecualikan dari pemeriksaan "selected cargo spaces" Intermediate (BKI 1.2.2.4). */
+const NO_CARGO_SPACE_IM = ['General Cargo', 'Bulk Carrier', 'Container Ship', 'Gas Carrier'];
 
 export const ANNUAL: Item[] = [
   { s: 'Hull & Closing Appliances', t: 'Kondisi umum lambung, pelat kulit di atas garis air, closing appliances, kekuatan struktur dan bukaan di bawah freeboard deck.', a: 'ALL', n: 'Pastikan tidak ada deteriorasi / modifikasi tanpa persetujuan.' },
@@ -66,7 +68,7 @@ export const INTERMEDIATE: Item[] = [
   { s: 'All Ballast Tanks', t: 'Pemeriksaan internal umum seluruh tangki ballast; dapat dibatasi ke verifikasi proteksi korosi bila tidak ada cacat.', a: 'REQUIRED', g: 'old', n: 'Kapal > 10 tahun.' },
   { s: 'Annual Tank Follow-up', t: 'Tangki terdampak dapat memerlukan pemeriksaan internal tahunan bila coating tidak ada/soft/POOR dan tidak diperbaiki.', a: 'AS REQUIRED' },
   { s: 'Cargo Holds', t: 'Pemeriksaan internal palka terpilih.', a: 'N/A FOR CURRENT VESSEL TYPES' },
-  { s: 'Selected Cargo Spaces', t: 'Pemeriksaan internal ruang kargo terpilih.', a: 'IF FITTED / VERIFY NOTATION', n: 'Kapal > 10 tahun.' },
+  { s: 'Selected Cargo Spaces', t: 'Pemeriksaan internal ruang kargo terpilih.', a: 'IF FITTED / VERIFY NOTATION', g: 'old', x: NO_CARGO_SPACE_IM, n: 'Kapal > 10 tahun; tidak untuk kapal kargo kering saja, gas carrier, dan tanker ESP.' },
   { s: 'Machinery Measurements', t: 'Crank web deflection main engine, crank deflection diesel bantu, insulation resistance generator/motor/kabel/switchgear.', a: 'ALL / WHERE RELEVANT' },
   { s: 'Operational Tests', t: 'Emergency generator/switchboard, emergency bilge valve, drain air receiver, operasi umum mesin/listrik.', a: 'ALL / IF FITTED' },
   { s: 'Crediting Restriction', t: 'Intermediate dan Class Renewal tidak boleh dikreditkan bersamaan (termasuk thickness measurement).', a: 'REQUIRED' },
@@ -162,7 +164,8 @@ export const METHOD: Record<string, string> = {
  * ========================================================================== */
 export const RESULTS = ['NOT CHECKED', 'SATISFACTORY', 'DEFICIENCY', 'N/A'];
 
-export function applicability(a: string, g: Item['g'], vt: VType, age: number | null): string {
+export function applicability(a: string, g: Item['g'], vt: VType, age: number | null, x?: string[]): string {
+  if (x?.includes(vt)) return 'N/A';
   if (a.startsWith('N/A')) return HOLD_TYPES.includes(vt) ? 'IF FITTED' : 'N/A';
   if (a.includes('TUGBOAT') && !TUG_TYPES.includes(vt)) return 'N/A';
   if (age !== null) {

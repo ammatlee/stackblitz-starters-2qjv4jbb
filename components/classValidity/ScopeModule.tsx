@@ -50,7 +50,7 @@ export default function ScopeModule(p: ScopeProps) {
   const hiddenNote = (n: number) => n > 0 && <p className="mt-2 text-xs text-slate-600">{n} item tidak berlaku untuk {vType}/umur kapal — disembunyikan.</p>;
   
   const checklist = (id: string, items: Item[]) => {
-    const all = items.map((it, i) => ({ it, id: `${id}-${i}`, ap: applicability(it.a, it.g, vType, age) }));
+    const all = items.map((it, i) => ({ it, id: `${id}-${i}`, ap: applicability(it.a, it.g, vType, age, it.x) }));
     const rows = all.filter((r) => r.ap !== 'N/A' && (propelled || !NA_UNPROPELLED.includes(r.it.s)));
     return { rows, ids: rows.map((r) => r.id), hidden: all.length - rows.length };
   };
