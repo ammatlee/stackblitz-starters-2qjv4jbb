@@ -90,6 +90,29 @@ export default function MemoModule({ ctx, memo, setMemo, ownerDefault, surveyorD
       setMsg('Gagal membuat file Word. Coba lagi.');
     }
   };
+  // Bagikan file Word lewat menu Bagikan bawaan HP (email, WhatsApp, dll.); file langsung terlampir bila didukung browser
+  const share = async () => {
+    if (!(await okToExport())) return;
+    type ShareNav = Navigator & { canShare?: (d: { files?: File[] }) => boolean; share?: (d: { files?: File[]; title?: string; text?: string }) => Promise<void> };
+    const nav = navigator as ShareNav;
+    try {
+      setMsg('Menyiapkan file Word…');
+      const { memoDocxBlob } = await import('../../lib/memoDocx');
+      const blob = await memoDocxBlob(ctx, eff, resolved);
+      const file = new File([blob], `Memorandum_${(ctx.vesselName || 'kapal').replace(/[^A-Za-z0-9]+/g, '_')}.docx`, {
+        type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      });
+      if (nav.share && nav.canShare && nav.canShare({ files: [file] })) {
+        await nav.share({ files: [file], title: subject, text: subject });
+        setMsg('Menu Bagikan dibuka. Pilih aplikasi email, file Word langsung terlampir.');
+      } else {
+        setMsg('Browser ini belum mendukung kirim file langsung. Pakai Unduh Word, lalu Buka di email dan lampirkan manual.');
+      }
+    } catch (e) {
+      if (e instanceof Error && e.name === 'AbortError') return setMsg('Dibatalkan.');
+      setMsg('Gagal membagikan file Word. Pakai Unduh Word, lalu lampirkan manual.');
+    }
+  };
   const mail = async () => {
     if (!(await okToExport())) return;
     const body = `Kepada Yth ${eff.to || ''},\n\nTerlampir ${subject.replace('Memorandum Awal', 'memorandum awal')}. Mohon item pada lampiran dapat dipersiapkan.\n\nHormat kami,\n${eff.surveyor}`;
@@ -194,6 +217,7 @@ export default function MemoModule({ ctx, memo, setMemo, ownerDefault, surveyorD
             <div className="flex flex-wrap gap-2">
               <Button type="button" onClick={download} variant="primary" size="sm">Unduh Word (.docx)</Button>
               <Button type="button" onClick={copy} size="sm">Salin teks</Button>
+              <Button type="button" onClick={share} size="sm">Kirim file Word</Button>
               <Button type="button" onClick={mail} size="sm">Buka di email</Button>
               <Button type="button" onClick={resetEdits} size="sm">Kembalikan ke otomatis</Button>
             </div>
