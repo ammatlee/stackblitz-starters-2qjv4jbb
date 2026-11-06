@@ -24,6 +24,7 @@ export type ScopeProps = {
   yearBuilt: string;
   lastNo: number | null;
   propelled?: boolean;
+  notation?: boolean; // notasi jangkar: tanpa notasi tidak ada rantai & chain locker
   shaftSys: ShaftSys;
   setShaftSys: Dispatch<SetStateAction<ShaftSys>>;
   shaftPlan: PlanKey | '';
@@ -39,6 +40,7 @@ export default function ScopeModule(p: ScopeProps) {
   const { A, checks, setCheck, setChecks, name, vType, sel, expiry, extension, yearBuilt, lastNo, shaftSys, setShaftSys, shaftPlan, setShaftPlan, propConn, setPropConn, openCfg, setOpenCfg } = p;
   const age = A.age;
   const propelled = p.propelled !== false; // kapal tanpa penggerak: item kemudi, propeller, dan mesin penggerak disembunyikan
+  const hasAnchor = !!p.notation; // tanpa notasi jangkar: item Anchors & Chain Cables (termasuk uji pemompaan chain locker) disembunyikan
   const rn = A.rn ?? 4;
   const t = renewalTables(Math.min(rn, 4), age, vType, propelled); // tabel scope: IV dan seterusnya memakai aturan yang sama
   const val = (id: string) => checks[id] ?? 'NOT CHECKED';
@@ -51,7 +53,7 @@ export default function ScopeModule(p: ScopeProps) {
   
   const checklist = (id: string, items: Item[]) => {
     const all = items.map((it, i) => ({ it, id: `${id}-${i}`, ap: applicability(it.a, it.g, vType, age, it.x) }));
-    const rows = all.filter((r) => r.ap !== 'N/A' && (propelled || !NA_UNPROPELLED.includes(r.it.s)));
+    const rows = all.filter((r) => r.ap !== 'N/A' && (propelled || !NA_UNPROPELLED.includes(r.it.s)) && (hasAnchor || r.it.s !== 'Anchors & Chain Cables'));
     return { rows, ids: rows.map((r) => r.id), hidden: all.length - rows.length };
   };
   const listOf = (rows: { it: Item; id: string; ap: string }[]) => (

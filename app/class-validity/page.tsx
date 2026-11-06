@@ -424,7 +424,7 @@ export default function Page() {
         )}
         {shownTab === 2 && (
           <ScopeModule
-            A={A} checks={checks} setCheck={setCheck} setChecks={setChecks} name={name} vType={vType} sel={sel} propelled={propelled}
+            A={A} checks={checks} setCheck={setCheck} setChecks={setChecks} name={name} vType={vType} sel={sel} propelled={propelled} notation={notation}
             expiry={expiry} extension={extension} yearBuilt={yearBuilt} lastNo={lastNo}
             shaftSys={shaftSys} setShaftSys={touched(setShaftSys)} shaftPlan={shaftPlan} setShaftPlan={setShaftPlan}
             propConn={propConn} setPropConn={touched(setPropConn)} openCfg={openCfg} setOpenCfg={touched(setOpenCfg)}
