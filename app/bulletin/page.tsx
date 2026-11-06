@@ -1,7 +1,9 @@
 'use client';
 
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { supabase } from '../../lib/supabase';
+import { fetchAllRows } from '../../lib/fetchAll';
 import { useAuth } from '../../components/AuthProvider';
 import { useDialog } from '../../components/DialogProvider';
 import DateInput from '../../components/DateInput';
@@ -23,7 +25,7 @@ type Entry = {
   category: string | null;
   tags: string[];
   body: string;
-  body_html: string | null;
+  body_html?: string | null; // tidak ikut dimuat di daftar; diambil saat entri dibuka (undefined = belum diambil)
   summary: string | null;
   cover_url: string | null;
   attachments: Attachment[] | null;
@@ -35,6 +37,9 @@ type Entry = {
   created_at: string;
   updated_at: string;
 };
+
+// kolom untuk daftar: tanpa body_html (kolom terberat); isi lengkap diambil saat entri dibuka atau diubah
+const LIST_COLS = 'id,owner,title,kind,category,tags,body,summary,cover_url,attachments,visibility,remind_on,pinned,status,review_note,created_at,updated_at';
 
 const KINDS: [string, string][] = [['catatan', 'Catatan'], ['materi', 'Materi'], ['pengingat', 'Pengingat']];
 const CATS = ['Umum', 'Annual', 'Intermediate', 'Renewal', 'Docking', 'Clearance', 'Regulasi', 'Keselamatan'];
@@ -185,8 +190,10 @@ function Body({ text }: { text: string }) {
   return <div className="space-y-3 text-sm leading-relaxed text-slate-800">{out}</div>;
 }
 
-export default function BulletinPage() {
+function BulletinInner() {
   const { user, configured, loading, approved, isAdmin } = useAuth();
+  const router = useRouter();
+  const params = useSearchParams();
   const { confirm, prompt } = useDialog();
   const canWrite = !!user && (approved || isAdmin);
   const [tab, setTab] = useState<'all' | 'pending' | 'mine'>('all');
@@ -211,22 +218,95 @@ export default function BulletinPage() {
   fRef.current = f;
   const savedRef = useRef(false); // setelah berhasil disimpan ke database, draft tidak boleh ditulis lagi
 
+  // alamat halaman menentukan tampilan: /bulletin = daftar, ?e=ID = baca, ?e=ID&edit=1 = ubah, ?new=1 = tulis baru
+  const eParam = params?.get('e') ?? '';
+  const urlKey = params?.get('new') === '1' ? 'new' : eParam ? eParam + (params?.get('edit') === '1' ? ':edit' : '') : '';
+  const [applied, setApplied] = useState<string | null>(null); // alamat yang sudah diterapkan ke tampilan
+  const [missing, setMissing] = useState<string | null>(null); // alamat yang entrinya tidak ditemukan / tidak boleh dibuka
+  const resumeRef = useRef(false); // buka form dengan draft langsung dipulihkan
+  const tokenRef = useRef(0);
+  const nav = (url: string, replace = false) => (replace ? router.replace(url) : router.push(url));
+
   const load = useCallback(async () => {
-    if (!supabase) return;
+    const sb = supabase;
+    if (!sb) return;
     setFetching(true);
-    const { data, error } = await supabase
-      .from('bulletins')
-      .select('*')
-      .order('pinned', { ascending: false })
-      .order('created_at', { ascending: false });
+    const { data, error } = await fetchAllRows((from, to) =>
+      sb.from('bulletins').select(LIST_COLS).order('pinned', { ascending: false }).order('created_at', { ascending: false }).order('id').range(from, to)
+    );
     setFetching(false);
     if (error) setMsg({ k: 'err', t: 'Gagal memuat: ' + error.message + ' (sudah menjalankan SQL Bulletin?)' });
-    else setEntries((data ?? []) as unknown as Entry[]);
+    else setEntries(data as unknown as Entry[]);
   }, []);
+
+  // ambil satu entri lengkap (dengan body_html) dan simpan ke daftar
+  const fetchFull = async (id: string): Promise<Entry | null> => {
+    if (!supabase) return null;
+    const { data, error } = await supabase.from('bulletins').select('*').eq('id', id).maybeSingle();
+    if (error || !data) return null;
+    const full = data as unknown as Entry;
+    setEntries((prev) => prev.map((x) => (x.id === id ? full : x)));
+    return full;
+  };
 
   useEffect(() => {
     if (!loading) load();
   }, [load, loading, user]);
+
+  // terapkan alamat ke tampilan (juga saat tombol Kembali browser ditekan atau tautan dibuka langsung)
+  useEffect(() => {
+    if (!supabase || loading || fetching || applied === urlKey) return;
+    const token = ++tokenRef.current;
+    const fin = () => {
+      if (token === tokenRef.current) {
+        setApplied(urlKey);
+        setMissing(null);
+      }
+    };
+    const notFound = () => {
+      if (token !== tokenRef.current) return;
+      setView('list');
+      setCur(null);
+      setMissing(urlKey);
+      setMsg({ k: 'err', t: 'Entri tidak ditemukan, atau Anda perlu masuk untuk membukanya.' });
+    };
+    (async () => {
+      if (!urlKey) {
+        if (view === 'edit') persistRef.current(); // keluar dari form lewat Kembali browser: tulis draft terakhir
+        setView('list');
+        setCur(null);
+        return fin();
+      }
+      if (urlKey === 'new') {
+        if (!canWrite) {
+          setView('list');
+          setMsg({ k: 'err', t: 'Masuk dengan akun yang sudah disetujui untuk menulis entri.' });
+          return fin();
+        }
+        const resume = resumeRef.current;
+        resumeRef.current = false;
+        begin(null, resume);
+        return fin();
+      }
+      const base = entries.find((x) => x.id === eParam);
+      if (!base) return notFound(); // dicoba lagi otomatis saat data berubah (mis. setelah masuk akun)
+      const full = base.body_html === undefined ? await fetchFull(eParam) : base;
+      if (token !== tokenRef.current) return;
+      if (!full) return notFound();
+      if (urlKey.endsWith(':edit')) {
+        if (!user || !(isAdmin || (canWrite && full.owner === user.id))) return nav('/bulletin?e=' + eParam, true); // tidak berhak mengubah: tampilkan saja
+        const resume = resumeRef.current;
+        resumeRef.current = false;
+        begin(full, resume);
+        return fin();
+      }
+      if (missing === urlKey) setMsg(null);
+      setCur(full);
+      setView('detail');
+      fin();
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [urlKey, applied, entries, fetching, loading, user, canWrite, isAdmin]);
 
   const shown = useMemo(() => {
     const s = q.trim().toLowerCase();
@@ -279,8 +359,8 @@ export default function BulletinPage() {
     }
     setView('edit');
   };
-  const openNew = () => begin(null);
-  const openEdit = (e: Entry) => begin(e);
+  const openNew = () => nav('/bulletin?new=1');
+  const openEdit = (e: Entry) => nav('/bulletin?e=' + e.id + '&edit=1');
 
   // tulis draft ke perangkat; bila isi sama dengan versi tersimpan, draft dihapus
   const persistDraft = () => {
@@ -309,6 +389,7 @@ export default function BulletinPage() {
     return () => {
       window.removeEventListener('beforeunload', flush);
       document.removeEventListener('visibilitychange', hide);
+      flush(); // pindah halaman di dalam aplikasi (bukan muat ulang) juga menulis draft terakhir
     };
   }, [view, pending]);
 
@@ -319,21 +400,28 @@ export default function BulletinPage() {
   }, [view, user, entries]);
 
   // buang draft beserta file (gambar / lampiran) yang hanya ada di draft itu
-  const discardDraft = async (d: Draft<Form>) => {
-    if (!user) return;
-    const e = d.entryId ? entries.find((x) => x.id === d.entryId) ?? null : null;
+  const discardDraft = async (d: Draft<Form>): Promise<boolean> => {
+    if (!user) return false;
+    let e: Entry | null = d.entryId ? entries.find((x) => x.id === d.entryId) ?? null : null;
+    if (e && e.body_html === undefined) {
+      e = await fetchFull(e.id); // daftar tidak memuat isi lengkap; tanpa ini gambar yang sudah tersimpan bisa ikut terhapus
+      if (!e) {
+        setMsg({ k: 'err', t: 'Draft belum dibuang: entri aslinya tidak bisa dimuat. Coba lagi saat koneksi baik.' });
+        return false;
+      }
+    }
     const saved = e ? [...pathsInHtml(e.body_html), ...pathsInHtml(e.cover_url)] : [];
     const savedAtt = (e?.attachments ?? []).map((a) => a.path);
     const form = { ...EMPTY, ...d.form };
     await removeFiles([...pathsInHtml(form.body_html), ...pathsInHtml(form.cover_url)].filter((x) => saved.indexOf(x) < 0));
     await removeAttachments(form.attachments.filter((a) => savedAtt.indexOf(a.path) < 0));
     clearDraft(user.id, d.entryId);
+    return true;
   };
   const askDiscard = async (d: Draft<Form>, title: string) => {
     const yes = await confirm({ title: 'Buang draft?', message: `Draft "${title || 'tanpa judul'}" di perangkat ini dibuang, termasuk gambar dan lampiran yang belum pernah disimpan.`, confirmText: 'Buang draft', tone: 'danger' });
     if (!yes) return false;
-    await discardDraft(d);
-    return true;
+    return await discardDraft(d);
   };
   const restorePending = () => {
     if (!pending) return;
@@ -345,21 +433,28 @@ export default function BulletinPage() {
     if (pending && (await askDiscard(pending, pending.form.title))) setPending(null);
   };
   const resumeDraft = (d: Draft<Form>) => {
-    if (d.entryId === null) return begin(null, true);
-    const e = entries.find((x) => x.id === d.entryId);
-    if (e) begin(e, true);
+    resumeRef.current = true;
+    nav(d.entryId === null ? '/bulletin?new=1' : '/bulletin?e=' + d.entryId + '&edit=1');
   };
   const leaveEdit = () => {
     const was = user && JSON.stringify(fRef.current) !== baselineRef.current;
     persistDraft();
-    setView(cur ? 'detail' : 'list');
     if (was) setMsg({ k: 'ok', t: 'Draft tersimpan di perangkat ini. Lanjutkan dari daftar kapan saja.' });
+    nav(cur ? '/bulletin?e=' + cur.id : '/bulletin', true);
   };
 
   const openDetail = (e: Entry) => {
-    setCur(e);
     setMsg(null);
-    setView('detail');
+    nav('/bulletin?e=' + e.id);
+  };
+  const copyLink = async (e: Entry) => {
+    const url = window.location.origin + '/bulletin?e=' + e.id;
+    try {
+      await navigator.clipboard.writeText(url);
+      setMsg({ k: 'ok', t: 'Tautan disalin.' });
+    } catch {
+      await prompt({ title: 'Salin tautan', message: 'Salin alamat di bawah ini:', defaultValue: url, confirmText: 'Tutup' });
+    }
   };
 
   const save = async () => {
@@ -402,8 +497,8 @@ export default function BulletinPage() {
     savedRef.current = true;
     clearDraft(user.id, cur ? cur.id : null);
     await load();
-    setView('list');
     setMsg({ k: 'ok', t: isAdmin ? 'Tersimpan.' : 'Terkirim — menunggu persetujuan admin sebelum tampil untuk umum.' });
+    nav('/bulletin', true);
   };
 
   const remove = async (e: Entry) => {
@@ -416,7 +511,7 @@ export default function BulletinPage() {
     await removeFiles([...pathsInHtml(e.body_html), ...pathsInHtml(e.cover_url)]);
     if (user) clearDraft(user.id, e.id);
     await load();
-    setView('list');
+    nav('/bulletin', true);
   };
 
   // admin: setujui atau tolak entri anggota
@@ -431,7 +526,7 @@ export default function BulletinPage() {
     const { error } = await supabase.from('bulletins').update({ status, review_note: note }).eq('id', e.id);
     if (error) return setMsg({ k: 'err', t: error.message });
     await load();
-    setView('list');
+    nav('/bulletin', true);
     setMsg({ k: 'ok', t: status === 'approved' ? 'Disetujui dan tampil untuk umum.' : 'Ditolak.' });
   };
 
@@ -494,6 +589,7 @@ export default function BulletinPage() {
     setF({ ...f, [k]: e.target.value });
 
   if (!configured) return <main className="mx-auto max-w-3xl px-4 py-10 text-sm text-slate-600">Supabase belum dikonfigurasi.</main>;
+  if (urlKey && applied !== urlKey && missing !== urlKey) return <main className="mx-auto max-w-3xl px-4 py-10 text-sm text-slate-500">Memuat…</main>;
 
   /* ---------------- tampilan edit ---------------- */
   if (view === 'edit') {
@@ -670,7 +766,8 @@ export default function BulletinPage() {
     return (
       <main className="mx-auto max-w-3xl px-4 py-6">
         {viewing && <FileViewer url={viewing.att.url} name={viewing.att.name} type={viewing.att.type} label={viewing.label} onClose={() => setViewing(null)} />}
-        <button onClick={() => setView('list')} className="text-sm font-semibold text-teal-700">← Kembali ke daftar</button>
+        <button onClick={() => nav('/bulletin')} className="text-sm font-semibold text-teal-700">← Kembali ke daftar</button>
+        {msg && <p className={'mt-2 text-sm ' + (msg.k === 'err' ? 'text-red-700' : 'text-emerald-700')}>{msg.t}</p>}
         <article className="mt-3 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
           {cur.cover_url && (
             // eslint-disable-next-line @next/next/no-img-element
@@ -709,6 +806,9 @@ export default function BulletinPage() {
           )}
           {(cur.tags ?? []).length > 0 && (
             <p className="mt-4 text-xs text-slate-500">{cur.tags.map((t) => '#' + t).join('  ')}</p>
+          )}
+          {cur.status === 'approved' && cur.visibility === 'public' && (
+            <button type="button" onClick={() => copyLink(cur)} className="mt-4 text-xs font-semibold text-teal-700">🔗 Salin tautan entri ini</button>
           )}
           {user && (isAdmin || (canWrite && cur.owner === user.id)) && (
             <div className="mt-5 flex flex-wrap gap-2">
@@ -813,5 +913,13 @@ export default function BulletinPage() {
         </ul>
       )}
     </main>
+  );
+}
+
+export default function BulletinPage() {
+  return (
+    <Suspense fallback={<main className="mx-auto max-w-3xl px-4 py-10 text-sm text-slate-500">Memuat…</main>}>
+      <BulletinInner />
+    </Suspense>
   );
 }
