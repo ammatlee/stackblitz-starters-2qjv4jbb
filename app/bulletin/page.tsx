@@ -14,7 +14,8 @@ import { legacyToHtml } from '../../lib/legacyBody';
 import { saveDraft, loadDraft, clearDraft, listDrafts, fmtDraftTime, type Draft } from '../../lib/draft';
 import { uploadAttachment, uploadImage, removeFiles, removeAttachments, attachmentUrl, pathsInHtml, fmtSize, MAX_MB, type Attachment } from '../../lib/uploads';
 
-import { Button, Notice } from '../../components/Controls';
+import { Button, Chip, Notice } from '../../components/Controls';
+import { TEMPLATES, hasPlaceholder, stripImages, type BulletinTemplate } from '../../lib/bulletinTemplates';
 type Visibility = 'private' | 'members' | 'public';
 type Status = 'pending' | 'approved' | 'rejected';
 type Entry = {
@@ -220,7 +221,8 @@ function BulletinInner() {
 
   // alamat halaman menentukan tampilan: /bulletin = daftar, ?e=ID = baca, ?e=ID&edit=1 = ubah, ?new=1 = tulis baru
   const eParam = params?.get('e') ?? '';
-  const urlKey = params?.get('new') === '1' ? 'new' : eParam ? eParam + (params?.get('edit') === '1' ? ':edit' : '') : '';
+  const fromParam = params?.get('from') ?? '';
+  const urlKey = params?.get('new') === '1' ? 'new' + (fromParam ? ':' + fromParam : '') : eParam ? eParam + (params?.get('edit') === '1' ? ':edit' : '') : '';
   const [applied, setApplied] = useState<string | null>(null); // alamat yang sudah diterapkan ke tampilan
   const [missing, setMissing] = useState<string | null>(null); // alamat yang entrinya tidak ditemukan / tidak boleh dibuka
   const resumeRef = useRef(false); // buka form dengan draft langsung dipulihkan
@@ -277,7 +279,7 @@ function BulletinInner() {
         setCur(null);
         return fin();
       }
-      if (urlKey === 'new') {
+      if (urlKey === 'new' || urlKey.indexOf('new:') === 0) {
         if (!canWrite) {
           setView('list');
           setMsg({ k: 'err', t: 'Masuk dengan akun yang sudah disetujui untuk menulis entri.' });
@@ -285,7 +287,20 @@ function BulletinInner() {
         }
         const resume = resumeRef.current;
         resumeRef.current = false;
-        begin(null, resume);
+        let seed: Form | undefined;
+        let copied = false;
+        if (urlKey !== 'new') {
+          // duplikat: salin kerangka entri lain (tanpa gambar dan lampiran, karena file-nya milik entri asal)
+          const src = entries.find((x) => x.id === urlKey.slice(4));
+          const full = !src ? null : src.body_html === undefined ? await fetchFull(src.id) : src;
+          if (token !== tokenRef.current) return;
+          if (!full) return notFound();
+          const cleaned = stripImages(formOf(full).body_html);
+          seed = { ...EMPTY, title: full.title + ' (salinan)', kind: full.kind, category: full.category ?? 'Umum', tags: (full.tags ?? []).join(', '), body: full.body, body_html: cleaned.html, summary: full.summary ?? '' };
+          copied = true;
+        }
+        begin(null, resume, seed);
+        if (copied) setMsg({ k: 'ok', t: 'Salinan dibuat. Gambar dan lampiran tidak ikut disalin; tambahkan lagi bila perlu.' });
         return fin();
       }
       const base = entries.find((x) => x.id === eParam);
@@ -338,7 +353,7 @@ function BulletinInner() {
       : EMPTY;
 
   // buka form tulis / ubah. Bila ada draft di perangkat ini: pulihkan langsung (resume) atau tawarkan lewat banner
-  const begin = (e: Entry | null, resume = false) => {
+  const begin = (e: Entry | null, resume = false, seed?: Form) => {
     const base = formOf(e);
     baselineRef.current = JSON.stringify(base);
     savedRef.current = false;
@@ -354,7 +369,7 @@ function BulletinInner() {
       setF({ ...EMPTY, ...usable.form });
       setPending(null);
     } else {
-      setF(base);
+      setF(seed ?? base); // seed (hasil duplikat) dianggap belum tersimpan, jadi ikut disimpan sebagai draft
       setPending(usable);
     }
     setView('edit');
@@ -436,6 +451,10 @@ function BulletinInner() {
     resumeRef.current = true;
     nav(d.entryId === null ? '/bulletin?new=1' : '/bulletin?e=' + d.entryId + '&edit=1');
   };
+  const applyTemplate = (t: BulletinTemplate) => {
+    setF((p) => ({ ...p, kind: t.kind ?? p.kind, category: t.category ?? p.category, body_html: t.html, body: t.text }));
+    setEditorKey((k) => k + 1); // editor dimuat ulang dengan kerangka template
+  };
   const leaveEdit = () => {
     const was = user && JSON.stringify(fRef.current) !== baselineRef.current;
     persistDraft();
@@ -460,6 +479,10 @@ function BulletinInner() {
   const save = async () => {
     if (!supabase || !user) return;
     if (!f.title.trim()) return setMsg({ k: 'err', t: 'Judul wajib diisi.' });
+    if (hasPlaceholder(f.body)) {
+      const ok = await confirm({ title: 'Template belum terisi semua', message: 'Masih ada bagian bertanda [isi: …] di entri ini. Tetap simpan?', confirmText: 'Tetap simpan', cancelText: 'Kembali mengedit' });
+      if (!ok) return;
+    }
     const finalCover = f.cover_url || firstOwnImg(f.body_html);
     setBusy(true);
     setMsg(null);
@@ -648,6 +671,16 @@ function BulletinInner() {
         <div className={'mt-3 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm ' + (preview ? 'hidden' : '')}>
           <h1 className="text-lg font-bold">{cur ? 'Ubah entri' : 'Tulis baru'}</h1>
           <div className="mt-4 space-y-4">
+            {!cur && !f.body_html && !pending && (
+              <div className="rounded-xl border border-teal-200 bg-teal-50/60 p-3">
+                <p className="text-xs font-semibold text-teal-900">Mulai dari template <span className="font-normal text-teal-800">(opsional, kerangka tinggal diisi)</span></p>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {TEMPLATES.map((t) => (
+                    <Chip key={t.id} selected={false} title={t.hint} onClick={() => applyTemplate(t)}>{t.label}</Chip>
+                  ))}
+                </div>
+              </div>
+            )}
             <label className="block text-xs font-semibold text-slate-600">Judul
               <input className={inp + ' mt-1 text-base font-semibold'} value={f.title} onChange={set('title')} placeholder="Judul entri" />
             </label>
@@ -807,8 +840,15 @@ function BulletinInner() {
           {(cur.tags ?? []).length > 0 && (
             <p className="mt-4 text-xs text-slate-500">{cur.tags.map((t) => '#' + t).join('  ')}</p>
           )}
-          {cur.status === 'approved' && cur.visibility === 'public' && (
-            <button type="button" onClick={() => copyLink(cur)} className="mt-4 text-xs font-semibold text-teal-700">🔗 Salin tautan entri ini</button>
+          {((cur.status === 'approved' && cur.visibility === 'public') || canWrite) && (
+            <div className="mt-4 flex flex-wrap gap-x-4 gap-y-1 text-xs font-semibold text-teal-700">
+              {cur.status === 'approved' && cur.visibility === 'public' && (
+                <button type="button" onClick={() => copyLink(cur)}>🔗 Salin tautan entri ini</button>
+              )}
+              {canWrite && (
+                <button type="button" onClick={() => nav('/bulletin?new=1&from=' + cur.id)} title="Buat entri baru dengan isi yang sama (tanpa gambar dan lampiran)">⧉ Duplikat sebagai entri baru</button>
+              )}
+            </div>
           )}
           {user && (isAdmin || (canWrite && cur.owner === user.id)) && (
             <div className="mt-5 flex flex-wrap gap-2">
