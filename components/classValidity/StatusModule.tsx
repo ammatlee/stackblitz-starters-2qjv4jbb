@@ -81,11 +81,11 @@ export default function StatusModule(p: StatusProps) {
         <p className="text-xs font-semibold uppercase tracking-widest opacity-80">Class Validity</p>
         <p className="mt-1 text-4xl font-extrabold tracking-tight sm:text-5xl">{A.overall}</p>
         <p className="mt-3 text-sm font-semibold">
-          {A.c ? A.caseTitle[A.c] : A.overall === 'INPUT REQUIRED' ? 'Lengkapi tanggal & pilih survei' : A.overall === 'VALID' ? 'Tidak ada skenario withdrawal' : 'Tidak ada skenario withdrawal (status SUSPENDED)'}
+          {A.c ? A.caseTitle[A.c] : A.dockW ? 'Docking Survey 1 melewati batas withdrawal' : A.overall === 'INPUT REQUIRED' ? 'Lengkapi tanggal & pilih survei' : A.overall === 'VALID' ? 'Tidak ada skenario withdrawal' : 'Tidak ada skenario withdrawal (status SUSPENDED)'}
         </p>
         {A.c && <p className="mt-2 text-xs leading-relaxed opacity-90">{A.trigger[A.c]}</p>}
         <div className="mt-4 flex flex-wrap gap-3 text-xs">
-          <span className="rounded-full bg-white/20 px-3 py-1">Scope: <b>{A.c ? A.scopeLbl[A.c] : 'Normal sesuai survei terpilih'}</b></span>
+          <span className="rounded-full bg-white/20 px-3 py-1">Scope: <b>{A.c ? A.scopeLbl[A.c] + (A.dockW && A.c !== 'C' && A.c !== 'D' ? ' + DOCKING' : '') : A.dockW ? 'DOCKING (BOTTOM SURVEY)' : 'Normal sesuai survei terpilih'}</b></span>
           <span className="rounded-full bg-white/20 px-3 py-1">Umur: <b>{A.age ?? '—'} th · {A.rnLabel}</b></span>
         </div>
       </section>
@@ -117,6 +117,14 @@ export default function StatusModule(p: StatusProps) {
         </Card>
       )}
   
+      {A.dockReinst && A.c !== 'C' && A.c !== 'D' && (
+        <Card title="Reinstatement — Docking 1 melewati batas withdrawal" sub="Hanya statusnya WITHDRAWN; reinstatement tetap Docking Survey">
+          <p className="text-sm font-semibold">{A.dockReinst[0]}</p>
+          <p className="mt-1 text-xs text-slate-600">{A.dockReinst[1]}</p>
+          <button onClick={() => setTab(2)} className="mt-4 rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-700">Lihat detail scope &amp; checklist</button>
+        </Card>
+      )}
+
       <Fold title="Kapal & Survey Status" sub="Pilih kapal, lihat Last/Next tiap survei" open noPrint>
         <VesselStatus refreshKey={refreshKey} vesselName={name} onApply={applyVessel} />
       </Fold>
