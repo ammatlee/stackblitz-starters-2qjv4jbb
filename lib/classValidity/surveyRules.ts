@@ -86,7 +86,7 @@ export const RENEWAL: Item[] = [
   { s: 'Bilge & Ballast Piping', t: 'Periksa dan uji operasi pada tekanan kerja.', a: 'ALL FITTED SYSTEMS' },
   { s: 'Automatic Air Pipe Heads', t: 'Pemeriksaan eksternal dan internal; lepas head bila bagian dalam tidak terjangkau.', a: 'ALL EXCEPT PASSENGER SHIPS', n: 'Lihat tabel Air Pipe Head di bawah.' },
   { s: 'Towing Winch Emergency Release', t: 'Uji fungsi penuh (daya normal & blackout) pada yang lebih kecil dari 30% beban desain maks. atau 80% bollard pull.', a: 'TUGBOAT — IF FITTED', n: 'Gunakan bollard-pull test atau strong point bersertifikat.' },
-  { s: 'Certificate Period', t: 'Completion < 3 bulan sebelum expiry → periode & anniversary baru dari completion. Antara −3 s.d. +6 bulan → anniversary lama dipertahankan. > 6 bulan setelah expiry → periode baru dari completion.', a: 'REQUIRED' },
+  { s: 'Certificate Period', t: 'Ditentukan oleh tanggal completion (bukan tanggal mulai). Completion > 3 bulan sebelum expiry → periode & anniversary baru dari tanggal completion. Completion dalam 3 bulan sebelum expiry sampai 6 bulan setelah expiry → periode baru mulai dari expiry, anniversary lama dipertahankan. Completion > 6 bulan setelah expiry → periode & anniversary baru dari completion.', a: 'REQUIRED' },
 ];
 export const DOCKING: Item[] = [
   { s: 'Survey Method', t: 'Normalnya dry-dock/slipway; In-water Survey dapat diterima sesuai ketentuan dan persetujuan.', a: 'ALL', n: 'Owner memberi tahu BKI saat bottom tersedia.' },
