@@ -10,9 +10,9 @@ describe('Renewal memuat pengukuran mesin/listrik (BKI 1.3.2.1 → 1.2.2.5A)', (
     expect(megger).toBeDefined();
   });
   it('item baru ditaruh di akhir: nomor item lama tidak bergeser (RN-0 … RN-14)', () => {
-    expect(RENEWAL.length).toBe(17);
+    expect(RENEWAL.length).toBe(18);
     expect(RENEWAL[14].s).toBe('Certificate Period');
-    expect(RENEWAL.slice(-2).map((i) => i.s)).toEqual(['Crank Web Deflection', 'Insulation Resistance (Megger)']);
+    expect(RENEWAL.slice(-3).map((i) => i.s)).toEqual(['Crank Web Deflection', 'Insulation Resistance (Megger)', 'Pushing / Being Pushed Arrangement']);
   });
   it('crank web tidak berlaku untuk kapal tanpa penggerak, megger tetap tampil', () => {
     expect(NA_UNPROPELLED).toContain('Crank Web Deflection');

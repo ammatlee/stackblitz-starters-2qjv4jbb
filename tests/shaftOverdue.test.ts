@@ -43,8 +43,8 @@ describe('Propeller Shaft Survey — jatuh tempo poros', () => {
   it('extension 1 tahun, mulai 04.11.2026 → VALID (maks. 08.05.2027 dari jatuh tempo asli)', () => {
     expect(ps(run({ startDate: '2026-11-04', compDate: '2026-11-10', statusInfo: info('2026-05-08'), shaftPlan: 'E1' })).status).toBe('VALID');
   });
-  it('extension 1 tahun mulai 09.05.2027 (lewat batas 1 tahun) → tidak valid', () => {
-    expect(ps(run({ startDate: '2027-05-09', compDate: '2027-05-12', statusInfo: info('2026-05-08'), shaftPlan: 'E1' })).status).toBe('SUSPENDED');
+  it('extension 1 tahun mulai 09.05.2027 (lewat batas 1 tahun, > 6 bulan dari jatuh tempo) → tidak valid, WITHDRAWN', () => {
+    expect(ps(run({ startDate: '2027-05-09', compDate: '2027-05-12', statusInfo: info('2026-05-08'), shaftPlan: 'E1' })).status).toBe('WITHDRAWN');
   });
   it('sudah ada extension 3 bulan tercatat (due 08.08.2026, cap 08.05.2027) + extension 1 tahun → dibatasi cap 08.05.2027', () => {
     const r = run({ startDate: '2027-05-01', compDate: '2027-05-05', statusInfo: info('2026-08-08'), shaftPlan: 'E1' });
