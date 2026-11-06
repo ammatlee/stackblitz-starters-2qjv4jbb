@@ -197,6 +197,7 @@ export default function PropulsiModule(p: PropulsiProps) {
                     <Field label="Putaran n (rpm)">{numIn(shafts[i].n ?? '', (v) => setShaftRow(i, 'n', v))}</Field>
                     <Field label="Bore di (mm)">{numIn(shafts[i].b ?? '', (v) => setShaftRow(i, 'b', v))}</Field>
                   </div>
+                  <p className="mt-2 text-xs text-slate-600">Bore hanya diisi untuk poros berlubang (mis. CPP). Poros pejal: kosongkan atau isi 0. Bore ≤ 0,4·da dihitung sama seperti poros pejal.</p>
                   <p className="mt-3 text-sm">
                     {r.solved ? 'Diameter luar minimum (untuk bore di tersebut)' : 'Diameter minimum d'}: <b>{r.dmin === null ? '—' : `${r.dmin.toFixed(1)} mm`}</b>
                     {r.dmin !== null && r.da !== null && <span className="text-slate-600"> · {r.da - r.dmin >= 0 ? `sisa toleransi pengurangan ${(r.da - r.dmin).toFixed(1)} mm` : `kurang ${(r.dmin - r.da).toFixed(1)} mm dari batas minimum`}</span>}
