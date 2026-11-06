@@ -22,6 +22,8 @@ type Props = {
   agenda: string;
   docs: DocsState;
   setDocs: Dispatch<SetStateAction<DocsState>>;
+  /** false = kapal tanpa penggerak (tongkang, ponton): lampiran crankweb disembunyikan, megger diberi keterangan. */
+  propelled?: boolean;
 };
 
 const NEXT: Record<Mark, Mark> = { '': 'ok', ok: 'na', na: '' };
@@ -48,7 +50,7 @@ function Row({ label, sub, tags, mark, onTap }: { label: string; sub?: string; t
   );
 }
 
-export default function ReportDocsModule({ vType, sel, name, agenda, docs, setDocs }: Props) {
+export default function ReportDocsModule({ vType, sel, name, agenda, docs, setDocs, propelled = true }: Props) {
   const auto = categoryOfType(vType);
   const cat = docs.cat || auto || '';
   const catInfo = CATEGORIES.find((c) => c.id === cat) ?? null;
@@ -164,14 +166,14 @@ export default function ReportDocsModule({ vType, sel, name, agenda, docs, setDo
     if (cols.length === 0) return out;
     ATT_GENERAL.forEach((a) => out.push({ a, cols: [] }));
     cols.forEach((c) => {
-      (ATT_BY_COL[c] ?? []).forEach((a) => {
+      (ATT_BY_COL[c] ?? []).filter((a) => propelled || !a.onlyPropelled).forEach((a) => {
         const ex = out.find((o) => o.a.id === a.id);
         if (ex) ex.cols.push(c);
         else out.push({ a, cols: [c] });
       });
     });
     return out;
-  }, [cols]);
+  }, [cols, propelled]);
 
   const keys: { k: string; cs: Col[] }[] = [...forms.map((f) => ({ k: 'f:' + f.row.code, cs: f.cols })), ...atts.map((x) => ({ k: 'a:' + x.a.id, cs: x.cols }))];
   const relevant = keys.filter((x) => mark(x.k, x.cs) !== 'na');
@@ -194,7 +196,7 @@ export default function ReportDocsModule({ vType, sel, name, agenda, docs, setDo
 
   const simpleList = (prefix: string, items: Att[]) => (
     <ul className="divide-y divide-slate-100">
-      {items.map((a) => (
+      {items.filter((a) => propelled || !a.onlyPropelled).map((a) => (
         <Row key={a.id} label={a.label} sub={a.cond} mark={mark(prefix + a.id)} onTap={() => tap(prefix + a.id)} />
       ))}
     </ul>
@@ -274,7 +276,7 @@ export default function ReportDocsModule({ vType, sel, name, agenda, docs, setDo
         <Fold title="Dokumen lampiran pendukung" sub="Lampiran umum + tambahan menurut jenis survei" right={progBadge('a:')}>
           <ul className="divide-y divide-slate-100">
             {atts.filter((x) => showAtt(x)).map(({ a, cols: cs }) => (
-              <Row key={a.id} label={a.label} sub={a.cond} tags={cs.length ? tagOf(cs) : 'Umum'} mark={mark('a:' + a.id, cs)} onTap={() => tap('a:' + a.id, cs)} />
+              <Row key={a.id} label={a.label} sub={!propelled && a.condNp ? a.condNp : a.cond} tags={cs.length ? tagOf(cs) : 'Umum'} mark={mark('a:' + a.id, cs)} onTap={() => tap('a:' + a.id, cs)} />
             ))}
           </ul>
         </Fold>

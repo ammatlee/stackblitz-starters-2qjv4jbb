@@ -87,6 +87,9 @@ export const RENEWAL: Item[] = [
   { s: 'Automatic Air Pipe Heads', t: 'Pemeriksaan eksternal dan internal; lepas head bila bagian dalam tidak terjangkau.', a: 'ALL EXCEPT PASSENGER SHIPS', n: 'Lihat tabel Air Pipe Head di bawah.' },
   { s: 'Towing Winch Emergency Release', t: 'Uji fungsi penuh (daya normal & blackout) pada yang lebih kecil dari 30% beban desain maks. atau 80% bollard pull.', a: 'TUGBOAT — IF FITTED', n: 'Gunakan bollard-pull test atau strong point bersertifikat.' },
   { s: 'Certificate Period', t: 'Ditentukan oleh tanggal completion (bukan tanggal mulai). Completion > 3 bulan sebelum expiry → periode & anniversary baru dari tanggal completion. Completion dalam 3 bulan sebelum expiry sampai 6 bulan setelah expiry → periode baru mulai dari expiry, anniversary lama dipertahankan. Completion > 6 bulan setelah expiry → periode & anniversary baru dari completion.', a: 'REQUIRED' },
+  // Ditaruh di akhir daftar supaya nomor item lama (RN-0 … RN-14) dan checklist yang sudah tersimpan tidak bergeser.
+  { s: 'Crank Web Deflection', t: 'Ukur crank web deflection main engine dan diesel bantu yang memiliki crankcase door (umumnya setelah kapal turun dok), atau buktikan dengan protokol terbaru; buat laporan.', a: 'ALL / WHERE RELEVANT', n: 'BKI 1.3.2.1 → 1.2.2.5(A). Lampiran: laporan crankweb deflection.' },
+  { s: 'Insulation Resistance (Megger)', t: 'Tahanan isolasi generator, motor listrik esensial, kabel, panel listrik dan MSB, atau buktikan dengan protokol terbaru; buat laporan.', a: 'ALL / IF FITTED', n: 'BKI 1.3.2.1 → 1.2.2.5(A). Kapal tanpa penggerak: hanya bila ada instalasi listrik.' },
 ];
 export const DOCKING: Item[] = [
   { s: 'Survey Method', t: 'Normalnya dry-dock/slipway; In-water Survey dapat diterima sesuai ketentuan dan persetujuan.', a: 'ALL', n: 'Owner memberi tahu BKI saat bottom tersedia.' },
@@ -175,7 +178,7 @@ export type TRow = { id: string; cat: string; item: string; scope: string; note:
 export const HATCH_TYPES = ['General Cargo', 'Bulk Carrier', 'Container Ship'];
 const NO_CARGO_FO = ['Tugboat', 'Anchor Handling Tug', 'Pontoon', 'Oil Barge'];
 /** Item checklist yang tidak berlaku untuk kapal tanpa penggerak (tongkang, ponton). */
-export const NA_UNPROPELLED = ['Steering & Communications', 'Machinery Control & Ventilation', 'Rudder & Steering Parts', 'Propeller & Stern Bush', 'Side Thrusters / Other Propulsors'];
+export const NA_UNPROPELLED = ['Steering & Communications', 'Machinery Control & Ventilation', 'Rudder & Steering Parts', 'Propeller & Stern Bush', 'Side Thrusters / Other Propulsors', 'Crank Web Deflection'];
 export function renewalTables(rnIn: number, age: number | null, vt?: string, propelled = true) {
   const rn = Math.min(rnIn, 4); // Renewal IV dan seterusnya memakai aturan yang sama (tabel hanya sampai IV)
   const none = 'NONE';

@@ -148,7 +148,8 @@ export function formsFor(cat: string, col: Col): { main: FormRow[]; extra: FormR
 }
 
 /* ---------- dokumen lampiran pendukung ---------- */
-export type Att = { id: string; label: string; cond?: string };
+/** onlyPropelled: hanya untuk kapal bermesin penggerak (kapal tanpa penggerak tidak punya mesin induk/crankshaft). condNp: keterangan tambahan khusus kapal tanpa penggerak. */
+export type Att = { id: string; label: string; cond?: string; onlyPropelled?: boolean; condNp?: string };
 export type AttGroup = { id: string; title: string; items: Att[] };
 
 export const ATT_GENERAL: Att[] = [
@@ -163,8 +164,8 @@ export const ATT_GENERAL: Att[] = [
 export const ATT_BY_COL: Partial<Record<Col, Att[]>> = {
   AS: [],
   IS: [
-    { id: 'megger', label: 'Laporan megger test' },
-    { id: 'crankweb', label: 'Laporan crankweb deflection', cond: 'sesuai tipe crankshaft dan ada crankcase door-nya' },
+    { id: 'megger', label: 'Laporan megger test', condNp: 'kapal tanpa penggerak: bila ada instalasi listrik' },
+    { id: 'crankweb', label: 'Laporan crankweb deflection', cond: 'sesuai tipe crankshaft dan ada crankcase door-nya', onlyPropelled: true },
     { id: 'daftar-mesin', label: 'Daftar peralatan mesin di kapal', cond: 'sesuai kondisi' },
   ],
   DS: [
@@ -180,8 +181,8 @@ export const ATT_BY_COL: Partial<Record<Col, Att[]>> = {
     { id: 'gm-permanen', label: 'Sertifikat garis muat permanen baru' },
     { id: 'sert-sementara', label: 'Sertifikat sementara klas' },
     { id: 'sert-lama', label: 'Sertifikat lama' },
-    { id: 'megger', label: 'Laporan megger test' },
-    { id: 'crankweb', label: 'Laporan crankweb deflection', cond: 'sesuai tipe crankshaft dan ada crankcase door-nya' },
+    { id: 'megger', label: 'Laporan megger test', condNp: 'kapal tanpa penggerak: bila ada instalasi listrik' },
+    { id: 'crankweb', label: 'Laporan crankweb deflection', cond: 'sesuai tipe crankshaft dan ada crankcase door-nya', onlyPropelled: true },
     { id: 'utm', label: 'Laporan UTM', cond: 'jika ada pengambilan UT' },
     { id: 'ndt-ramp', label: 'Laporan NDT (pad eyes of ramp door)', cond: 'khusus kapal ferry Ro-Ro' },
     { id: 'daftar-mesin', label: 'Daftar peralatan mesin di kapal' },
@@ -222,7 +223,7 @@ export const ATT_TESTS: Att[] = [
   { id: 't-utm', label: 'Laporan UTM' },
   { id: 't-ndt', label: 'Laporan NDT (PT, MPT, UT flow, dll.)' },
   { id: 't-megger', label: 'Laporan megger test' },
-  { id: 't-crankweb', label: 'Laporan crankweb deflection' },
+  { id: 't-crankweb', label: 'Laporan crankweb deflection', onlyPropelled: true },
   { id: 't-kalibrasi', label: 'Laporan kalibrasi rantai jangkar' },
   { id: 't-go', label: 'Laporan general overhaul ME, AE, dll.' },
   { id: 't-hydro', label: 'Laporan hydrotest / tight test' },

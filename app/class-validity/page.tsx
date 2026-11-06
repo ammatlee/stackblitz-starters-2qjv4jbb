@@ -442,7 +442,7 @@ export default function Page() {
         {shownTab === 4 && (
           <>
             <VisitsModule visits={visits} setVisits={setVisits} vesselName={name} agenda={agenda} compDate={compDate} finished={finished} reportDone={reportDone} setReportDone={setReportDone} sel={sel} meta={vmeta} setMeta={setVmeta} />
-            <ReportDocsModule vType={vType} sel={sel} name={name} agenda={agenda} docs={docs} setDocs={setDocs} />
+            <ReportDocsModule vType={vType} sel={sel} name={name} agenda={agenda} docs={docs} setDocs={setDocs} propelled={propelled} />
           </>
         )}
         {shownTab === 5 && (
