@@ -134,7 +134,7 @@ export default function ScopeModule(p: ScopeProps) {
           </Fold>
           <Fold title="Renewal — Air Pipe Heads" sub={`Umur ${age ?? '—'} tahun`} right={<P ids={air.ids} />} open>
             {tblUi(air.live)}
-            <p className="mt-2 text-xs text-slate-500">Tabel 3.4 BKI mengacu nomor Renewal (I: umur ≤ 5, II: 5–10, III+: &gt; 10); di sini ditentukan dari umur kapal. Hasilnya sama kecuali nomor Renewal &ldquo;naik&rdquo; (jarang).</p>
+            <p className="mt-2 text-xs text-slate-500">Tabel 3.4 BKI mengacu nomor Renewal (I: umur ≤ 5, II: 5–10, III+: &gt; 10); di sini ditentukan dari umur kapal. Hasilnya sama kecuali nomor Renewal &ldquo;naik&rdquo; (jarang). Pemilihan head diserahkan kepada Surveyor, yang dapat meminta head lain diperiksa. Pengecualian dapat dipertimbangkan bila ada bukti kuat head sudah diganti sejak Renewal terakhir.</p>
           </Fold>
           <Fold title="Renewal — Item Umum" sub="Hull, jangkar, struktur, sertifikat" right={<P ids={rnw.ids} />} open>
             {listOf(rnw.rows)}{hiddenNote(rnw.hidden)}

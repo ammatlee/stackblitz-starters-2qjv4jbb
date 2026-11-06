@@ -165,10 +165,14 @@ export const METHOD: Record<string, string> = {
  * ========================================================================== */
 export const RESULTS = ['NOT CHECKED', 'SATISFACTORY', 'DEFICIENCY', 'N/A'];
 
+/** Kapal penumpang (termasuk nama lama data lama). */
+export const PASSENGER_TYPES = ['Passenger Ship', 'Ro-Ro Passenger Ship', 'Passenger / Ro-Ro'];
+const isPassenger = (vt?: string | null) => !!vt && PASSENGER_TYPES.includes(vt);
 export function applicability(a: string, g: Item['g'], vt: VType, age: number | null, x?: string[]): string {
   if (x?.includes(vt)) return 'N/A';
   if (a.startsWith('N/A')) return HOLD_TYPES.includes(vt) ? 'IF FITTED' : 'N/A';
   if (a.includes('TUGBOAT') && !TUG_TYPES.includes(vt)) return 'N/A';
+  if (a.includes('EXCEPT PASSENGER') && isPassenger(vt)) return 'N/A'; // BKI Sec.3 1.3.2.13: air pipe head tidak berlaku untuk kapal penumpang
   if (age !== null) {
     if (g === 'mid' && !(age >= 5 && age <= 10)) return 'N/A';
     if (g === 'old' && !(age > 10)) return 'N/A';
@@ -213,9 +217,10 @@ export function renewalTables(rnIn: number, age: number | null, vt?: string, pro
     { id: 'U9', cat: 'UT', item: 'Keel & Additional Bottom Plates', scope: rn === 4 ? 'REQUIRED' : none, note: 'Renewal IV ke atas.' },
     { id: 'U10', cat: 'UT', item: 'Sea Chests & Overboard Discharges', scope: rn === 4 ? 'REQUIRED' : none, note: 'Renewal IV ke atas; extent sesuai Surveyor.' },
   ];
+  const noAir = isPassenger(vt); // 1.3.2.13: semua kapal kecuali kapal penumpang
   const air: TRow[] = [
-    { id: 'P1', cat: 'Air Pipe Head', item: 'Forward 0.25L', scope: age === null ? '—' : age <= 5 ? 'Dua head: 1 port & 1 starboard' : 'Semua air pipe head', note: 'Prioritaskan head yang melayani tangki ballast.' },
-    { id: 'P2', cat: 'Air Pipe Head', item: 'Aft of 0.25L', scope: age === null ? '—' : age <= 5 ? 'Dua head: 1 port & 1 starboard' : age <= 10 ? 'Minimal 20% air pipe head' : 'Semua air pipe head', note: 'Pada exposed deck; prioritaskan ballast.' },
+    { id: 'P1', cat: 'Air Pipe Head', item: 'Forward 0.25L', scope: noAir ? 'N/A' : age === null ? '—' : age <= 5 ? 'Dua head: 1 port & 1 starboard' : 'Semua air pipe head', note: 'Prioritaskan head yang melayani tangki ballast.' },
+    { id: 'P2', cat: 'Air Pipe Head', item: 'Aft of 0.25L', scope: noAir ? 'N/A' : age === null ? '—' : age <= 5 ? 'Dua head: 1 port & 1 starboard' : age <= 10 ? 'Minimal 20% air pipe head' : 'Semua air pipe head', note: 'Pada exposed deck; prioritaskan ballast.' },
   ];
   return { tanks, ut, air };
 }
