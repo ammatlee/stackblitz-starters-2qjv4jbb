@@ -106,5 +106,34 @@ describe('computeStatus — Docking 1', () => {
   const d = (st: string, co: string) => computeStatus({ ...BASE, sel: { ...BASE.sel, D1: true }, startDate: st, compDate: co }).rows[0].status;
   it('selesai tepat di batas 36 bulan (15 Mar 2026) → VALID', () => expect(d('2026-03-01', '2026-03-15')).toBe('VALID'));
   it('mulai tepat waktu tapi selesai setelah batas → SUSPENDED', () => expect(d('2026-03-10', '2026-03-16')).toBe('SUSPENDED'));
-  it('mulai setelah batas → SUSPENDED, tidak pernah WITHDRAWN selama DOCKING_CAN_WITHDRAW = false', () => expect(d('2027-01-01', '2027-03-01')).toBe('SUSPENDED'));
+  it('mulai setelah batas dan selesai tepat 6 bulan setelah batas → SUSPENDED', () => expect(d('2026-09-01', '2026-09-15')).toBe('SUSPENDED'));
+  it('selesai sehari lebih dari 6 bulan setelah batas → WITHDRAWN', () => expect(d('2026-09-01', '2026-09-16')).toBe('WITHDRAWN'));
+  it('terlambat jauh (mulai dan selesai 2027) → WITHDRAWN', () => expect(d('2027-01-01', '2027-03-01')).toBe('WITHDRAWN'));
+});
+
+describe('computeStatus — Docking 1 WITHDRAWN: hanya status, reinstatement tetap Docking', () => {
+  const run = (sel: SurveyKey[], st: string, co: string) => computeStatus({ ...BASE, sel: pick(...sel), startDate: st, compDate: co });
+  it('hanya Docking 1 yang lewat: status WITHDRAWN, tanpa skenario A–D, reinstatement Docking', () => {
+    const r = run(['D1'], '2026-09-01', '2026-09-16');
+    expect(r.overall).toBe('WITHDRAWN');
+    expect(r.c).toBeNull();
+    expect(r.dockW).toBe(true);
+    expect(r.dockReinst?.[0]).toContain('Docking Survey');
+  });
+  it('tepat 6 bulan setelah batas: SUSPENDED, belum ada reinstatement Docking', () => {
+    const r = run(['D1'], '2026-09-01', '2026-09-15');
+    expect(r.overall).toBe('SUSPENDED');
+    expect(r.dockW).toBe(false);
+    expect(r.dockReinst).toBeNull();
+  });
+  it('Docking WITHDRAWN + Annual terlewat: skenario A tetap muncul, Docking ditambahkan', () => {
+    const r = run(['D1', 'A1'], '2026-09-01', '2026-09-16');
+    expect(r.c).toBe('A');
+    expect(r.dockW).toBe(true);
+  });
+  it('Docking WITHDRAWN + Renewal WITHDRAWN: skenario D (sudah memuat Docking)', () => {
+    const r = run(['D1', 'REN'], '2028-10-01', '2028-10-02');
+    expect(r.c).toBe('D');
+    expect(r.dockW).toBe(true);
+  });
 });
