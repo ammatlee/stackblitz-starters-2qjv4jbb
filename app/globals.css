@@ -33,6 +33,9 @@ body {
 .rich ul { list-style: disc; padding-left: 1.25rem; }
 .rich ol { list-style: decimal; padding-left: 1.25rem; }
 .rich li > p { margin: 0; }
+.rich blockquote { border-left: 4px solid #14b8a6; background: #f0fdfa; padding: 0.5rem 0.75rem; border-radius: 0 0.5rem 0.5rem 0; }
+.rich blockquote p { margin: 0; }
+.rich hr { border: 0; border-top: 1px solid #cbd5e1; margin: 1rem 0; }
 .rich li + li { margin-top: 0.25rem; }
 .rich a { color: #0f766e; text-decoration: underline; }
 .rich img { max-width: 100%; height: auto; border-radius: 0.5rem; }

@@ -95,9 +95,20 @@ function renderList(items: LI[]): string {
   return out;
 }
 
-export type DocxResult = { html: string; images: number; skipped: number };
+export type DocxResult = { html: string; images: number; skipped: number; title?: string };
+export type DocxOpts = {
+  /** dipanggil tiap satu gambar selesai diproses (berhasil atau dilewati) */
+  onProgress?: (done: number, total: number) => void;
+  /** bila true dan dokumen diawali judul (Title / Heading 1), judul itu dikeluarkan dari isi dan dikembalikan di `title` */
+  extractTitle?: boolean;
+};
 
-export async function docxToHtml(file: File, saveImage: (f: File) => Promise<string>): Promise<DocxResult> {
+const UPLOAD_PARALLEL = 4;
+
+const plainText = (h: string) =>
+  h.replace(/<br>/g, ' ').replace(/<[^>]+>/g, '').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&').replace(/\s+/g, ' ').trim();
+
+export async function docxToHtml(file: File, saveImage: (f: File) => Promise<string>, opts: DocxOpts = {}): Promise<DocxResult> {
   const get = await readZip(await file.arrayBuffer());
   const docXml = await readXml(get, 'word/document.xml');
   if (!docXml) throw new Error('Isi dokumen tidak ditemukan. Pastikan file berformat .docx.');
@@ -287,32 +298,57 @@ export async function docxToHtml(file: File, saveImage: (f: File) => Promise<str
   const body = docXml.getElementsByTagNameNS(NS_W, 'body')[0];
   let html = blocks(body);
 
-  /* ---- unggah gambar, lalu ganti penanda ---- */
+  /* ---- judul dokumen: heading pertama di awal isi ---- */
+  let title: string | undefined;
+  if (opts.extractTitle) {
+    const mt = /^<h2>([\s\S]*?)<\/h2>/.exec(html);
+    const t = mt ? plainText(mt[1]) : '';
+    if (mt && t) {
+      title = t.slice(0, 200);
+      html = html.slice(mt[0].length);
+    }
+  }
+
+  /* ---- unggah gambar (beberapa sekaligus), lalu ganti penanda ---- */
   const done: Record<string, string> = {};
   let images = 0;
   let skipped = 0;
+  let finished = 0;
   const unique = embeds.filter((v, i) => embeds.indexOf(v) === i);
-  for (const rid of unique) {
+  const tick = () => {
+    finished++;
+    if (opts.onProgress) opts.onProgress(finished, unique.length);
+  };
+  const one = async (rid: string) => {
     const rel = rels[rid];
     const ext = rel ? (rel.target.split('.').pop() || '').toLowerCase() : '';
     const type = IMG_TYPES[ext];
     if (!rel || rel.external || !type) {
       skipped++;
-      continue;
+      return tick();
     }
     const path = rel.target.charAt(0) === '/' ? rel.target.slice(1) : 'word/' + rel.target.replace(/^\.\//, '');
-    const bytes = await get(path);
-    if (!bytes) {
-      skipped++;
-      continue;
-    }
     try {
+      const bytes = await get(path);
+      if (!bytes) {
+        skipped++;
+        return tick();
+      }
       done[rid] = await saveImage(new File([bytes as BlobPart], 'word-' + rid + '.' + ext, { type }));
       images++;
     } catch {
       skipped++;
     }
-  }
+    tick();
+  };
+  let next = 0;
+  const worker = async () => {
+    while (next < unique.length) {
+      const rid = unique[next++];
+      await one(rid);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(UPLOAD_PARALLEL, unique.length) }, worker));
   html = html.replace(/<img src="docx-img:([^"]+)">/g, (_m, rid: string) => (done[rid] ? '<img src="' + done[rid] + '">' : ''));
-  return { html, images, skipped };
+  return { html, images, skipped, title };
 }
