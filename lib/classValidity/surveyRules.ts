@@ -26,7 +26,7 @@ export const isAnnual = (k: SurveyKey) => k === 'A1' || k === 'A2' || k === 'A3'
 export const RULES = [
   ['Annual Year 1–4', 'Anniversary − 3 bulan', 'Anniversary + 3 bulan', 'Inspeksi pertama dimulai setelah window end', 'Completion > 6 bulan setelah window end'],
   ['Intermediate', 'Anniversary Year 2 − 3 bulan', 'Anniversary Year 3 + 3 bulan', 'Inspeksi pertama dimulai setelah window end', 'Completion > 6 bulan setelah window end'],
-  ['Docking Survey 1', 'Tidak ada batas paling awal', 'Maks. 36 bulan setelah Bottom Survey sebelumnya', 'Mulai atau selesai setelah batas 36 bulan', 'Tidak ada perpanjangan; keterlambatan tetap SUSPENDED'],
+  ['Docking Survey 1', 'Tidak ada batas paling awal', 'Maks. 36 bulan setelah Bottom Survey sebelumnya', 'Mulai atau selesai setelah batas 36 bulan', 'Tidak ada perpanjangan; completion > 6 bulan setelah batas 36 bulan'],
   ['Renewal + Docking 2', 'Boleh mulai sebelum expiry (−3 bulan = acuan pergeseran)', 'Expiry atau extension disetujui (maks. 3 bulan)', 'Inspeksi pertama dimulai setelah batas berlaku', 'Completion > 6 bulan setelah expiry asli'],
 ];
 export const CASES = [
@@ -334,8 +334,8 @@ export const CHAIN0: ChainState = { o: '', a: '', len: '' };
 /* ============================================================================
  * 6. UI PRIMITIVES
  * ========================================================================== */
-// Sheet "Class Status" (M6): Docking Survey 1 hanya SUSPENDED bila lewat 36 bulan.
-// Ubah ke true bila kebijakan Anda: > 36 bulan = SUSPENDED, > 36 + 6 bulan = WITHDRAWN.
-export const DOCKING_CAN_WITHDRAW = false;
+// Docking Survey 1: lewat batas 36 bulan = SUSPENDED; selesai lebih dari 6 bulan setelah batas 36 bulan = WITHDRAWN
+// (keputusan pengguna). Ubah ke false bila kebijakan kembali ke "hanya SUSPENDED" (sheet Class Status M6 lama).
+export const DOCKING_CAN_WITHDRAW = true;
 
 export type Sel = Record<SurveyKey, boolean>;

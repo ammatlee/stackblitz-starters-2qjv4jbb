@@ -194,6 +194,16 @@ export function computeStatus(input: StatusInput) {
     D: 'Completion Renewal lebih dari 6 bulan setelah certificate expiry.',
   };
 
+  // Docking 1 WITHDRAWN: hanya statusnya yang WITHDRAWN, bukan skenario baru. Reinstatement tetap berupa Docking Survey;
+  // bila ada survei lain yang terlewat, lingkupnya digabung lewat skenario A–D di atas (C dan D sudah memuat Docking).
+  const dockW = rows.some((r) => r.key === 'D1' && r.status === 'WITHDRAWN');
+  const dockReinst: [string, string] | null = dockW
+    ? [
+        'Re-classification Survey dengan lingkup Docking Survey (Bottom Survey).',
+        c ? 'Bila ada survei lain yang terlewat, lingkupnya digabung dengan skenario di atas.' : 'Tidak ada survei lain yang terlewat; lingkup hanya Docking.',
+      ]
+    : null;
+
   // Penjelasan per survei terpilih
   const why = (r: (typeof rows)[number]) => {
     if (r.key === 'PS') {
@@ -223,7 +233,9 @@ export function computeStatus(input: StatusInput) {
     const w = r.w;
     if (!w || !st || !co || !exp) return '';
     if (r.key === 'D1')
-      return +st > +w.end
+      return r.status === 'WITHDRAWN'
+        ? `Completion ${fmt(co)} lebih dari 6 bulan setelah batas 36 bulan (batas withdrawal ${fmt(addM(w.end, 6))}); status kelas WITHDRAWN.`
+        : +st > +w.end
         ? `Inspeksi dimulai ${fmt(st)} setelah batas 36 bulan (${fmt(w.end)}).`
         : +co > +w.end
         ? `Completion ${fmt(co)} melewati batas 36 bulan (${fmt(w.end)}); walau inspeksi dimulai tepat waktu, kelas tetap SUSPENDED.`
@@ -297,7 +309,7 @@ export function computeStatus(input: StatusInput) {
     machinery: sel.REN || c === 'C' || c === 'D',
   };
 
-  return { exp, st, co, age, ageInvalid, rn, rnBumped, rnLabel, prev, ad, am, win, rows, recSt, c, caseTitle, action, scopeLbl, why, basis, overall, implied, reinst, trigger, newPeriod, shift, active, limit,
+  return { exp, st, co, age, ageInvalid, rn, rnBumped, rnLabel, prev, ad, am, win, rows, recSt, c, caseTitle, action, scopeLbl, why, basis, overall, implied, reinst, trigger, dockW, dockReinst, newPeriod, shift, active, limit,
     a5Applicable, anniversaryAuto: annivD === null && annivM === null };
 }
 
