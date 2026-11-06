@@ -83,6 +83,13 @@ export default function ScopeModule(p: ScopeProps) {
   const mach = MACHINERY.map((m, i) => ({ m, id: `M-${i}` })).filter((r) => r.m[3] !== 'N/A' || CARGO_SYSTEM_TYPES.includes(vType)).filter((r) => propelled || r.m[0] !== 'Propulsion');
   const systems = Array.from(new Set(mach.map((r) => r.m[0])));
   const nothing = !Object.values(A.active).some(Boolean);
+  // Default tampilan ringkas: hanya kelompok aktif pertama yang terbuka; yang lain tertutup dengan lencana progres tetap terlihat.
+  const GROUP_ORDER = ['annual', 'inter', 'renewal', 'shaft', 'docking', 'machinery'] as const;
+  const firstOpen = GROUP_ORDER.find((k) => A.active[k]);
+  const groupIds: Partial<Record<(typeof GROUP_ORDER)[number], string[]>> = {
+    annual: an.ids, inter: inn.ids, renewal: [...tank.ids, ...ut.ids, ...air.ids, ...rnw.ids], docking: dk.ids, machinery: mach.map((r) => r.id),
+  };
+  const groupProg = (k: (typeof GROUP_ORDER)[number]) => { const ids = groupIds[k]; return ids && ids.length ? `${ids.filter((i) => val(i) !== 'NOT CHECKED').length}/${ids.length}` : ''; };
   // judul "Annual" hanya dipakai bila Annual memang dipilih atau pada kasus khusus (reinstatement A/C/D)
   const annualNamed = (['A1', 'A2', 'A3', 'A4', 'A5'] as SurveyKey[]).some((k) => sel[k]) || A.c === 'A' || A.c === 'C' || A.c === 'D';
   
@@ -94,7 +101,7 @@ export default function ScopeModule(p: ScopeProps) {
           {nothing && <span className="text-slate-500">Pilih survei di tab Status.</span>}
           {([['annual', 'Annual'], ['inter', 'Intermediate'], ['renewal', 'Renewal'], ['docking', 'Docking'], ['shaft', 'Propeller Shaft'], ['machinery', 'Mesin & Utilitas']] as const)
             .filter(([k]) => A.active[k] && (k !== 'annual' || annualNamed))
-            .map(([k, l]) => <span key={k} className="rounded-full bg-teal-100 px-3 py-1 font-semibold text-teal-800">{l}</span>)}
+            .map(([k, l]) => <span key={k} className="rounded-full bg-teal-100 px-3 py-1 font-semibold text-teal-800">{l}{groupProg(k) && <span className="ml-1.5 font-normal text-teal-700">{groupProg(k)}</span>}</span>)}
         </div>
         {A.c && (
           <Notice tone="success" size="xs" className="mt-3">
@@ -112,31 +119,33 @@ export default function ScopeModule(p: ScopeProps) {
           title={annualNamed ? 'Annual Survey' : 'Pemeriksaan dasar'}
           sub={annualNamed ? 'Hull, safety, mesin, listrik, fire-fighting' : 'Cakupan Intermediate/Renewal memperluas pemeriksaan dasar ini. Annual yang belum dikerjakan tetap harus dikerjakan terpisah.'}
           right={<P ids={an.ids} />}
-          open
+          open={firstOpen === 'annual'}
         >
           {listOf(an.rows)}{hiddenNote(an.hidden)}
         </Fold>
       )}
       {A.active.inter && (
-        <Fold title="Intermediate Survey" sub="Tambahan di atas Annual" right={<P ids={inn.ids} />} open>
+        <Fold title="Intermediate Survey" sub="Tambahan di atas Annual" right={<P ids={inn.ids} />} open={firstOpen === 'inter'}>
           {listOf(inn.rows)}{hiddenNote(inn.hidden)}
         </Fold>
       )}
   
       {A.active.renewal && (
         <>
-          <Fold title={`Renewal — Tangki (${A.rnLabel})`} sub="Pemeriksaan internal & pressure test" right={<P ids={tank.ids} />} open>
+          <Fold title={`Renewal — Tangki (${A.rnLabel})`} sub="Pemeriksaan internal & pressure test" right={<P ids={tank.ids} />} open={firstOpen === 'renewal'}>
             {tblUi(tank.live)}{hiddenNote(tank.hidden)}
             <p className="mt-2 text-xs text-slate-600">Peak tank (semua jenis) diperiksa internal di setiap Renewal. Bila hanya sebagian tangki FO/LO/FW yang dipilih, tangki yang diperiksa harus bergantian dari Renewal ke Renewal (Tabel 3.3, catatan 2). Tabel berlaku untuk tangki tipe integral/struktural.</p>
           </Fold>
-          <Fold title={`Renewal — UT Thickness (${A.rnLabel})`} sub="Lokasi pengukuran minimum" right={<P ids={ut.ids} />} open>
+          <Fold title={`Renewal — UT Thickness (${A.rnLabel})`} sub="Lokasi pengukuran minimum" right={<P ids={ut.ids} />}>
             {tblUi(ut.live)}{hiddenNote(ut.hidden)}
           </Fold>
-          <Fold title="Renewal — Air Pipe Heads" sub={`Umur ${age ?? '—'} tahun`} right={<P ids={air.ids} />} open>
-            {tblUi(air.live)}
-            <p className="mt-2 text-xs text-slate-500">Tabel 3.4 BKI mengacu nomor Renewal (I: umur ≤ 5, II: 5–10, III+: &gt; 10); di sini ditentukan dari umur kapal. Hasilnya sama kecuali nomor Renewal &ldquo;naik&rdquo; (jarang). Pemilihan head diserahkan kepada Surveyor, yang dapat meminta head lain diperiksa. Pengecualian dapat dipertimbangkan bila ada bukti kuat head sudah diganti sejak Renewal terakhir.</p>
-          </Fold>
-          <Fold title="Renewal — Item Umum" sub="Hull, jangkar, struktur, sertifikat" right={<P ids={rnw.ids} />} open>
+          {(air.live.length > 0 || age === null) && (
+            <Fold title="Renewal — Air Pipe Heads" sub={`Umur ${age ?? '—'} tahun`} right={<P ids={air.ids} />}>
+              {tblUi(air.live)}
+              <p className="mt-2 text-xs text-slate-500">Tabel 3.4 BKI mengacu nomor Renewal (I: umur ≤ 5, II: 5–10, III+: &gt; 10); di sini ditentukan dari umur kapal. Hasilnya sama kecuali nomor Renewal &ldquo;naik&rdquo; (jarang). Pemilihan head diserahkan kepada Surveyor, yang dapat meminta head lain diperiksa. Pengecualian dapat dipertimbangkan bila ada bukti kuat head sudah diganti sejak Renewal terakhir.</p>
+            </Fold>
+          )}
+          <Fold title="Renewal — Item Umum" sub="Hull, jangkar, struktur, sertifikat" right={<P ids={rnw.ids} />}>
             {listOf(rnw.rows)}{hiddenNote(rnw.hidden)}
           </Fold>
         </>
@@ -152,7 +161,7 @@ export default function ScopeModule(p: ScopeProps) {
         const step = (n: number, t: string) => <p className="mb-2 mt-4 text-xs font-bold text-slate-700"><span className="mr-1.5 inline-flex h-5 w-5 items-center justify-center rounded-full bg-slate-800 text-xs text-white">{n}</span>{t}</p>;
         const ext = extensionRules(shaftSys);
         return (
-          <Fold title="Propeller Shaft Survey" sub="Ikuti langkah 1–3; checklist menyesuaikan pilihan Anda" right={plan ? <P ids={ids} /> : undefined} open>
+          <Fold title="Propeller Shaft Survey" sub="Ikuti langkah 1–3; checklist menyesuaikan pilihan Anda" right={plan ? <P ids={ids} /> : undefined} open={firstOpen === 'shaft'}>
             {step(1, 'Sistem pelumasan poros')}
             <div className="flex flex-wrap gap-2">
               {SHAFT_SYS.map(([k, l]) => <Chip key={k} onClick={() => setShaftSys(k)} selected={shaftSys === k}>{l}</Chip>)}
@@ -234,13 +243,13 @@ export default function ScopeModule(p: ScopeProps) {
       })()}
 
       {A.active.docking && (
-        <Fold title="Docking / Bottom Survey" sub="Interval maksimum 36 bulan" right={<P ids={dk.ids} />} open>
+        <Fold title="Docking / Bottom Survey" sub="Interval maksimum 36 bulan" right={<P ids={dk.ids} />} open={firstOpen === 'docking'}>
           {listOf(dk.rows)}{hiddenNote(dk.hidden)}
         </Fold>
       )}
   
       {A.active.machinery && (
-        <Fold title="Class Renewal — Mesin & Utilitas" sub="Aktif otomatis saat Renewal / Case C / Case D" right={<P ids={mach.map((r) => r.id)} />} open>
+        <Fold title="Class Renewal — Mesin & Utilitas" sub="Aktif otomatis saat Renewal / Case C / Case D" right={<P ids={mach.map((r) => r.id)} />} open={firstOpen === 'machinery'}>
           <div className="space-y-4">
             {systems.map((sys) => (
               <div key={sys}>

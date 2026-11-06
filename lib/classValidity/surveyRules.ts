@@ -39,7 +39,7 @@ export const CASES = [
 /* ============================================================================
  * 3. SURVEY SCOPE DATA (Sheet "Survey Scope")
  * ========================================================================== */
-export type Item = { s: string; t: string; a: string; n?: string; g?: 'mid' | 'old'; x?: string[] };
+export type Item = { s: string; t: string; a: string; n?: string; g?: 'mid' | 'old' | 'old15'; x?: string[] };
 /** Jenis kapal pengangkut kargo kering saja dan gas carrier: dikecualikan dari pemeriksaan "selected cargo spaces" Intermediate (BKI 1.2.2.4). */
 const NO_CARGO_SPACE_IM = ['General Cargo', 'Bulk Carrier', 'Container Ship', 'Gas Carrier'];
 
@@ -48,7 +48,7 @@ export const ANNUAL: Item[] = [
   { s: 'Watertight Integrity', t: 'Sekat kedap (collision/lainnya); uji lokal dan remote pintu kedap.', a: 'IF FITTED' },
   { s: 'Anchoring & Mooring', t: 'Jangkar, peralatan mooring dan kondisi visual; pembatasan safe-working untuk kapal dibangun setelah 01-Jan-2007.', a: 'ALL', n: 'Termasuk spurling pipe dan proteksi chain locker.' },
   { s: 'Ballast, Bilge & Drainage', t: 'Sistem ballast, pompa bilge kompartemen kedap, drain, wells, alarm, detektor dan pompa forward.', a: 'IF FITTED' },
-  { s: 'Machinery & Pressure Systems', t: 'Mesin, boiler, bejana tekan, pipa/fitting, guard, bahaya api/ledakan; auxiliaries esensial dan dead-ship recovery.', a: 'ALL' },
+  { s: 'Machinery & Pressure Systems', t: 'Mesin, boiler, bejana tekan, pipa/fitting, guard, bahaya api/ledakan; auxiliaries esensial dan dead-ship recovery; non-metallic expansion joint di bawah deepest load waterline (visual + catatan servis).', a: 'ALL' },
   { s: 'Steering & Communications', t: 'Steering utama/bantu, kontrol dan alarm; komunikasi anjungan–steering, rudder indicator, info emergency steering.', a: 'ALL' },
   { s: 'Machinery Control & Ventilation', t: 'Remote propulsion control, ruang kontrol mesin, ventilasi, telegraph, alarm engineer dan unattended machinery.', a: 'IF FITTED' },
   { s: 'Electrical & Emergency Power', t: 'Daya utama, penerangan, generator, motor, kabel/switchgear, sumber darurat dan proteksi bahaya listrik.', a: 'ALL' },
@@ -67,7 +67,8 @@ export const INTERMEDIATE: Item[] = [
   { s: 'Representative Ballast Tanks', t: 'Pemeriksaan internal umum; perluas ke tipe tangki sama bila coating tidak ada / soft / POOR.', a: 'REQUIRED', g: 'mid', n: 'Kapal umur 5–10 tahun.' },
   { s: 'All Ballast Tanks', t: 'Pemeriksaan internal umum seluruh tangki ballast; dapat dibatasi ke verifikasi proteksi korosi bila tidak ada cacat.', a: 'REQUIRED', g: 'old', n: 'Kapal > 10 tahun.' },
   { s: 'Annual Tank Follow-up', t: 'Tangki terdampak dapat memerlukan pemeriksaan internal tahunan bila coating tidak ada/soft/POOR dan tidak diperbaiki.', a: 'AS REQUIRED' },
-  { s: 'Cargo Holds', t: 'Pemeriksaan internal palka terpilih.', a: 'N/A FOR CURRENT VESSEL TYPES' },
+  // BKI 1.2.2.3: kapal kargo kering > 15 tahun, selain bulk carrier dan general dry cargo; tanker tidak termasuk kargo kering.
+  { s: 'Cargo Holds', t: 'Pemeriksaan internal palka terpilih.', a: 'N/A FOR CURRENT VESSEL TYPES', g: 'old15', x: ['General Cargo', 'Bulk Carrier', 'Oil Tanker', 'Chemical Tanker', 'Gas Carrier'], n: 'Kapal kargo kering > 15 tahun, selain bulk carrier dan general dry cargo.' },
   { s: 'Selected Cargo Spaces', t: 'Pemeriksaan internal ruang kargo terpilih.', a: 'IF FITTED / VERIFY NOTATION', g: 'old', x: NO_CARGO_SPACE_IM, n: 'Kapal > 10 tahun; tidak untuk kapal kargo kering saja, gas carrier, dan tanker ESP.' },
   { s: 'Machinery Measurements', t: 'Crank web deflection main engine, crank deflection diesel bantu, insulation resistance generator/motor/kabel/switchgear.', a: 'ALL / WHERE RELEVANT' },
   { s: 'Operational Tests', t: 'Emergency generator/switchboard, emergency bilge valve, drain air receiver, operasi umum mesin/listrik.', a: 'ALL / IF FITTED' },
@@ -170,14 +171,16 @@ export const PASSENGER_TYPES = ['Passenger Ship', 'Ro-Ro Passenger Ship', 'Passe
 const isPassenger = (vt?: string | null) => !!vt && PASSENGER_TYPES.includes(vt);
 export function applicability(a: string, g: Item['g'], vt: VType, age: number | null, x?: string[]): string {
   if (x?.includes(vt)) return 'N/A';
-  if (a.startsWith('N/A')) return HOLD_TYPES.includes(vt) ? 'IF FITTED' : 'N/A';
+  const holdOnly = a.startsWith('N/A'); // item palka: hanya jenis kapal bermuatan palka; batas umur tetap dicek di bawah
+  if (holdOnly && !HOLD_TYPES.includes(vt)) return 'N/A';
   if (a.includes('TUGBOAT') && !TUG_TYPES.includes(vt)) return 'N/A';
   if (a.includes('EXCEPT PASSENGER') && isPassenger(vt)) return 'N/A'; // BKI Sec.3 1.3.2.13: air pipe head tidak berlaku untuk kapal penumpang
   if (age !== null) {
     if (g === 'mid' && !(age >= 5 && age <= 10)) return 'N/A';
     if (g === 'old' && !(age > 10)) return 'N/A';
+    if (g === 'old15' && !(age > 15)) return 'N/A';
   }
-  return a;
+  return holdOnly ? 'IF FITTED' : a;
 }
 
 export type TRow = { id: string; cat: string; item: string; scope: string; note: string };
