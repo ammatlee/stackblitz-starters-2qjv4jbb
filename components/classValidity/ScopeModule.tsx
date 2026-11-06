@@ -132,6 +132,7 @@ export default function ScopeModule(p: ScopeProps) {
           </Fold>
           <Fold title="Renewal — Air Pipe Heads" sub={`Umur ${age ?? '—'} tahun`} right={<P ids={air.ids} />} open>
             {tblUi(air.live)}
+            <p className="mt-2 text-xs text-slate-500">Tabel 3.4 BKI mengacu nomor Renewal (I: umur ≤ 5, II: 5–10, III+: &gt; 10); di sini ditentukan dari umur kapal. Hasilnya sama kecuali nomor Renewal &ldquo;naik&rdquo; (jarang).</p>
           </Fold>
           <Fold title="Renewal — Item Umum" sub="Hull, jangkar, struktur, sertifikat" right={<P ids={rnw.ids} />} open>
             {listOf(rnw.rows)}{hiddenNote(rnw.hidden)}
@@ -256,6 +257,7 @@ export default function ScopeModule(p: ScopeProps) {
             <p><b>Method 1:</b> Pemeriksaan visual dengan membuka sebagian/seluruhnya sesuai penilaian Surveyor; uji fungsi atau tekanan bila relevan.</p>
             <p><b>Method 2:</b> Pemeriksaan visual tanpa bongkar; performance test wajib; open-up bila dinilai perlu; verifikasi overhaul terakhir.</p>
             <p>(1) Fuel mencakup fuel oil, fuel gas, dan cairan low-flashpoint. (2) Lepas insulasi bila perlu untuk memudahkan inspeksi. (3) Sisi non-return valve dan pompa yang terpapar fluida korosif diperiksa dengan Method 1. (4) Exhaust gas hanya uji fungsi fan. (5) Inert gas berlaku apapun jenis gas/tujuan kecuali fire-fighting. (6) Gas turbine: verifikasi catatan overhaul onboard dan laporan general-overhaul; overhaul oleh OEM/OEM-authorized.</p>
+            <p className="mt-1"><b>Catatan:</b> Tabel 3.5 hanya berlaku untuk kapal yang tidak menerapkan PMS / CMS / Continuous Machinery Survey (BKI Pt.1 Vol.I Sec.3, 1.3.6). Kapal yang memakai CMS mengikuti skema CMS-nya.</p>
           </div>
         </Fold>
       )}

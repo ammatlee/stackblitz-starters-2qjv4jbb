@@ -149,7 +149,7 @@ export function buildMemo(c: MemoCtx): MemoSection[] {
         id: 'h-anchor',
         text: gauge
           ? 'Jangkar dan rantai jangkar agar diturunkan, direntangkan, dibersihkan dan dilaksanakan pengukuran diameter 3 tautan per segel (27,5 m):'
-          : 'Jangkar dan rantai jangkar agar diturunkan, direntangkan, dan dibersihkan; chain locker, holdfast, hawse pipe dan stopper agar diperiksa.',
+          : 'Jangkar dan rantai jangkar agar diturunkan, direntangkan, dan dibersihkan; chain locker, holdfast, hawse pipe dan stopper agar diperiksa, serta sistem pemompaan chain locker diuji.',
         sub: gauge
           ? [
               { id: 'h-anchor-d', text: `Ukuran rantai jangkar sesuai daftar perlengkapan BKI: diameter rantai ${c.chainO !== null ? nf(c.chainO) : DOTS} mm dan minimum diameter: ${chainMin} mm;` },
