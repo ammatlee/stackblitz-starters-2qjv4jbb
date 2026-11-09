@@ -3,6 +3,8 @@
 import React, { useMemo, useState } from 'react';
 import { countFleet, daysLabel, dmy, matchesFilter } from '../../lib/fleet';
 import type { FleetFilter, FleetItem, Pending, Urgency } from '../../lib/fleet';
+import { downloadText, exportStamp, fleetToCSV, fleetToICS } from '../../lib/fleetExport';
+import { Button } from '../Controls';
 
 const URG: Record<Urgency, { badge: string; text: string; label: string }> = {
   OVERDUE: { badge: 'bg-red-100 text-red-800', text: 'text-red-700', label: 'OVERDUE' },
@@ -61,6 +63,16 @@ export default function FleetView({ items, currentUserId }: { items: FleetItem[]
         placeholder="Cari nama atau jenis kapal…"
         className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-teal-500"
       />
+
+      <div className="flex flex-wrap items-center gap-2">
+        <Button size="sm" disabled={shown.length === 0} onClick={() => downloadText(`armada-${exportStamp()}.csv`, 'text/csv', fleetToCSV(shown))}>
+          Unduh CSV (Excel)
+        </Button>
+        <Button size="sm" disabled={shown.length === 0} onClick={() => downloadText(`armada-batas-survei-${exportStamp()}.ics`, 'text/calendar', fleetToICS(shown))}>
+          Unduh kalender (.ics)
+        </Button>
+        <span className="text-xs text-slate-500">Mengikuti filter dan pencarian di atas ({shown.length} kapal).</span>
+      </div>
 
       {shown.length === 0 && (
         <p className="rounded-2xl border border-dashed border-slate-300 bg-white p-6 text-center text-sm text-slate-500">
