@@ -1,13 +1,13 @@
-import { MATERIAL_ITEMS, hiddenByVessel, itemsRequired } from './materialRules';
+import { MATERIAL_ITEMS, hiddenByVessel, itemsRequired, weldingItemsRequired } from './materialRules';
 import type { MatItem, MatTipe, VesselCtx } from './materialRules';
 
 /** Status penerimaan satu item material/komponen. Item tanpa baris di database = 'belum'. */
 export type MatStatus = 'belum' | 'diterima' | 'tidak_ada';
 
 export const STATUS_LABEL: Record<MatStatus, string> = {
-  belum: 'Belum diterima',
-  diterima: 'Diterima',
-  tidak_ada: 'Tidak ada di kapal ini',
+  belum: 'Belum ada',
+  diterima: 'Ada',
+  tidak_ada: 'N/A (tidak ada di kapal ini)',
 };
 
 export const STATUSES: MatStatus[] = ['belum', 'diterima', 'tidak_ada'];
@@ -28,9 +28,11 @@ export const itemKey = (it: MatItem): string => (it.kind ? `${it.no}|${it.kind}`
  * Bila ctx (jenis kapal) diberikan, item yang tidak relevan untuk tugboat/tongkang ikut disembunyikan.
  */
 export function trackerItems(tipe: MatTipe | null, all = false, ctx?: VesselCtx): MatItem[] {
-  if (all || tipe === null) return MATERIAL_ITEMS;
+  if (tipe === null) return MATERIAL_ITEMS;
+  const weld = weldingItemsRequired(tipe);
+  if (all) return [...MATERIAL_ITEMS, ...weld];
   const req = itemsRequired(tipe);
-  return ctx ? req.filter((it) => !hiddenByVessel(it, ctx)) : req;
+  return [...(ctx ? req.filter((it) => !hiddenByVessel(it, ctx)) : req), ...weld];
 }
 
 export type Progress = { total: number; diterima: number; belum: number; tidakAda: number; pct: number };

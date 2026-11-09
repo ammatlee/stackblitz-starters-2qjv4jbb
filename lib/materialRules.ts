@@ -75,6 +75,8 @@ export type MatItem = {
   C: Tri;
   /** Tipe D: satu kolom ('M', teks syarat, atau '-'). */
   D: string;
+  /** Diisi untuk item pengelasan (bukan produk Lampiran 1): syaratnya dibaca dari WELDING, bukan dari kolom A–D. */
+  welding?: 'weldingShop' | 'wps' | 'welder';
 };
 
 const N: Tri = ['-', '-', '-'];
@@ -192,6 +194,17 @@ export const MATERIAL_ITEMS: MatItem[] = [
   { no: 83, product: 'Core materials', A: ['-', 'X', '-'], B: ['-', 'X', '-'], C: ['-', 'X', '-'], D: '-' },
   { no: 84, product: 'Welding consumable', kind: 'Covered electrode / Other', A: ['-', 'V', '-'], B: ['-', 'V', '-'], C: ['-', 'X', '-'], D: '-' },
 ];
+
+/** Item pengelasan (di luar 84 produk): nomor 85–87, hanya tampil bila disyaratkan untuk tipe kapal. */
+export const WELDING_ITEMS: MatItem[] = [
+  { no: 85, product: 'Welding shop approval', welding: 'weldingShop', A: N, B: N, C: N, D: '-' },
+  { no: 86, product: 'WPS approval (Welding Procedure Specification)', welding: 'wps', A: N, B: N, C: N, D: '-' },
+  { no: 87, product: 'Welder certificate', welding: 'welder', A: N, B: N, C: N, D: '-' },
+];
+
+/** Item pengelasan yang disyaratkan untuk tipe tertentu. */
+export const weldingItemsRequired = (tipe: MatTipe): MatItem[] =>
+  WELDING_ITEMS.filter((it) => it.welding && WELDING[it.welding][tipe] !== null);
 
 /** Hasil baca satu sel: kode (V/X/M) dan nomor catatannya. */
 export type ParsedCell = { code: 'V' | 'X' | 'M'; notes: number[] };

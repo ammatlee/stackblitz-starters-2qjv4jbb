@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { MATERIAL_ITEMS, itemsRequired } from '../lib/materialRules';
+import { MATERIAL_ITEMS, itemsRequired, weldingItemsRequired } from '../lib/materialRules';
 import { itemKey, progressOf, trackerItems } from '../lib/materialTracker';
 import type { MatStatusRow } from '../lib/materialTracker';
 
@@ -15,9 +15,16 @@ describe('Pelacak material — penanda item', () => {
 
 describe('Pelacak material — daftar dan kemajuan', () => {
   it('tipe dipakai untuk menyaring; tipe null atau all = seluruh daftar', () => {
-    expect(trackerItems('C')).toEqual(itemsRequired('C'));
+    expect(trackerItems('C')).toEqual([...itemsRequired('C'), ...weldingItemsRequired('C')]);
     expect(trackerItems(null)).toEqual(MATERIAL_ITEMS);
-    expect(trackerItems('C', true)).toEqual(MATERIAL_ITEMS);
+    expect(trackerItems('C', true)).toEqual([...MATERIAL_ITEMS, ...weldingItemsRequired('C')]);
+  });
+  it('item pengelasan (85–87) hanya muncul bila disyaratkan untuk tipe', () => {
+    const nos = (t: 'A' | 'B' | 'C' | 'D') => weldingItemsRequired(t).map((i) => i.no);
+    expect(nos('A')).toEqual([85, 86, 87]);
+    expect(nos('B')).toEqual([85, 86, 87]);
+    expect(nos('C')).toEqual([86, 87]);
+    expect(nos('D')).toEqual([]);
   });
   it('kemajuan mengeluarkan item tidak_ada dari pembagi', () => {
     const items = MATERIAL_ITEMS.slice(0, 4);
@@ -48,8 +55,12 @@ describe('Pelacak material — saringan menurut jenis kapal', () => {
     expect(nos(trackerItems('C', false, { vesselType: 'Oil Barge', propelled: false })).has(17)).toBe(true);
   });
   it('jenis kapal lain tidak disaring; tampilkan semua mengabaikan saringan', () => {
-    expect(trackerItems('B', false, { vesselType: 'General Cargo', propelled: true })).toEqual(itemsRequired('B'));
-    expect(trackerItems('C', true, { vesselType: 'Barge', propelled: false })).toEqual(MATERIAL_ITEMS);
+    expect(trackerItems('B', false, { vesselType: 'General Cargo', propelled: true })).toEqual([...itemsRequired('B'), ...weldingItemsRequired('B')]);
+    expect(trackerItems('C', true, { vesselType: 'Barge', propelled: false })).toEqual([...MATERIAL_ITEMS, ...weldingItemsRequired('C')]);
+  });
+  it('item pengelasan tidak ikut disaring jenis kapal', () => {
+    const n = new Set(trackerItems('C', false, { vesselType: 'Barge', propelled: false }).map((i) => i.no));
+    expect(n.has(86) && n.has(87)).toBe(true);
   });
 });
 
