@@ -1,8 +1,6 @@
-/** @type {import('next').NextConfiguration} */
+/** @type {import('next').NextConfig} */
 const nextConfig = {
-    output: 'export', // <--- Tambahkan baris ini
-    /* opsi konfigurasi lainnya jika ada */
-  };
-  
-  module.exports = nextConfig;
-  
+  output: 'export', // situs statis (Cloudflare Pages); header keamanan ada di public/_headers
+};
+
+module.exports = nextConfig;

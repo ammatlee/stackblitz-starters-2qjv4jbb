@@ -189,7 +189,7 @@ export default function FileViewer({ url, name, type, label, onClose }: Props) {
       const r = await fetch(url);
       if (!r.ok) throw new Error('File tidak bisa dibuka (kode ' + r.status + ').');
       const data = await r.arrayBuffer();
-      doc = await lib.getDocument({ data }).promise;
+      doc = await lib.getDocument({ data, isEvalSupported: false }).promise;
       if (dead) return;
       setPdf(doc);
       setPages(doc.numPages);

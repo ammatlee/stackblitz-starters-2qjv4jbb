@@ -1,36 +1,48 @@
-This is a [Next.js](https://nextjs.org/) project bootstrapped with [`create-next-app`](https://github.com/vercel/next.js/tree/canary/packages/create-next-app).
+# RDK — Class Validity
 
-## Getting Started
+Aplikasi web untuk memantau status kelas kapal (BKI Circular 15-SV-095): jendela waktu survei, reinstatement, scope & checklist,
+dashboard armada, agenda/kunjungan survei, memo, dan Bulletin. Next.js 13 (static export) + Tailwind + Supabase. Bisa dipasang sebagai PWA dan
+membaca data terakhir tanpa sinyal.
 
-First, run the development server:
+## Menjalankan
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun run dev
+npm ci
+cp .env.example .env.local   # isi NEXT_PUBLIC_SUPABASE_URL dan NEXT_PUBLIC_SUPABASE_ANON_KEY
+npm run dev                  # http://localhost:3000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Tanpa variabel Supabase, aplikasi berjalan dalam **mode demo** (tanpa login, tanpa penyimpanan).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+| Perintah | Fungsi |
+| --- | --- |
+| `npm test` | Tes logika (vitest) |
+| `npm run typecheck` | Tipe kode aplikasi dan kode tes |
+| `npm run lint` | ESLint |
+| `npm run build` | Build statis ke `out/` |
 
-This project uses [`next/font`](https://nextjs.org/docs/basic-features/font-optimization) to automatically optimize and load Inter, a custom Google Font.
+CI (`.github/workflows/ci.yml`) menjalankan tes, tipe, lint, dan build pada setiap push/PR.
 
-## Learn More
+## Struktur
 
-To learn more about Next.js, take a look at the following resources:
+- `app/` — halaman: `/` menu, `/fleet` dashboard armada, `/class-validity`, `/bulletin`, `/audit`, `/admin`, `/login`.
+- `lib/classValidity/` — aturan dan perhitungan murni (tanpa React/Supabase): `surveyRules`, `statusCalc`, `propulsiCalc`.
+- `lib/surveyStatus.ts`, `lib/fleet.ts` — status survei per kapal dan ringkasan armada (satu sumber angka untuk semua halaman).
+- `lib/offlineFetch.ts`, `public/sw.js` — cache bacaan data (IndexedDB) dan halaman (service worker). Perubahan data tetap butuh sinyal.
+- `lib/optimisticLock.ts` — mencegah dua orang saling menimpa (kolom `version`).
+- `lib/backup.ts`, `lib/restore.ts` — cadangan dan pemulihan JSON.
+- `lib/uploads.ts`, `lib/fileSniff.ts` — unggah lampiran/gambar; isi file diperiksa, bukan hanya ekstensinya.
+- `components/` — UI; `components/classValidity/` untuk modul tab Class Validity.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Prinsip yang dijaga
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js/) - your feedback and contributions are welcome!
+1. **Data tidak lengkap tidak boleh menghasilkan status survei.** Bila kapal, agenda selesai, atau pembaruan manual gagal dibaca,
+   dashboard menampilkan galat, bukan angka dari data kosong.
+2. **Tabel besar dibaca dengan paging** (`fetchAllRows`), karena Supabase memotong hasil diam-diam di sekitar 1.000 baris.
+3. **Aturan survei ditulis di satu tempat** (`lib/classValidity/surveyRules.ts`) dan dijaga tes. Tambah kasus nyata yang sudah
+   diverifikasi ke `REAL_CASES` di `tests/fixtures/cases.ts` setiap kali aturan diubah.
 
-## Deploy on Vercel
+## Deploy
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/deployment) for more details.
+Hosting statis (Cloudflare Pages). Isi variabel lingkungan di dashboard hosting. Header keamanan (CSP, dll.) ada di `public/_headers`.
+Database, RLS, dan bucket Storage (`bulletin-files`, `bulletin-private`) dikelola di Supabase.

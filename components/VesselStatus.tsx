@@ -82,17 +82,21 @@ export default function VesselStatus({ refreshKey, vesselName, onApply }: { refr
   const load = useCallback(async () => {
     if (!supabase || !user) return null;
     const sb = supabase;
-    const v = await fetchAllRows((f, t) => sb.from('vessels').select('*').order('name').order('id').range(f, t));
-    const a = await fetchAllRows((f, t) => sb.from('agendas').select('vessel_id,agenda_no,surveys,inspection_start,inspection_completion,scenario,finished_at').eq('finished', true).order('id').range(f, t));
-    const m = await fetchAllRows((f, t) => sb.from('vessel_events').select('*').order('completion', { ascending: false }).order('id').range(f, t));
-    const pl = await fetchAllRows((f, t) => sb.from('agendas').select(plansQuery).eq('finished', true).order('id').range(f, t));
-    if (v.error) {
-      setMsg({ k: 'err', t: 'Gagal memuat kapal: ' + v.error.message });
+    const [v, a, m, pl] = await Promise.all([
+      fetchAllRows((f, t) => sb.from('vessels').select('*').order('name').order('id').range(f, t)),
+      fetchAllRows((f, t) => sb.from('agendas').select('vessel_id,agenda_no,surveys,inspection_start,inspection_completion,scenario,finished_at').eq('finished', true).order('id').range(f, t)),
+      fetchAllRows((f, t) => sb.from('vessel_events').select('*').order('completion', { ascending: false }).order('id').range(f, t)),
+      fetchAllRows((f, t) => sb.from('agendas').select(plansQuery).eq('finished', true).order('id').range(f, t)),
+    ]);
+    // gagal membaca kapal / agenda selesai / pembaruan manual: batalkan, jangan hitung status dari data yang tidak lengkap
+    const failed = v.error ? ['kapal', v.error.message] : a.error ? ['agenda selesai', a.error.message] : m.error ? ['pembaruan manual', m.error.message] : null;
+    if (failed) {
+      setMsg({ k: 'err', t: `Gagal memuat ${failed[0]}: ${failed[1]}. Status survei tidak dihitung agar tidak menyesatkan; coba lagi.` });
       return null;
     }
     const vs = (v.data ?? []) as unknown as VesselRow[];
     const as = withPlans((a.data ?? []) as unknown as AgRow[], (pl.error ? [] : pl.data) as unknown as PlanRow[]);
-    const ev = (m.error ? [] : (m.data ?? [])) as unknown as EvRow[];
+    const ev = (m.data ?? []) as unknown as EvRow[];
     setVessels(vs);
     setAgs(as);
     setMev(ev);

@@ -1,5 +1,6 @@
 'use client';
 
+import { fetchAllRows } from '../lib/fetchAll';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { downloadBackup } from '../lib/backup';
@@ -97,10 +98,14 @@ export default function AgendaPanel({ vesselName, vesselType, yearBuilt, agendaN
       .limit(50);
     if (error) setMsg({ k: 'err', t: 'Gagal memuat riwayat: ' + error.message });
     else setRows((data ?? []) as unknown as Row[]);
-    const fin = await supabase.from('agendas').select(AGENDA_COLS).eq('finished', true).order('inspection_completion', { ascending: false }).limit(300);
-    if (!fin.error) setFinRows((fin.data ?? []) as unknown as Row[]);
-    const opn = await supabase.from('agendas').select(AGENDA_COLS).or('finished.is.null,finished.eq.false').order('created_at', { ascending: false }).limit(100);
-    if (!opn.error) setOpenRows((opn.data ?? []) as unknown as Row[]);
+    // daftar selesai / berjalan dimuat utuh dengan paging (dulu dibatasi 300 dan 100 baris, sisanya hilang diam-diam)
+    const sb = supabase;
+    const [fin, opn] = await Promise.all([
+      fetchAllRows((f, t) => sb.from('agendas').select(AGENDA_COLS).eq('finished', true).order('inspection_completion', { ascending: false }).order('id').range(f, t)),
+      fetchAllRows((f, t) => sb.from('agendas').select(AGENDA_COLS).or('finished.is.null,finished.eq.false').order('created_at', { ascending: false }).order('id').range(f, t)),
+    ]);
+    if (!fin.error) setFinRows(fin.data as unknown as Row[]);
+    if (!opn.error) setOpenRows(opn.data as unknown as Row[]);
   }, [user]);
 
   useEffect(() => {

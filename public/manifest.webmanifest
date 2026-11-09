@@ -9,7 +9,46 @@
   "background_color": "#f1f5f9",
   "theme_color": "#0d9488",
   "icons": [
-    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
-    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Dashboard Armada",
+      "short_name": "Armada",
+      "url": "/fleet"
+    },
+    {
+      "name": "Class Validity",
+      "short_name": "Class",
+      "url": "/class-validity"
+    },
+    {
+      "name": "Bulletin",
+      "short_name": "Bulletin",
+      "url": "/bulletin"
+    }
   ]
 }

@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { contentMatches } from './fileSniff';
 
 export const BUCKET = 'bulletin-files';
 export const MAX_MB = 5;
@@ -62,6 +63,7 @@ const publicUrl = (path: string) => supabase!.storage.from(BUCKET).getPublicUrl(
 // gambar untuk disisipkan di isi: dikecilkan lalu diunggah, hasilnya alamat gambar
 export async function uploadImage(file: File): Promise<string> {
   if (!/^image\/(jpeg|png|webp|gif)$/i.test(file.type)) throw new Error('Gambar harus JPG, PNG, WEBP, atau GIF.');
+  if (!(await contentMatches(file, file.type.toLowerCase()))) throw new Error('Isi file tidak cocok dengan jenis gambarnya. Pakai gambar asli (JPG, PNG, WEBP, atau GIF).');
   const uid = await userId();
   const gif = file.type === 'image/gif';
   const blob: Blob = gif ? file : await shrink(file);
@@ -78,6 +80,7 @@ export async function uploadAttachment(file: File): Promise<Attachment> {
   const type = MIME_BY_EXT[ext];
   if (!type) throw new Error('Jenis file tidak didukung: ' + file.name + ' (boleh PDF, JPG, PNG, atau WEBP). Word/Excel: ubah dulu ke PDF.');
   if (file.size > MAX_MB * 1024 * 1024 && type === 'application/pdf') throw new Error(file.name + ' terlalu besar (maksimal ' + MAX_MB + ' MB).');
+  if (!(await contentMatches(file, type))) throw new Error(file.name + ': isi file tidak cocok dengan ekstensinya (bukan ' + ext.toUpperCase() + ' asli).');
   const uid = await userId();
   const isImg = type.startsWith('image/');
   const blob: Blob = isImg ? await shrink(file, 2400, 0.85) : file;

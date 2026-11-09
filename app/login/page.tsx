@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '../../components/AuthProvider';
 
 import { Button, Notice } from '../../components/Controls';
+// pendaftaran baru: minimal 10 karakter (login akun lama tidak dibatasi). Samakan juga di Supabase: Authentication → Policies.
+const MIN_PW = 10;
 export default function LoginPage() {
   const { signIn, signUp, resetPassword, configured } = useAuth();
   const router = useRouter();
@@ -16,6 +18,7 @@ export default function LoginPage() {
   const [showPw, setShowPw] = useState(false);
 
   const submit = async () => {
+    if (mode === 'up' && password.length < MIN_PW) return setMsg({ kind: 'err', text: `Password minimal ${MIN_PW} karakter.` });
     setBusy(true);
     setMsg(null);
     const r = mode === 'in' ? await signIn(email.trim(), password) : mode === 'up' ? await signUp(email.trim(), password) : await resetPassword(email.trim());
@@ -45,7 +48,7 @@ export default function LoginPage() {
             </label>
             {mode !== 'forgot' && (
               <label className="block text-xs font-semibold text-slate-600">
-                Password (minimal 6 karakter)
+                {mode === 'up' ? `Password (minimal ${MIN_PW} karakter)` : 'Password'}
                 <div className="relative mt-1">
                   <input
                     type={showPw ? 'text' : 'password'}
