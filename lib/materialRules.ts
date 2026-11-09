@@ -7,6 +7,8 @@
  * Data ditranskrip dari gambar lampiran: cek sampel sebelum dipakai untuk keputusan.
  */
 
+import { TUG_TYPES } from './vesselTypes';
+
 export type MatTipe = 'A' | 'B' | 'C' | 'D';
 
 export const CIRCULAR_185_START = '2022-12-15';
@@ -238,4 +240,66 @@ export function itemsRequired(tipe: MatTipe): MatItem[] {
     const c = cellsFor(it, tipe);
     return typeof c === 'string' ? c !== '-' : c.some((x) => x !== '-');
   });
+}
+
+/**
+ * Saringan menurut jenis kapal (fokus: tugboat dan tongkang). Tipe A–D hanya melihat GT, rute, dan penggerak,
+ * sehingga item yang jelas tidak ada di kapal ini (palka, tanker, boiler, as baling-baling pada tongkang, dsb.)
+ * masih ikut tampil. Jenis kapal lain tidak disaring. Item yang disembunyikan tetap bisa dilihat lewat "tampilkan semua".
+ */
+export type VesselProfile = 'tug' | 'barge';
+export type VesselCtx = { vesselType: string | null | undefined; propelled: boolean };
+
+export function vesselProfile(c: VesselCtx): VesselProfile | null {
+  if (!c.propelled) return 'barge';
+  const t = c.vesselType ?? '';
+  if (TUG_TYPES.includes(t) || /tug|tunda/i.test(t)) return 'tug';
+  return null;
+}
+
+/** Disembunyikan untuk tugboat dan tongkang. */
+const HIDE_COMMON = new Set([
+  3, // Steel-Aluminium Welding Joints
+  4, // Loading Computer
+  9, 10, // Hatch Cover, Hatch Coaming
+  15, // Securing Device (container)
+  18, 19, // Emergency Towing, FRP Gratings (tanker)
+  33, // Gas Engine (notasi GF)
+  35, 36, // Steam / Gas Turbine
+  51, 52, 53, 54, // Boiler, Hot Water Generator, Economizer, Thermal Oil
+  69, // Fire Door Control System
+  70, // Stabilizers
+  80, 81, 82, 83, // Material FRP / komposit
+]);
+const HIDE_COMMON_KIND = new Set([
+  '11|HHP / VHHP',
+  '11|Welded Anchor HHP/VHHP',
+  '73|Starters for and control for steam boilers and thermal oil systems',
+  '73|Switchboards for operation of equipment with Class Notation, e.g. cargo-refrigerating systems RIC',
+]);
+/** Coating cargo oil tank dan oiltight hatch: disembunyikan kecuali jenis kapal berupa tanker atau oil barge. */
+const HIDE_UNLESS_TANK = new Set([17, 21]);
+/** Hanya untuk tongkang / kapal tanpa penggerak. */
+const HIDE_BARGE = new Set([
+  6, // Rudder Stock
+  27, 28, 29, // Towing hook, winch, towrope (notasi TOW)
+  ...Array.from({ length: 13 }, (_, i) => 38 + i), // Shaft sampai Propeller (38–50)
+  62, // Steering Gear
+  64, 65, // Rudder Propeller, Lateral Thrust
+]);
+const HIDE_BARGE_KIND = new Set([
+  '71|Generators and motors for electric propulsion plants',
+  '72|Power electronic propulsion plants',
+  '73|Switchboards for electric propulsion plants',
+]);
+
+/** True bila item tidak relevan untuk jenis kapal ini (selalu false bila bukan tugboat atau tongkang). */
+export function hiddenByVessel(it: MatItem, c: VesselCtx): boolean {
+  const profile = vesselProfile(c);
+  if (!profile) return false;
+  const key = it.kind ? `${it.no}|${it.kind}` : String(it.no);
+  if (HIDE_COMMON.has(it.no) || HIDE_COMMON_KIND.has(key)) return true;
+  if (HIDE_UNLESS_TANK.has(it.no) && !/oil|tank|chemical/i.test(c.vesselType ?? '')) return true;
+  if (profile === 'barge' && (HIDE_BARGE.has(it.no) || HIDE_BARGE_KIND.has(key))) return true;
+  return false;
 }

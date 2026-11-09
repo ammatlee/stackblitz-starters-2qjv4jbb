@@ -175,7 +175,7 @@ function Inner() {
     await load();
   };
 
-  if (matP) return <MaterialTracker projectId={matP.id} projectName={matP.name} tipe={tipeOf(matP)} onBack={() => setMatP(null)} />;
+  if (matP) return <MaterialTracker projectId={matP.id} projectName={matP.name} tipe={tipeOf(matP)} vesselType={matP.vessel_type} propelled={effPropelled(matP.vessel_type, matP.propelled)} onBack={() => setMatP(null)} />;
 
   return (
     <main className="mx-auto max-w-3xl px-4 py-8">

@@ -31,3 +31,25 @@ describe('Pelacak material — daftar dan kemajuan', () => {
     expect(progressOf([], new Map()).pct).toBe(0);
   });
 });
+
+describe('Pelacak material — saringan menurut jenis kapal', () => {
+  const nos = (items: { no: number }[]) => new Set(items.map((i) => i.no));
+  it('tongkang: item tenaga penggerak, kemudi, dan TOW disembunyikan; jangkar dan pelat tetap', () => {
+    const n = nos(trackerItems('C', false, { vesselType: 'Barge', propelled: false }));
+    [6, 27, 38, 50, 9, 17].forEach((x) => expect(n.has(x)).toBe(false));
+    [1, 11, 12].forEach((x) => expect(n.has(x)).toBe(true));
+  });
+  it('tugboat: palka dan tanker disembunyikan; mesin, poros, dan TOW tetap', () => {
+    const n = nos(trackerItems('B', false, { vesselType: 'Tugboat', propelled: true }));
+    [9, 10, 17, 19, 35, 51].forEach((x) => expect(n.has(x)).toBe(false));
+    [32, 38, 50, 27, 62].forEach((x) => expect(n.has(x)).toBe(true));
+  });
+  it('oil barge tetap menampilkan coating cargo oil tank', () => {
+    expect(nos(trackerItems('C', false, { vesselType: 'Oil Barge', propelled: false })).has(17)).toBe(true);
+  });
+  it('jenis kapal lain tidak disaring; tampilkan semua mengabaikan saringan', () => {
+    expect(trackerItems('B', false, { vesselType: 'General Cargo', propelled: true })).toEqual(itemsRequired('B'));
+    expect(trackerItems('C', true, { vesselType: 'Barge', propelled: false })).toEqual(MATERIAL_ITEMS);
+  });
+});
+

@@ -1,5 +1,5 @@
-import { MATERIAL_ITEMS, itemsRequired } from './materialRules';
-import type { MatItem, MatTipe } from './materialRules';
+import { MATERIAL_ITEMS, hiddenByVessel, itemsRequired } from './materialRules';
+import type { MatItem, MatTipe, VesselCtx } from './materialRules';
 
 /** Status penerimaan satu item material/komponen. Item tanpa baris di database = 'belum'. */
 export type MatStatus = 'belum' | 'diterima' | 'tidak_ada';
@@ -23,10 +23,14 @@ export type MatStatusRow = {
 /** Penanda unik item: nomor produk, ditambah sub-jenis bila ada (mis. "11|HHP / VHHP"). */
 export const itemKey = (it: MatItem): string => (it.kind ? `${it.no}|${it.kind}` : String(it.no));
 
-/** Item yang ditampilkan: yang disyaratkan untuk tipe, atau seluruh daftar bila semua = true. */
-export function trackerItems(tipe: MatTipe | null, all = false): MatItem[] {
+/**
+ * Item yang ditampilkan: yang disyaratkan untuk tipe, atau seluruh daftar bila semua = true.
+ * Bila ctx (jenis kapal) diberikan, item yang tidak relevan untuk tugboat/tongkang ikut disembunyikan.
+ */
+export function trackerItems(tipe: MatTipe | null, all = false, ctx?: VesselCtx): MatItem[] {
   if (all || tipe === null) return MATERIAL_ITEMS;
-  return itemsRequired(tipe);
+  const req = itemsRequired(tipe);
+  return ctx ? req.filter((it) => !hiddenByVessel(it, ctx)) : req;
 }
 
 export type Progress = { total: number; diterima: number; belum: number; tidakAda: number; pct: number };

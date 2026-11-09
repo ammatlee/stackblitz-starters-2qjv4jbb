@@ -3,7 +3,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { Button, Chip } from '../Controls';
-import { CELL_LEGEND, COL_LEGEND, NOTES, TIPE_LEGEND, cellsFor, parseCell } from '../../lib/materialRules';
+import { CELL_LEGEND, COL_LEGEND, NOTES, TIPE_LEGEND, cellsFor, parseCell, vesselProfile } from '../../lib/materialRules';
 import type { MatItem, MatTipe } from '../../lib/materialRules';
 import { STATUSES, STATUS_LABEL, itemKey, progressOf, trackerItems } from '../../lib/materialTracker';
 import type { MatStatus, MatStatusRow } from '../../lib/materialTracker';
@@ -14,6 +14,9 @@ type Props = {
   projectId: string;
   projectName: string;
   tipe: MatTipe | null;
+  /** Jenis kapal dan penggerak: dipakai untuk menyembunyikan item yang tidak relevan. */
+  vesselType?: string | null;
+  propelled?: boolean;
   onBack: () => void;
 };
 
@@ -94,7 +97,7 @@ function Row({
   );
 }
 
-export default function MaterialTracker({ projectId, projectName, tipe, onBack }: Props) {
+export default function MaterialTracker({ projectId, projectName, tipe, vesselType = null, propelled = true, onBack }: Props) {
   const [rows, setRows] = useState<Map<string, MatStatusRow>>(new Map());
   const [loaded, setLoaded] = useState(false);
   const [err, setErr] = useState('');
@@ -121,7 +124,10 @@ export default function MaterialTracker({ projectId, projectName, tipe, onBack }
     load();
   }, [load]);
 
-  const items = useMemo(() => trackerItems(tipe, showAll), [tipe, showAll]);
+  const ctx = useMemo(() => ({ vesselType, propelled }), [vesselType, propelled]);
+  const profile = vesselProfile(ctx);
+  const items = useMemo(() => trackerItems(tipe, showAll, ctx), [tipe, showAll, ctx]);
+  const hiddenCount = useMemo(() => (tipe && !showAll ? trackerItems(tipe, false).length - items.length : 0), [tipe, showAll, items]);
   const prog = useMemo(() => progressOf(items, rows), [items, rows]);
 
   const shown = useMemo(() => {
@@ -162,6 +168,12 @@ export default function MaterialTracker({ projectId, projectName, tipe, onBack }
       <h1 className="mt-1 text-xl font-extrabold text-slate-900">{projectName}</h1>
       <p className="mt-1 text-sm text-slate-600">{tipe ? `Tipe ${tipe}: ${TIPE_LEGEND[tipe]}` : 'Tipe material belum bisa ditentukan (isi GT di data proyek). Menampilkan seluruh daftar.'}</p>
 
+      {profile && tipe && !showAll && hiddenCount > 0 && (
+        <p className="mt-2 text-xs text-slate-500">
+          Disaring untuk {profile === 'tug' ? 'tugboat' : 'tongkang / kapal tanpa penggerak'}: {hiddenCount} item yang tidak relevan disembunyikan. Salah satunya ada di kapal ini? Pakai "Tampilkan semua".
+        </p>
+      )}
+
       {err && <p className="mt-4 rounded-xl border border-red-300 bg-red-50 p-3 text-sm text-red-800">{err}</p>}
 
       <div className="mt-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
@@ -184,7 +196,7 @@ export default function MaterialTracker({ projectId, projectName, tipe, onBack }
           ))}
         </div>
         <div className="flex flex-wrap gap-2">
-          {tipe && <Chip tone="dark" selected={showAll} onClick={() => setShowAll((v) => !v)}>Tampilkan semua 84 produk</Chip>}
+          {tipe && <Chip tone="dark" selected={showAll} onClick={() => setShowAll((v) => !v)}>Tampilkan semua 84 produk (tanpa saringan)</Chip>}
           <Chip tone="dark" selected={legend} onClick={() => setLegend((v) => !v)}>Arti kode</Chip>
         </div>
       </div>
