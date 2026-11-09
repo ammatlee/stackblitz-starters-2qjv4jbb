@@ -5,23 +5,27 @@ import React, { useEffect, useState } from 'react';
 export default function OfflineBanner() {
   const [online, setOnline] = useState(true);
   const [stale, setStale] = useState(false);
+  const [update, setUpdate] = useState(false);
 
   useEffect(() => {
     setOnline(navigator.onLine);
     const on = () => setOnline(true);
     const off = () => setOnline(false);
     const st = () => setStale(true);
+    const up = () => setUpdate(true);
     window.addEventListener('online', on);
     window.addEventListener('offline', off);
     window.addEventListener('rdk-stale', st);
+    window.addEventListener('rdk-update', up);
     return () => {
       window.removeEventListener('online', on);
       window.removeEventListener('offline', off);
       window.removeEventListener('rdk-stale', st);
+      window.removeEventListener('rdk-update', up);
     };
   }, []);
 
-  if (online && !stale) return null;
+  if (online && !stale && !update) return null;
 
   const base = 'fixed inset-x-0 bottom-[calc(3.5rem+env(safe-area-inset-bottom,0px))] z-50 px-4 py-2 text-center text-xs font-medium shadow-lg md:bottom-0 ';
 
@@ -29,6 +33,16 @@ export default function OfflineBanner() {
     return (
       <div className={base + 'bg-amber-500 text-white'} role="status">
         Tanpa sinyal — data yang tampil adalah salinan terakhir di HP. Menyimpan perubahan butuh sinyal.
+      </div>
+    );
+  }
+  if (update && !stale) {
+    return (
+      <div className={base + 'bg-teal-700 text-white'} role="status">
+        Versi baru aplikasi tersedia.{' '}
+        <button type="button" onClick={() => window.location.reload()} className="ml-1 rounded bg-white/90 px-2 py-0.5 font-semibold text-teal-800">
+          Muat ulang
+        </button>
       </div>
     );
   }

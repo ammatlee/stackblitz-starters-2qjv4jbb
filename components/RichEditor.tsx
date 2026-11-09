@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import DOMPurify from 'dompurify';
 import { useEditor, EditorContent, type Editor } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
@@ -55,7 +55,8 @@ if (typeof window !== 'undefined') {
 }
 
 export function RichView({ html }: { html: string }) {
-  const clean = typeof window === 'undefined' ? '' : DOMPurify.sanitize(html, { ADD_ATTR: ['target', 'rel'] });
+  // pembersihan HTML cukup sekali per isi (dulu diulang di setiap render, mahal untuk artikel panjang)
+  const clean = useMemo(() => (typeof window === 'undefined' ? '' : DOMPurify.sanitize(html, { ADD_ATTR: ['target', 'rel'] })), [html]);
   return (
     <div className="overflow-x-auto">
       <div className="rich" dangerouslySetInnerHTML={{ __html: clean }} />

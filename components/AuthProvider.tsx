@@ -89,7 +89,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // aplikasi offline (service worker): hanya di versi produksi agar tidak mengganggu saat mengedit
   useEffect(() => {
     if (process.env.NODE_ENV === 'production' && typeof navigator !== 'undefined' && 'serviceWorker' in navigator) {
-      navigator.serviceWorker.register('/sw.js').catch(() => {});
+      navigator.serviceWorker
+        .register('/sw.js')
+        .then((reg) => {
+          // versi baru terpasang saat halaman masih terbuka: beri tahu pengguna (lihat OfflineBanner)
+          reg.addEventListener('updatefound', () => {
+            const w = reg.installing;
+            if (!w) return;
+            w.addEventListener('statechange', () => {
+              if (w.state === 'installed' && navigator.serviceWorker.controller) window.dispatchEvent(new Event('rdk-update'));
+            });
+          });
+          // aplikasi yang dibiarkan terbuka berhari-hari (PWA) tetap memeriksa versi baru saat dibuka kembali
+          const check = () => document.visibilityState === 'visible' && reg.update().catch(() => {});
+          document.addEventListener('visibilitychange', check);
+        })
+        .catch(() => {});
     }
   }, []);
 
