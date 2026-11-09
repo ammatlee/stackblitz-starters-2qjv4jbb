@@ -10,6 +10,7 @@ import DateInput from '../../components/DateInput';
 import { isNonPropelled } from '../../lib/vesselTypes';
 import { TIPE_LEGEND, WELDING, circularApplies, itemsRequired, materialTipe, MATERIAL_ITEMS } from '../../lib/materialRules';
 import type { MatTipe } from '../../lib/materialRules';
+import MaterialTracker from '../../components/newbuilding/MaterialTracker';
 
 type Project = {
   id: string;
@@ -112,6 +113,7 @@ function Inner() {
   const [err, setErr] = useState('');
   const [d, setD] = useState<Draft | null>(null);
   const [busy, setBusy] = useState(false);
+  const [matP, setMatP] = useState<Project | null>(null);
 
   const load = useCallback(async () => {
     if (!supabase) return;
@@ -172,6 +174,8 @@ function Inner() {
     }
     await load();
   };
+
+  if (matP) return <MaterialTracker projectId={matP.id} projectName={matP.name} tipe={tipeOf(matP)} onBack={() => setMatP(null)} />;
 
   return (
     <main className="mx-auto max-w-3xl px-4 py-8">
@@ -285,6 +289,7 @@ function Inner() {
                     <span className="shrink-0 rounded-full bg-teal-600 px-3 py-1 text-xs font-bold text-white">{tipe ? `Tipe ${tipe}` : 'Tipe ?'}</span>
                   </div>
                   <div className="mt-3 flex gap-2">
+                    <Button size="sm" variant="primary" onClick={() => setMatP(p)}>Material</Button>
                     <Button size="sm" onClick={() => setD(fromProject(p))}>Ubah</Button>
                     <Button size="sm" variant="warn" onClick={() => remove(p)}>Hapus</Button>
                   </div>
