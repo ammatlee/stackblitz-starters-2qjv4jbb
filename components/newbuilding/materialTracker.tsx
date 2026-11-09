@@ -219,7 +219,7 @@ export default function MaterialTracker({ projectId, projectName, tipe, vesselTy
           ))}
           <Chip selected={filter === 'tidak_ada'} onClick={() => setFilter('tidak_ada')}>N/A</Chip>
           {tipe && <Chip tone="dark" selected={showAll} onClick={() => setShowAll((v) => !v)}>Tampilkan semua 84 produk</Chip>}
-          <Chip tone="dark" onClick={() => window.print()}>Cetak / PDF</Chip>
+          <Button size="sm" onClick={() => window.print()}>Cetak / PDF</Button>
         </div>
       </div>
 
