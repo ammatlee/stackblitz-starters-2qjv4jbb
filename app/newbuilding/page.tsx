@@ -10,7 +10,7 @@ import DateInput from '../../components/DateInput';
 import { isNonPropelled } from '../../lib/vesselTypes';
 import { TIPE_LEGEND, WELDING, circularApplies, itemsRequired, materialTipe, MATERIAL_ITEMS } from '../../lib/materialRules';
 import type { MatTipe } from '../../lib/materialRules';
-import MaterialTracker from '../../components/newbuilding/MaterialTracker';
+import MaterialTracker from '../../components/newbuilding/materialTracker';
 
 type Project = {
   id: string;
