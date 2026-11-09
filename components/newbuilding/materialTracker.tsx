@@ -170,7 +170,7 @@ export default function MaterialTracker({ projectId, projectName, tipe, vesselTy
 
       {profile && tipe && !showAll && hiddenCount > 0 && (
         <p className="mt-2 text-xs text-slate-500">
-          Disaring untuk {profile === 'tug' ? 'tugboat' : 'tongkang / kapal tanpa penggerak'}: {hiddenCount} item yang tidak relevan disembunyikan. Salah satunya ada di kapal ini? Pakai "Tampilkan semua".
+          Disaring untuk {profile === 'tug' ? 'tugboat' : 'tongkang / kapal tanpa penggerak'}: {hiddenCount} item yang tidak relevan disembunyikan. Salah satunya ada di kapal ini? Pakai &quot;Tampilkan semua&quot;.
         </p>
       )}
 
