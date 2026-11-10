@@ -30,6 +30,7 @@ const GOLDEN: Record<DrawingCol, [number, number, number, number]> = {
   BARGE_D: [60, 38, 11, 11],
   BARGE_E: [33, 21, 8, 4],
   BARGE_F: [52, 32, 16, 4],
+  LCT: [58, 34, 12, 12],
 };
 
 const row = (key: string, status: DrawingStatus): [string, { status: DrawingStatus }] => [key, { status }];
@@ -59,7 +60,7 @@ describe('Data gambar BKI Rev.03', () => {
     }
     for (const c of DRAWING_COLS) expect(DRAWING_COL_LABEL[c]).toBeTruthy();
     for (const g of DRAWING_GROUPS) expect(DRAWING_GROUP_LABEL[g]).toBeTruthy();
-    expect(DRAWING_COLS).toHaveLength(10);
+    expect(DRAWING_COLS).toHaveLength(11);
   });
 
   it('kode bersyarat tongkang punya keterangan', () => {
@@ -85,6 +86,18 @@ describe('Data gambar BKI Rev.03', () => {
     expect(drawingsFor('BARGE_A').find((d) => d.no === '100')?.title).toBe('Oil Cargo / Gas Cargo System');
     expect(drawingsFor('BARGE_A').some((d) => d.no === '7')).toBe(false);
     expect(drawingsFor('BARGE_D').some((d) => d.no === '7')).toBe(true);
+  });
+
+  it('contoh isi: LCT punya daftar sendiri (kolom 29 PDF), berbeda dari Barge F', () => {
+    const l = drawingsFor('LCT');
+    const get = (no: string) => l.find((d) => d.no === no);
+    expect(get('13')?.req).toBe('M');
+    expect(get('16.6')?.req).toBe('M');
+    expect(get('46')?.req).toBe('O');
+    expect(get('11')).toMatchObject({ req: 'C', code: 'M1' });
+    expect(get('10')).toBeUndefined();
+    expect(get('124')).toBeUndefined();
+    expect(get('136')).toBeUndefined();
   });
 
   it('kelompok mengikuti nomor gambar dan hanya kelompok yang berisi yang tampil', () => {
@@ -122,7 +135,8 @@ describe('Memilih kolom BKI dari data proyek', () => {
     expect(pick('Crane Barge', false).col).toBe('BARGE_E');
     expect(pick('Accommodation Barge', false).col).toBe('BARGE_E');
     expect(pick('Barge', true).col).toBe('BARGE_F');
-    expect(pick('LCT', true).col).toBe('BARGE_F');
+    expect(pick('LCT', true).col).toBe('LCT');
+    expect(pick('Landing Craft Tank', true).col).toBe('LCT');
   });
   it('jenis buatan sendiri: yang jelas barge terbaca, yang lain menunggu pilihan manual', () => {
     expect(pick('Chemical Barge', false, false).col).toBe('BARGE_B');

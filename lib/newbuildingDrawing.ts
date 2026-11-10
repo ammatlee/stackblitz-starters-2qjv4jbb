@@ -125,7 +125,8 @@ export const needsFlashPoint = (vesselType: string | null | undefined): boolean 
 };
 
 const isPontoon = (t: string): boolean => /pontoon/i.test(t);
-const isOtherBarge = (t: string): boolean => /barge|tongkang|\blct\b/i.test(t);
+const isLct = (t: string): boolean => /\blct\b|landing craft/i.test(t);
+const isOtherBarge = (t: string): boolean => /barge|tongkang/i.test(t);
 
 export function resolveDrawingCol(i: DrawingColInput): DrawingColResult {
   const manual = asDrawingCol(i.override);
@@ -144,6 +145,7 @@ export function resolveDrawingCol(i: DrawingColInput): DrawingColResult {
     const col: DrawingCol = i.propelled ? (i.fpAbove60 ? 'BARGE_C' : 'BARGE_D') : i.fpAbove60 ? 'BARGE_A' : 'BARGE_B';
     return { col, needFlashPoint: false };
   }
+  if (isLct(t)) return { col: 'LCT', needFlashPoint: false };
   if (isOtherBarge(t)) return { col: i.propelled ? 'BARGE_F' : 'BARGE_E', needFlashPoint: false };
   return { col: null, needFlashPoint: false };
 }
