@@ -13,6 +13,10 @@ import type { MatTipe } from '../../lib/materialRules';
 import MaterialTracker from '../../components/newbuilding/materialTracker';
 import StageTracker from '../../components/newbuilding/StageTracker';
 import DrawingTracker from '../../components/newbuilding/DrawingTracker';
+import { fetchAllRows } from '../../lib/fetchAll';
+import { groupByProject, projectOverview } from '../../lib/newbuildingOverview';
+import type { ProjectOverview } from '../../lib/newbuildingOverview';
+import type { StageRow } from '../../lib/newbuildingStages';
 
 type Project = {
   id: string;
@@ -26,6 +30,8 @@ type Project = {
   notasi_l20: boolean;
   propelled: boolean | null;
   updated_at: string;
+  fp_above60?: boolean | null;
+  drawing_col?: string | null;
 };
 
 type Draft = {
@@ -109,6 +115,40 @@ function Hasil({ d }: { d: Draft }) {
   );
 }
 
+function Bar({ pct }: { pct: number }) {
+  return (
+    <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-slate-100">
+      <div className="h-full rounded-full bg-teal-600" style={{ width: `${pct}%` }} />
+    </div>
+  );
+}
+
+/** Ringkasan progress di kartu proyek: tahap berjalan, progress tahapan, dan gambar closed. */
+function Overview({ o }: { o: ProjectOverview | undefined }) {
+  if (!o) return null;
+  const d = o.drawing;
+  return (
+    <div className="mt-3 space-y-1.5 text-xs text-slate-600">
+      <div className="flex items-center gap-3">
+        <span className="w-16 shrink-0 font-semibold text-slate-500">Tahapan</span>
+        <Bar pct={o.stage.pct} />
+        <span className="w-20 shrink-0 text-right tabular-nums">{o.stage.selesai}/{o.stage.total} ({o.stage.pct}%)</span>
+      </div>
+      <p className="pl-[76px] text-slate-500">{o.current ? `Sekarang: ${o.current.code}. ${o.current.title}` : 'Semua tahap selesai'}</p>
+      {d && d.col && (
+        <div className="flex items-center gap-3">
+          <span className="w-16 shrink-0 font-semibold text-slate-500">Gambar</span>
+          <Bar pct={d.progress.pct} />
+          <span className="w-20 shrink-0 text-right tabular-nums">{d.progress.closed}/{d.progress.total} ({d.progress.pct}%)</span>
+        </div>
+      )}
+      {d && !d.col && (
+        <p className="pl-[76px] text-amber-800">{d.needFlashPoint ? 'Gambar: flash point belum diisi' : 'Gambar: daftar belum ditentukan'}</p>
+      )}
+    </div>
+  );
+}
+
 function Inner() {
   const { confirm } = useDialog();
   const [list, setList] = useState<Project[] | null>(null);
@@ -119,6 +159,7 @@ function Inner() {
   const [stageP, setStageP] = useState<Project | null>(null);
   const [matFromStage, setMatFromStage] = useState(false);
   const [drawP, setDrawP] = useState<Project | null>(null);
+  const [ov, setOv] = useState<Map<string, ProjectOverview>>(new Map());
 
   const load = useCallback(async () => {
     if (!supabase) return;
@@ -129,7 +170,29 @@ function Inner() {
       setList([]);
       return;
     }
-    setList((data ?? []) as Project[]);
+    const projects = (data ?? []) as Project[];
+    setList(projects);
+
+    // ringkasan progress per proyek; bila tabelnya belum ada, kartu tampil tanpa ringkasan
+    const st = await fetchAllRows((a, b) => supabase!.from('nb_stage_status').select('project_id,item_key,status').order('project_id').order('item_key').range(a, b));
+    if (st.error) return;
+    const dr = await fetchAllRows((a, b) => supabase!.from('nb_drawing_status').select('project_id,item_key,status').order('project_id').order('item_key').range(a, b));
+    const stageBy = groupByProject(st.data as { project_id: string; item_key: string; status: StageRow['status'] }[]);
+    const drawBy = dr.error ? null : groupByProject(dr.data as { project_id: string; item_key: string; status: 'open' | 'closed' | 'tidak_ada' }[]);
+    const next = new Map<string, ProjectOverview>();
+    for (const p of projects) {
+      const stageRows = new Map<string, StageRow>();
+      stageBy.get(p.id)?.forEach((r, k) => stageRows.set(k, { item_key: r.item_key, status: r.status, done_date: null, note: null }));
+      next.set(
+        p.id,
+        projectOverview(
+          { vesselType: p.vessel_type, propelled: effPropelled(p.vessel_type, p.propelled), tipe: tipeOf(p), fpAbove60: p.fp_above60 ?? null, override: p.drawing_col ?? null },
+          stageRows,
+          drawBy ? drawBy.get(p.id) ?? new Map() : null,
+        ),
+      );
+    }
+    setOv(next);
   }, []);
 
   useEffect(() => {
@@ -342,6 +405,7 @@ function Inner() {
                     </div>
                     <span className="shrink-0 rounded-full bg-teal-600 px-3 py-1 text-xs font-bold text-white">{tipe ? `Tipe ${tipe}` : 'Tipe ?'}</span>
                   </div>
+                  <Overview o={ov.get(p.id)} />
                   <div className="mt-3 flex gap-2">
                     <Button size="sm" variant="primary" onClick={() => setStageP(p)}>Tahapan</Button>
                     <Button
