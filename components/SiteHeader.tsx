@@ -16,6 +16,7 @@ const ICON = {
   shield: 'M12 3l8 3v6c0 4.5-3.2 8-8 9-4.8-1-8-4.5-8-9V6zM9 12l2 2 4-4',
   bars: 'M5 20V10M12 20V4M19 20v-7',
   clock: 'M12 7v5l3 2M21 12a9 9 0 11-18 0 9 9 0 0118 0z',
+  build: 'M3 21h18M5 21V10l7-5 7 5v11M9 21v-6h6v6',
   user: 'M12 11a4 4 0 100-8 4 4 0 000 8zM4 21c0-4 3.6-7 8-7s8 3 8 7',
 };
 function Icon({ d }: { d: string }) {
@@ -44,6 +45,7 @@ export default function SiteHeader() {
     { href: '/', label: 'Menu Utama', short: 'Menu', icon: ICON.home },
     { href: '/bulletin', label: 'Bulletin', short: 'Bulletin', icon: ICON.doc },
     { href: '/class-validity', label: 'Class Validity', short: 'Validity', icon: ICON.shield },
+    { href: '/newbuilding', label: 'Bangunan Baru', short: 'Baru', icon: ICON.build },
     { href: '/fleet', label: 'Armada', short: 'Armada', icon: ICON.bars },
     { href: '/audit', label: 'Riwayat', short: 'Riwayat', icon: ICON.clock },
     ...(isAdmin ? [{ href: '/admin', label: pending > 0 ? `Persetujuan (${pending})` : 'Persetujuan', short: 'Admin', icon: ICON.user, badge: pending }] : []),

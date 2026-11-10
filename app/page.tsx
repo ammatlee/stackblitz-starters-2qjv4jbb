@@ -24,6 +24,10 @@ export default function Home() {
           <h2 className="text-lg font-bold text-slate-900">Class Validity</h2>
           <p className="mt-1 text-sm text-slate-600">Status kelas, jendela waktu survei, reinstatement, scope &amp; checklist.</p>
         </Link>
+        <Link href="/newbuilding" className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm hover:border-teal-500">
+          <h2 className="text-lg font-bold text-slate-900">Bangunan Baru</h2>
+          <p className="mt-1 text-sm text-slate-600">Penerimaan klas: tahapan, gambar wajib BKI, dan sertifikat material.</p>
+        </Link>
         <Link href="/bulletin" className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm hover:border-teal-500">
           <h2 className="text-lg font-bold text-slate-900">Bulletin &amp; Artikel</h2>
           <p className="mt-1 text-sm text-slate-600">Catatan, materi, dan pengingat.</p>
