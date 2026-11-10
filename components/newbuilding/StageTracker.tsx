@@ -3,12 +3,11 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { Button, Chip } from '../Controls';
-import { Fold } from '../classValidity/ui';
 import DateInput from '../DateInput';
 import { TIPE_LEGEND } from '../../lib/materialRules';
 import type { MatTipe } from '../../lib/materialRules';
-import { STAGES, STAGE_STATUSES, STAGE_STATUS_LABEL, applicableItems, firstOpenStage, hiddenItemCount, overallProgress, stageItemKey, stageProgress } from '../../lib/newbuildingStages';
-import type { Stage, StageItem, StageRow, StageStatus } from '../../lib/newbuildingStages';
+import { STAGES, STAGE_STATUSES, STAGE_STATUS_LABEL, applicableItems, firstOpenStage, hiddenItemCount, isStageDone, overallProgress, stageItemKey, stageProgress } from '../../lib/newbuildingStages';
+import type { Stage, StageItem, StageProgress, StageRow, StageStatus } from '../../lib/newbuildingStages';
 
 const INPUT = 'w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm';
 
@@ -19,6 +18,7 @@ type Props = {
   propelled: boolean;
   onBack: () => void;
   onOpenMaterial: () => void;
+  onOpenDrawing: () => void;
 };
 
 type Patch = Partial<Omit<StageRow, 'item_key'>>;
@@ -57,6 +57,7 @@ function ItemRow({
   onDate,
   onNote,
   onOpenMaterial,
+  onOpenDrawing,
 }: {
   it: StageItem;
   row: StageRow | undefined;
@@ -65,6 +66,7 @@ function ItemRow({
   onDate: (iso: string) => void;
   onNote: (v: string) => void;
   onOpenMaterial: () => void;
+  onOpenDrawing: () => void;
 }) {
   const status: StageStatus = row?.status ?? 'belum';
   const done = status === 'selesai';
@@ -74,9 +76,11 @@ function ItemRow({
     <li className={`rounded-xl border p-3 ${done ? 'border-teal-200 bg-teal-50/50' : 'border-slate-200 bg-white'} ${na ? 'opacity-60' : ''}`}>
       <p className={`text-sm font-semibold ${na ? 'text-slate-400 line-through' : 'text-slate-900'}`}>{it.label}</p>
       {it.hint && <p className="mt-0.5 text-xs text-slate-500">{it.hint}</p>}
-      {it.material ? (
+      {it.material || it.drawing ? (
         <div className="mt-2">
-          <Button size="sm" variant="primary" onClick={onOpenMaterial}>Buka pelacak material</Button>
+          <Button size="sm" variant="primary" onClick={it.drawing ? onOpenDrawing : onOpenMaterial}>
+            {it.drawing ? 'Buka pelacak gambar' : 'Buka pelacak material'}
+          </Button>
         </div>
       ) : (
         <>
@@ -107,7 +111,63 @@ function ItemRow({
   );
 }
 
-export default function StageTracker({ projectId, projectName, tipe, propelled, onBack, onOpenMaterial }: Props) {
+type StageState = 'done' | 'active' | 'pending';
+
+const BADGE_TONE: Record<StageState, string> = {
+  done: 'border-teal-600 bg-teal-600 text-white',
+  active: 'border-teal-600 bg-white text-teal-700 ring-4 ring-teal-100',
+  pending: 'border-slate-300 bg-slate-100 text-slate-500',
+};
+
+/** Lencana nomor tahap: angka, atau centang bila tahap selesai. Tahap 3A–3E memakai huruf yang lebih kecil. */
+function StageBadge({ st, state }: { st: Stage; state: StageState }) {
+  const sub = !!st.group;
+  return (
+    <span
+      className={`absolute left-0 top-3 z-10 flex items-center justify-center rounded-full border-2 text-sm font-extrabold ${sub ? 'h-7 w-7 text-xs' : 'h-8 w-8'} ${sub ? 'ml-0.5' : ''} ${BADGE_TONE[state]}`}
+      aria-label={`Tahap ${st.code}${state === 'done' ? ' selesai' : state === 'active' ? ' sedang berjalan' : ''}`}
+    >
+      {state === 'done' ? (
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <path d="M5 12l5 5 9-10" />
+        </svg>
+      ) : sub ? (
+        st.code.replace(/^\d+/, '')
+      ) : (
+        st.code
+      )}
+    </span>
+  );
+}
+
+function StageCard({ st, state, p, open, children }: { st: Stage; state: StageState; p: StageProgress; open: boolean; children: React.ReactNode }) {
+  const pct = p.total > 0 ? Math.round((p.selesai / p.total) * 100) : state === 'done' ? 100 : 0;
+  return (
+    <div className="relative pl-12">
+      <StageBadge st={st} state={state} />
+      <details open={open} className={`group rounded-2xl border bg-white shadow-sm ${state === 'active' ? 'border-teal-300' : 'border-slate-200'}`}>
+        <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3">
+          <div className="min-w-0">
+            <h2 className={`text-sm font-bold sm:text-base ${state === 'pending' ? 'text-slate-600' : 'text-slate-900'}`}>{st.title}</h2>
+            {state === 'active' && <p className="text-xs font-semibold text-teal-700">Sedang berjalan</p>}
+          </div>
+          <div className="flex shrink-0 items-center gap-3">
+            <div className="flex flex-col items-end gap-1">
+              <span className="text-xs tabular-nums text-slate-600">{p.selesai}/{p.total}</span>
+              <div className="h-1.5 w-16 overflow-hidden rounded-full bg-slate-100">
+                <div className="h-full rounded-full bg-teal-600" style={{ width: `${pct}%` }} />
+              </div>
+            </div>
+            <span className="text-xs text-slate-400 transition group-open:rotate-180">▼</span>
+          </div>
+        </summary>
+        <div className="border-t border-slate-100 p-4">{children}</div>
+      </details>
+    </div>
+  );
+}
+
+export default function StageTracker({ projectId, projectName, tipe, propelled, onBack, onOpenMaterial, onOpenDrawing }: Props) {
   const [rows, setRows] = useState<Map<string, StageRow>>(new Map());
   const [loaded, setLoaded] = useState(false);
   const [err, setErr] = useState('');
@@ -190,19 +250,18 @@ export default function StageTracker({ projectId, projectName, tipe, propelled, 
       {!loaded ? (
         <p className="mt-4 text-sm text-slate-500">Memuat…</p>
       ) : (
-        <div className="mt-4 space-y-3">
+        <div className="relative mt-4 space-y-3">
+          <span className="absolute bottom-6 left-4 top-6 w-0.5 bg-slate-200" aria-hidden="true" />
           {STAGES.map((st) => {
             const heading = st.group && st.group !== lastGroup ? st.group : null;
             lastGroup = st.group ?? '';
             const p = stageProgress(st, ctx, rows);
+            const done = isStageDone(st, ctx, rows) && p.selesai + p.tidakAda > 0;
+            const state: StageState = done ? 'done' : openKey === st.key ? 'active' : 'pending';
             return (
               <React.Fragment key={st.key}>
-                {heading && <h2 className="pt-2 text-xs font-bold uppercase tracking-widest text-slate-500">{heading}</h2>}
-                <Fold
-                  title={`${st.code}. ${st.title}`}
-                  open={openKey === st.key}
-                  right={<span className="text-xs tabular-nums text-slate-600">{p.selesai}/{p.total}</span>}
-                >
+                {heading && <h2 className="relative pl-12 pt-2 text-xs font-bold uppercase tracking-widest text-slate-500">{heading}</h2>}
+                <StageCard st={st} state={state} p={p} open={openKey === st.key}>
                   <ul className="space-y-2">
                     {applicableItems(st, ctx).map((it) => {
                       const key = stageItemKey(st, it);
@@ -216,11 +275,12 @@ export default function StageTracker({ projectId, projectName, tipe, propelled, 
                           onDate={(iso) => save(st, it, { done_date: iso === '' ? null : iso })}
                           onNote={(v) => save(st, it, { note: v === '' ? null : v })}
                           onOpenMaterial={onOpenMaterial}
+                          onOpenDrawing={onOpenDrawing}
                         />
                       );
                     })}
                   </ul>
-                </Fold>
+                </StageCard>
               </React.Fragment>
             );
           })}

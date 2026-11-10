@@ -92,7 +92,7 @@ function DrawingItem({
     <li className={`rounded-xl border p-3 ${closed ? 'border-teal-200 bg-teal-50/50' : 'border-slate-200 bg-white'} ${na ? 'opacity-60' : ''}`}>
       <div className="flex flex-wrap items-start justify-between gap-2">
         <p className={`min-w-0 flex-1 text-sm font-semibold ${na ? 'text-slate-400 line-through' : 'text-slate-900'}`}>
-          <span className="mr-1.5 tabular-nums text-slate-500">{d.no}.</span>
+          <span className="mr-2 inline-block min-w-[2.75rem] rounded bg-slate-100 px-1.5 py-0.5 text-center align-middle font-mono text-xs font-bold text-slate-600">{d.no}</span>
           {d.title}
         </p>
         <span className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-bold ${REQ_TONE[d.req]}`} title={d.code ?? undefined}>

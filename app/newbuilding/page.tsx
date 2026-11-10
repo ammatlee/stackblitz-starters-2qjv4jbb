@@ -12,6 +12,7 @@ import { TIPE_LEGEND, WELDING, circularApplies, itemsRequired, materialTipe, MAT
 import type { MatTipe } from '../../lib/materialRules';
 import MaterialTracker from '../../components/newbuilding/materialTracker';
 import StageTracker from '../../components/newbuilding/StageTracker';
+import DrawingTracker from '../../components/newbuilding/DrawingTracker';
 
 type Project = {
   id: string;
@@ -117,6 +118,7 @@ function Inner() {
   const [matP, setMatP] = useState<Project | null>(null);
   const [stageP, setStageP] = useState<Project | null>(null);
   const [matFromStage, setMatFromStage] = useState(false);
+  const [drawP, setDrawP] = useState<Project | null>(null);
 
   const load = useCallback(async () => {
     if (!supabase) return;
@@ -178,6 +180,20 @@ function Inner() {
     await load();
   };
 
+  if (drawP)
+    return (
+      <DrawingTracker
+        projectId={drawP.id}
+        projectName={drawP.name}
+        vesselType={drawP.vessel_type}
+        propelled={effPropelled(drawP.vessel_type, drawP.propelled)}
+        onBack={() => {
+          setStageP(drawP);
+          setDrawP(null);
+        }}
+      />
+    );
+
   if (stageP)
     return (
       <StageTracker
@@ -189,6 +205,10 @@ function Inner() {
         onOpenMaterial={() => {
           setMatP(stageP);
           setMatFromStage(true);
+          setStageP(null);
+        }}
+        onOpenDrawing={() => {
+          setDrawP(stageP);
           setStageP(null);
         }}
       />
