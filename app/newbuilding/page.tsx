@@ -201,6 +201,7 @@ function Inner() {
         projectName={stageP.name}
         tipe={tipeOf(stageP)}
         propelled={effPropelled(stageP.vessel_type, stageP.propelled)}
+        vesselType={stageP.vessel_type}
         onBack={() => setStageP(null)}
         onOpenMaterial={() => {
           setMatP(stageP);

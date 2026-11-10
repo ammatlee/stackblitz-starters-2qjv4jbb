@@ -7,6 +7,8 @@ import DateInput from '../DateInput';
 import { TIPE_LEGEND } from '../../lib/materialRules';
 import type { MatTipe } from '../../lib/materialRules';
 import { STAGES, STAGE_STATUSES, STAGE_STATUS_LABEL, applicableItems, firstOpenStage, hiddenItemCount, isStageDone, overallProgress, stageItemKey, stageProgress } from '../../lib/newbuildingStages';
+import { drawingSummary } from '../../lib/newbuildingDrawings';
+import type { DrawingSummary } from '../../lib/newbuildingDrawings';
 import type { Stage, StageItem, StageProgress, StageRow, StageStatus } from '../../lib/newbuildingStages';
 
 const INPUT = 'w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm';
@@ -16,6 +18,7 @@ type Props = {
   projectName: string;
   tipe: MatTipe | null;
   propelled: boolean;
+  vesselType: string | null;
   onBack: () => void;
   onOpenMaterial: () => void;
   onOpenDrawing: () => void;
@@ -49,6 +52,21 @@ function NoteInput({ value, disabled, onSave }: { value: string; disabled: boole
   );
 }
 
+/** Ringkasan progress gambar di item pintasan Tahap 2. */
+function DrawingMini({ s }: { s: DrawingSummary }) {
+  if (s.needFlashPoint) return <p className="mt-2 text-xs text-amber-800">Flash point muatan belum diisi, daftar gambar belum bisa ditentukan.</p>;
+  if (!s.col) return <p className="mt-2 text-xs text-slate-500">Daftar gambar belum ditentukan untuk jenis kapal ini.</p>;
+  return (
+    <div className="mt-2 flex items-center gap-3 text-xs text-slate-600">
+      <span className="whitespace-nowrap font-bold text-slate-900">{s.progress.closed} dari {s.progress.total} closed</span>
+      <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-slate-100">
+        <div className="h-full bg-teal-600" style={{ width: `${s.progress.pct}%` }} />
+      </div>
+      <span>{s.progress.pct}%</span>
+    </div>
+  );
+}
+
 function ItemRow({
   it,
   row,
@@ -58,6 +76,7 @@ function ItemRow({
   onNote,
   onOpenMaterial,
   onOpenDrawing,
+  drawInfo,
 }: {
   it: StageItem;
   row: StageRow | undefined;
@@ -67,6 +86,7 @@ function ItemRow({
   onNote: (v: string) => void;
   onOpenMaterial: () => void;
   onOpenDrawing: () => void;
+  drawInfo: DrawingSummary | null;
 }) {
   const status: StageStatus = row?.status ?? 'belum';
   const done = status === 'selesai';
@@ -81,6 +101,7 @@ function ItemRow({
           <Button size="sm" variant="primary" onClick={it.drawing ? onOpenDrawing : onOpenMaterial}>
             {it.drawing ? 'Buka pelacak gambar' : 'Buka pelacak material'}
           </Button>
+          {it.drawing && drawInfo && <DrawingMini s={drawInfo} />}
         </div>
       ) : (
         <>
@@ -167,12 +188,16 @@ function StageCard({ st, state, p, open, children }: { st: Stage; state: StageSt
   );
 }
 
-export default function StageTracker({ projectId, projectName, tipe, propelled, onBack, onOpenMaterial, onOpenDrawing }: Props) {
+export default function StageTracker({ projectId, projectName, tipe, propelled, vesselType, onBack, onOpenMaterial, onOpenDrawing }: Props) {
   const [rows, setRows] = useState<Map<string, StageRow>>(new Map());
   const [loaded, setLoaded] = useState(false);
   const [err, setErr] = useState('');
   const [busyKey, setBusyKey] = useState('');
   const [openKey, setOpenKey] = useState<string | null>(null);
+  const [drawRows, setDrawRows] = useState<Map<string, { status: 'open' | 'closed' | 'tidak_ada' }>>(new Map());
+  const [fp, setFp] = useState<boolean | null>(null);
+  const [override, setOverride] = useState<string | null>(null);
+  const [drawLoaded, setDrawLoaded] = useState(false);
 
   const ctx = useMemo(() => ({ tipe, propelled }), [tipe, propelled]);
 
@@ -188,6 +213,18 @@ export default function StageTracker({ projectId, projectName, tipe, propelled, 
     const map = new Map(((data ?? []) as StageRow[]).map((r) => [r.item_key, r] as [string, StageRow]));
     setRows(map);
     setOpenKey(firstOpenStage({ tipe, propelled }, map)?.key ?? null);
+    // ringkasan gambar: bila tabelnya belum ada, Tahapan tetap jalan tanpa ringkasan
+    const dr = await supabase.from('nb_drawing_status').select('item_key,status').eq('project_id', projectId);
+    const pm = await supabase.from('nb_projects').select('fp_above60,drawing_col').eq('id', projectId).maybeSingle();
+    if (!dr.error) {
+      setDrawRows(new Map(((dr.data ?? []) as { item_key: string; status: 'open' | 'closed' | 'tidak_ada' }[]).map((r) => [r.item_key, { status: r.status }])));
+      setDrawLoaded(true);
+    }
+    if (!pm.error && pm.data) {
+      const m = pm.data as { fp_above60: boolean | null; drawing_col: string | null };
+      setFp(m.fp_above60);
+      setOverride(m.drawing_col);
+    }
     setLoaded(true);
   }, [projectId, tipe, propelled]);
 
@@ -195,6 +232,7 @@ export default function StageTracker({ projectId, projectName, tipe, propelled, 
     load();
   }, [load]);
 
+  const drawInfo = useMemo(() => (drawLoaded ? drawingSummary({ vesselType, propelled, fpAbove60: fp, override }, drawRows) : null), [drawLoaded, vesselType, propelled, fp, override, drawRows]);
   const total = useMemo(() => overallProgress(ctx, rows), [ctx, rows]);
   const hidden = useMemo(() => hiddenItemCount(ctx), [ctx]);
 
@@ -262,6 +300,13 @@ export default function StageTracker({ projectId, projectName, tipe, propelled, 
               <React.Fragment key={st.key}>
                 {heading && <h2 className="relative pl-12 pt-2 text-xs font-bold uppercase tracking-widest text-slate-500">{heading}</h2>}
                 <StageCard st={st} state={state} p={p} open={openKey === st.key}>
+                  {st.key === 'commencement' && drawInfo && drawInfo.open > 0 && (
+                    <div className="mb-3 rounded-xl border border-amber-300 bg-amber-50 p-3 text-xs text-amber-900">
+                      <p className="font-semibold">Masih ada {drawInfo.open} gambar yang berstatus Open.</p>
+                      <p className="mt-0.5">Gambar yang dihitung sebaiknya sudah closed (disetujui BKI) sebelum Commencement. Ini hanya pengingat, tahap tetap bisa dilanjutkan.</p>
+                      <Button size="sm" variant="warn" className="mt-2" onClick={onOpenDrawing}>Buka pelacak gambar</Button>
+                    </div>
+                  )}
                   <ul className="space-y-2">
                     {applicableItems(st, ctx).map((it) => {
                       const key = stageItemKey(st, it);
@@ -276,6 +321,7 @@ export default function StageTracker({ projectId, projectName, tipe, propelled, 
                           onNote={(v) => save(st, it, { note: v === '' ? null : v })}
                           onOpenMaterial={onOpenMaterial}
                           onOpenDrawing={onOpenDrawing}
+                          drawInfo={drawInfo}
                         />
                       );
                     })}

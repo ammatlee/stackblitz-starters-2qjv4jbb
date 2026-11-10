@@ -6,6 +6,7 @@ import {
   asDrawingCol,
   countsInProgress,
   drawingProgress,
+  drawingSummary,
   drawingsFor,
   groupsOf,
   needsFlashPoint,
@@ -226,5 +227,28 @@ describe('Progress pelacak gambar', () => {
 
   it('daftar kosong tidak membagi nol', () => {
     expect(drawingProgress([], new Map()).pct).toBe(0);
+  });
+});
+
+describe('Ringkasan untuk halaman Tahapan', () => {
+  const base = { vesselType: 'Tugboat', propelled: true, fpAbove60: null };
+
+  it('tugboat tanpa catatan: semua gambar yang dihitung masih Open', () => {
+    const s = drawingSummary(base, new Map());
+    expect(s.col).toBe('TUG');
+    expect(s.progress.total).toBe(39);
+    expect(s.open).toBe(39);
+  });
+
+  it('semua gambar yang dihitung Closed: tidak ada yang Open', () => {
+    const rows = new Map(drawingsFor('TUG').filter(countsInProgress).map((d) => row(d.key, 'closed')));
+    const s = drawingSummary(base, rows);
+    expect(s.open).toBe(0);
+    expect(s.progress.pct).toBe(100);
+  });
+
+  it('flash point belum diisi: belum ada daftar, tidak ada peringatan', () => {
+    const s = drawingSummary({ vesselType: 'Oil Barge', propelled: false, fpAbove60: null }, new Map());
+    expect(s).toEqual({ col: null, needFlashPoint: true, progress: { total: 0, closed: 0, open: 0, tidakAda: 0, pct: 0 }, open: 0 });
   });
 });

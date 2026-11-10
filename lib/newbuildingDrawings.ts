@@ -178,3 +178,12 @@ export function drawingProgress(list: Drawing[], rows: DrawingRowsLike): Drawing
 
 /** Gambar yang dihitung dan masih Open: penanda sebelum Commencement. */
 export const openRequired = (list: Drawing[], rows: DrawingRowsLike): Drawing[] => list.filter((d) => countsInProgress(d) && statusOf(d, rows) === 'open');
+
+/** Ringkasan untuk halaman Tahapan: kolom yang dipakai, progress, dan jumlah gambar dihitung yang masih Open. */
+export type DrawingSummary = { col: DrawingCol | null; needFlashPoint: boolean; progress: DrawingProgress; open: number };
+
+export function drawingSummary(i: DrawingColInput, rows: DrawingRowsLike): DrawingSummary {
+  const { col, needFlashPoint } = resolveDrawingCol(i);
+  const list = col ? drawingsFor(col) : [];
+  return { col, needFlashPoint, progress: drawingProgress(list, rows), open: openRequired(list, rows).length };
+}
