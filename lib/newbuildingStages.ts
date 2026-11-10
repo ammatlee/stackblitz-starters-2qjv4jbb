@@ -30,6 +30,8 @@ export type StageItem = {
   applies?: (c: StageCtx) => boolean;
   /** Item pintasan ke pelacak material: tidak punya status sendiri dan tidak dihitung di progress. */
   material?: boolean;
+  /** Item pintasan ke pelacak gambar: sama seperti material, tidak punya status sendiri dan tidak dihitung di progress. */
+  drawing?: boolean;
 };
 
 export type Stage = {
@@ -60,7 +62,13 @@ export const STAGES: Stage[] = [
     code: '2',
     title: 'Document & drawing examination',
     items: [
-      { key: 'diajukan', label: 'Gambar dan dokumen diajukan ke BKI', hint: 'Rincian per gambar menyusul di pelacak gambar.' },
+      {
+        key: 'tracker',
+        label: 'Status per gambar dan dokumen',
+        hint: 'Open, Closed, atau N/A untuk setiap gambar dicatat di pelacak gambar.',
+        drawing: true,
+      },
+      { key: 'diajukan', label: 'Gambar dan dokumen diajukan ke BKI' },
       { key: 'disetujui', label: 'Gambar dan dokumen disetujui (approval)' },
     ],
   },
@@ -150,7 +158,7 @@ const tally = (stages: Stage[], c: StageCtx, rows: Map<string, StageRow>): Stage
   let tidakAda = 0;
   for (const s of stages) {
     for (const it of applicableItems(s, c)) {
-      if (it.material) continue;
+      if (it.material || it.drawing) continue;
       count += 1;
       const st = rows.get(stageItemKey(s, it))?.status ?? 'belum';
       if (st === 'selesai') selesai += 1;
