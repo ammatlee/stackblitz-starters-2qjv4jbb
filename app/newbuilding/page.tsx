@@ -11,6 +11,7 @@ import { isNonPropelled } from '../../lib/vesselTypes';
 import { TIPE_LEGEND, WELDING, circularApplies, itemsRequired, materialTipe, MATERIAL_ITEMS } from '../../lib/materialRules';
 import type { MatTipe } from '../../lib/materialRules';
 import MaterialTracker from '../../components/newbuilding/materialTracker';
+import StageTracker from '../../components/newbuilding/StageTracker';
 
 type Project = {
   id: string;
@@ -114,6 +115,8 @@ function Inner() {
   const [d, setD] = useState<Draft | null>(null);
   const [busy, setBusy] = useState(false);
   const [matP, setMatP] = useState<Project | null>(null);
+  const [stageP, setStageP] = useState<Project | null>(null);
+  const [matFromStage, setMatFromStage] = useState(false);
 
   const load = useCallback(async () => {
     if (!supabase) return;
@@ -175,7 +178,37 @@ function Inner() {
     await load();
   };
 
-  if (matP) return <MaterialTracker projectId={matP.id} projectName={matP.name} tipe={tipeOf(matP)} vesselType={matP.vessel_type} propelled={effPropelled(matP.vessel_type, matP.propelled)} onBack={() => setMatP(null)} />;
+  if (stageP)
+    return (
+      <StageTracker
+        projectId={stageP.id}
+        projectName={stageP.name}
+        tipe={tipeOf(stageP)}
+        propelled={effPropelled(stageP.vessel_type, stageP.propelled)}
+        onBack={() => setStageP(null)}
+        onOpenMaterial={() => {
+          setMatP(stageP);
+          setMatFromStage(true);
+          setStageP(null);
+        }}
+      />
+    );
+
+  if (matP)
+    return (
+      <MaterialTracker
+        projectId={matP.id}
+        projectName={matP.name}
+        tipe={tipeOf(matP)}
+        vesselType={matP.vessel_type}
+        propelled={effPropelled(matP.vessel_type, matP.propelled)}
+        onBack={() => {
+          if (matFromStage) setStageP(matP);
+          setMatFromStage(false);
+          setMatP(null);
+        }}
+      />
+    );
 
   return (
     <main className="mx-auto max-w-3xl px-4 py-8">
@@ -289,7 +322,16 @@ function Inner() {
                     <span className="shrink-0 rounded-full bg-teal-600 px-3 py-1 text-xs font-bold text-white">{tipe ? `Tipe ${tipe}` : 'Tipe ?'}</span>
                   </div>
                   <div className="mt-3 flex gap-2">
-                    <Button size="sm" variant="primary" onClick={() => setMatP(p)}>Material</Button>
+                    <Button size="sm" variant="primary" onClick={() => setStageP(p)}>Tahapan</Button>
+                    <Button
+                      size="sm"
+                      onClick={() => {
+                        setMatFromStage(false);
+                        setMatP(p);
+                      }}
+                    >
+                      Material
+                    </Button>
                     <Button size="sm" onClick={() => setD(fromProject(p))}>Ubah</Button>
                     <Button size="sm" variant="warn" onClick={() => remove(p)}>Hapus</Button>
                   </div>
