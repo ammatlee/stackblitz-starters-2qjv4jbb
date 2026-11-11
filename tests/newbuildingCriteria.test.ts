@@ -15,14 +15,15 @@ describe('Kriteria penerimaan Fabrication', () => {
         for (const r of g.rows) {
           expect(r.ref.length).toBeGreaterThan(0);
           if (g.columns === 'value') expect((r.value ?? '').length).toBeGreaterThan(0);
+          else expect((r.standard ?? '') + (r.limit ?? '')).not.toBe('');
         }
       }
     }
   });
 
   it('item tanpa kriteria mengembalikan null', () => {
-    expect(criteriaFor('fabrication.fitup')).toBeNull();
-    expect(criteriaFor('fabrication.leaktest')).not.toBeNull();
+    expect(criteriaFor('fabrication.tidakada')).toBeNull();
+    for (const k of ['fitup', 'visual', 'leaktest', 'structtest']) expect(criteriaFor(`fabrication.${k}`)).not.toBeNull();
   });
 
   it('tinggi uji Part C: 0,3D + 0,76 dibatasi 2,4 m', () => {

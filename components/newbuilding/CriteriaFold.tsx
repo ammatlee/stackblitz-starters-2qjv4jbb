@@ -77,9 +77,18 @@ export default function CriteriaFold({ set }: { set: CriteriaSet }) {
       <summary className="cursor-pointer list-none px-3 py-2 text-xs font-semibold text-teal-700">Kriteria penerimaan (acuan)</summary>
       <div className="border-t border-slate-200 px-3 pb-3">
         <p className="mt-2 text-[11px] text-slate-500">{CRITERIA_SOURCES[set.source]}</p>
-        {set.groups.map((g, i) => (
-          <Group key={g.title ?? i} g={g} />
-        ))}
+        {set.groups.map((g, i) =>
+          g.collapsed ? (
+            <details key={g.title ?? i} className="mt-3 rounded-lg border border-slate-200 bg-white">
+              <summary className="cursor-pointer list-none px-2 py-1.5 text-xs font-bold text-slate-700">{g.title ?? 'Selengkapnya'}</summary>
+              <div className="px-2 pb-2">
+                <Group g={{ ...g, title: undefined }} />
+              </div>
+            </details>
+          ) : (
+            <Group key={g.title ?? i} g={g} />
+          )
+        )}
         {set.calc === 'partC' && <PartCCalc />}
         {set.notes.length > 0 && (
           <ul className="mt-3 list-disc space-y-1 pl-4 text-xs text-slate-600">
