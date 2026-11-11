@@ -7,11 +7,11 @@ import DateInput from '../DateInput';
 import { TIPE_LEGEND } from '../../lib/materialRules';
 import type { MatTipe } from '../../lib/materialRules';
 import { STAGES, STAGE_STATUSES, STAGE_STATUS_LABEL, applicableItems, firstOpenStage, hiddenItemCount, isStageDone, overallProgress, stageItemKey, stageProgress } from '../../lib/newbuildingStages';
-import { criteriaFor } from '../../lib/newbuildingCriteria';
+import { criteriaFor, suggestRegime } from '../../lib/newbuildingCriteria';
 import CriteriaFold from './CriteriaFold';
 import { drawingSummary } from '../../lib/newbuildingDrawings';
 import type { DrawingSummary } from '../../lib/newbuildingDrawings';
-import type { CriteriaSet } from '../../lib/newbuildingCriteria';
+import type { CriteriaSet, Regime } from '../../lib/newbuildingCriteria';
 import type { Stage, StageItem, StageProgress, StageRow, StageStatus } from '../../lib/newbuildingStages';
 
 const INPUT = 'w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm';
@@ -21,6 +21,8 @@ type Props = {
   projectName: string;
   tipe: MatTipe | null;
   propelled: boolean;
+  international: boolean;
+  gt: number | null;
   vesselType: string | null;
   onBack: () => void;
   onOpenMaterial: () => void;
@@ -81,6 +83,7 @@ function ItemRow({
   onOpenDrawing,
   drawInfo,
   crit,
+  regimeHint,
 }: {
   it: StageItem;
   row: StageRow | undefined;
@@ -92,6 +95,7 @@ function ItemRow({
   onOpenDrawing: () => void;
   drawInfo: DrawingSummary | null;
   crit?: CriteriaSet | null;
+  regimeHint?: { regime: Regime | null; reason: string } | null;
 }) {
   const status: StageStatus = row?.status ?? 'belum';
   const done = status === 'selesai';
@@ -117,7 +121,7 @@ function ItemRow({
               </Chip>
             ))}
           </div>
-          {crit && <CriteriaFold set={crit} />}
+          {crit && <CriteriaFold set={crit} regimeHint={regimeHint} />}
           {(done || note !== '') && (
             <div className="mt-2 grid gap-2 sm:grid-cols-2">
               {done && (
@@ -194,7 +198,7 @@ function StageCard({ st, state, p, open, children }: { st: Stage; state: StageSt
   );
 }
 
-export default function StageTracker({ projectId, projectName, tipe, propelled, vesselType, onBack, onOpenMaterial, onOpenDrawing }: Props) {
+export default function StageTracker({ projectId, projectName, tipe, propelled, international, gt, vesselType, onBack, onOpenMaterial, onOpenDrawing }: Props) {
   const [rows, setRows] = useState<Map<string, StageRow>>(new Map());
   const [loaded, setLoaded] = useState(false);
   const [err, setErr] = useState('');
@@ -206,6 +210,7 @@ export default function StageTracker({ projectId, projectName, tipe, propelled, 
   const [drawLoaded, setDrawLoaded] = useState(false);
 
   const ctx = useMemo(() => ({ tipe, propelled }), [tipe, propelled]);
+  const regimeHint = useMemo(() => suggestRegime({ propelled, international, gt }), [propelled, international, gt]);
 
   const load = useCallback(async () => {
     if (!supabase) return;
@@ -329,6 +334,7 @@ export default function StageTracker({ projectId, projectName, tipe, propelled, 
                           onOpenDrawing={onOpenDrawing}
                           drawInfo={drawInfo}
                           crit={criteriaFor(key)}
+                          regimeHint={regimeHint}
                         />
                       );
                     })}

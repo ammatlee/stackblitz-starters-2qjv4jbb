@@ -301,3 +301,24 @@
     return { head: c, by: 'partC' };
   };
   
+  export type Regime = 'A' | 'C';
+  
+  /** Tinggi uji minimum Part A/B (SOLAS): 2,4 m di atas top of tank. */
+  export const PART_A_MIN_HEAD = 2.4;
+  
+  /** Tinggi yang menentukan untuk Part A/B: nilai terbesar antara 2,4 m dan top of overflow. */
+  export const governingHeadA = (overflowAbove: number | null): { head: number; by: 'partA' | 'overflow' } =>
+    overflowAbove != null && overflowAbove > PART_A_MIN_HEAD ? { head: overflowAbove, by: 'overflow' } : { head: PART_A_MIN_HEAD, by: 'partA' };
+  
+  /**
+   * Saran rezim S14 dari data proyek. Hanya saran: status SOLAS ditentukan dokumen Kelas/Flag dan ITP.
+   * Part B (pembebasan/kesetaraan resmi dari Flag) tidak bisa disimpulkan dari data ini.
+   */
+  export function suggestRegime(i: { propelled: boolean; international: boolean; gt: number | null }): { regime: Regime | null; reason: string } {
+    if (!i.propelled) return { regime: 'C', reason: 'Kapal tanpa penggerak: umumnya non-SOLAS.' };
+    if (!i.international) return { regime: 'C', reason: 'Bukan pelayaran internasional: umumnya non-SOLAS.' };
+    if (i.gt == null) return { regime: null, reason: 'GT belum diisi, rezim belum bisa disarankan.' };
+    if (i.gt >= 500) return { regime: 'A', reason: 'Internasional dan GT 500 ke atas: umumnya SOLAS.' };
+    return { regime: 'C', reason: 'GT di bawah 500: umumnya non-SOLAS.' };
+  }
+  

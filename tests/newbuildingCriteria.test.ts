@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { CRITERIA, criteriaFor, governingHead, partCMinHead } from '../lib/newbuildingCriteria';
+import { CRITERIA, criteriaFor, governingHead, governingHeadA, partCMinHead, suggestRegime } from '../lib/newbuildingCriteria';
 import { STAGES, stageItemKey } from '../lib/newbuildingStages';
 
 describe('Kriteria penerimaan Fabrication', () => {
@@ -37,5 +37,19 @@ describe('Kriteria penerimaan Fabrication', () => {
     expect(governingHead(3, null)).toEqual({ head: partCMinHead(3), by: 'partC' });
     expect(governingHead(3, 1)).toEqual({ head: partCMinHead(3), by: 'partC' });
     expect(governingHead(3, 2.5)).toEqual({ head: 2.5, by: 'overflow' });
+  });
+
+  it('tinggi yang menentukan Part A/B', () => {
+    expect(governingHeadA(null)).toEqual({ head: 2.4, by: 'partA' });
+    expect(governingHeadA(2)).toEqual({ head: 2.4, by: 'partA' });
+    expect(governingHeadA(3)).toEqual({ head: 3, by: 'overflow' });
+  });
+
+  it('saran rezim S14 dari data proyek', () => {
+    expect(suggestRegime({ propelled: false, international: true, gt: 900 }).regime).toBe('C');
+    expect(suggestRegime({ propelled: true, international: false, gt: 900 }).regime).toBe('C');
+    expect(suggestRegime({ propelled: true, international: true, gt: 500 }).regime).toBe('A');
+    expect(suggestRegime({ propelled: true, international: true, gt: 499 }).regime).toBe('C');
+    expect(suggestRegime({ propelled: true, international: true, gt: null }).regime).toBeNull();
   });
 });

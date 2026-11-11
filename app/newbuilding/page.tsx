@@ -264,6 +264,8 @@ function Inner() {
         projectName={stageP.name}
         tipe={tipeOf(stageP)}
         propelled={effPropelled(stageP.vessel_type, stageP.propelled)}
+        international={stageP.international}
+        gt={stageP.gt}
         vesselType={stageP.vessel_type}
         onBack={() => setStageP(null)}
         onOpenMaterial={() => {
