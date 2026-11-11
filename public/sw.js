@@ -1,6 +1,6 @@
 /* RDK — service worker sederhana: halaman yang pernah dibuka tetap bisa dibuka tanpa sinyal.
    Permintaan ke Supabase (server lain) TIDAK disentuh sama sekali, jadi data dan login tetap lewat internet. */
-   const CACHE = 'rdk-v1';
+   const CACHE = 'rdk-v2';
 
    self.addEventListener('install', () => {
      self.skipWaiting();
