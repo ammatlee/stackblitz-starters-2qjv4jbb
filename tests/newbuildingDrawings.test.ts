@@ -32,6 +32,18 @@ const GOLDEN: Record<DrawingCol, [number, number, number, number]> = {
   BARGE_E: [33, 21, 8, 4],
   BARGE_F: [52, 32, 16, 4],
   LCT: [58, 34, 12, 12],
+  GENERAL_CARGO: [67, 36, 15, 16],
+  BULK_CARRIER: [69, 36, 15, 18],
+  CONTAINER: [67, 37, 15, 15],
+  RORO_CARGO: [72, 41, 12, 19],
+  PASSENGER: [70, 40, 12, 18],
+  RORO_PASSENGER: [73, 43, 12, 18],
+  GAS_CARRIER: [77, 44, 14, 19],
+  DREDGER: [54, 24, 12, 18],
+  SUPPLY: [61, 33, 15, 13],
+  FISHING: [51, 27, 7, 17],
+  FPSO: [77, 53, 11, 13],
+  FSO: [78, 40, 11, 27],
 };
 
 const row = (key: string, status: DrawingStatus): [string, { status: DrawingStatus }] => [key, { status }];
@@ -61,7 +73,7 @@ describe('Data gambar BKI Rev.03', () => {
     }
     for (const c of DRAWING_COLS) expect(DRAWING_COL_LABEL[c]).toBeTruthy();
     for (const g of DRAWING_GROUPS) expect(DRAWING_GROUP_LABEL[g]).toBeTruthy();
-    expect(DRAWING_COLS).toHaveLength(11);
+    expect(DRAWING_COLS).toHaveLength(23);
   });
 
   it('kode bersyarat tongkang punya keterangan', () => {
@@ -139,10 +151,11 @@ describe('Memilih kolom BKI dari data proyek', () => {
     expect(pick('LCT', true).col).toBe('LCT');
     expect(pick('Landing Craft Tank', true).col).toBe('LCT');
   });
-  it('jenis buatan sendiri: yang jelas barge terbaca, yang lain menunggu pilihan manual', () => {
+  it('jenis buatan sendiri: yang jelas terbaca (barge, kapal ikan), yang lain menunggu pilihan manual', () => {
     expect(pick('Chemical Barge', false, false).col).toBe('BARGE_B');
     expect(pick('Tongkang Batubara', false).col).toBe('BARGE_E');
-    expect(pick('Kapal Ikan Baru', true).col).toBeNull();
+    expect(pick('Kapal Ikan Baru', true).col).toBe('FISHING');
+    expect(pick('Kapal Survei', true).col).toBeNull();
     expect(pick('', true).col).toBeNull();
   });
   it('pilihan manual mengalahkan otomatis; nilai database yang tidak dikenal diabaikan', () => {
@@ -160,8 +173,8 @@ describe('Memilih kolom BKI dari data proyek', () => {
 });
 
 describe('Sinkron dengan modul lain', () => {
-  /** Jenis kapal bawaan yang memang belum punya daftar gambar BKI (tabel New Building belum diekstrak untuk jenis ini). */
-  const BELUM_ADA_DAFTAR = ['General Cargo', 'Bulk Carrier', 'Container Ship', 'Passenger Ship', 'Ro-Ro Passenger Ship', 'Ro-Ro Cargo Ship', 'Gas Carrier', 'Supply Vessel (PSV/OSV)', 'Fishing Vessel', 'Dredger', 'FSO / FPSO'];
+  /** Jenis kapal bawaan yang memang belum punya daftar gambar BKI (kosong: semua jenis bawaan sudah punya kolom). */
+  const BELUM_ADA_DAFTAR: string[] = [];
 
   it('setiap jenis kapal di vesselTypes.ts sudah diputuskan: punya kolom BKI atau tercatat belum ada daftarnya', () => {
     for (const t of VESSEL_TYPES) {
@@ -227,6 +240,49 @@ describe('Progress pelacak gambar', () => {
 
   it('daftar kosong tidak membagi nol', () => {
     expect(drawingProgress([], new Map()).pct).toBe(0);
+  });
+});
+
+describe('Kolom jenis kapal lain (dibaca dari PDF kolom 1, 3, 6–9, 17, 22, 23, 27, 44, 46)', () => {
+  const pick = (vesselType: string, propelled = true) => resolveDrawingCol({ vesselType, propelled, fpAbove60: null, override: null }).col;
+
+  it('setiap jenis kapal bawaan memilih kolomnya', () => {
+    expect(pick('General Cargo')).toBe('GENERAL_CARGO');
+    expect(pick('Bulk Carrier')).toBe('BULK_CARRIER');
+    expect(pick('Container Ship')).toBe('CONTAINER');
+    expect(pick('Passenger Ship')).toBe('PASSENGER');
+    expect(pick('Ro-Ro Passenger Ship')).toBe('RORO_PASSENGER');
+    expect(pick('Ro-Ro Cargo Ship')).toBe('RORO_CARGO');
+    expect(pick('Gas Carrier')).toBe('GAS_CARRIER');
+    expect(pick('Supply Vessel (PSV/OSV)')).toBe('SUPPLY');
+    expect(pick('Fishing Vessel')).toBe('FISHING');
+    expect(pick('Dredger')).toBe('DREDGER');
+    expect(pick('FSO / FPSO')).toBe('FPSO');
+  });
+
+  it('FSO saja memakai kolom FSO; barge dan tanker tetap seperti semula', () => {
+    expect(pick('FSO')).toBe('FSO');
+    expect(pick('Crane Barge', false)).toBe('BARGE_E');
+    expect(pick('Oil Tanker')).toBe('OIL_TANKER');
+  });
+
+  it('contoh isi: gas carrier, fishing, FPSO', () => {
+    const gas = drawingsFor('GAS_CARRIER');
+    expect(gas.find((d) => d.no === '106')?.req).toBe('M');
+    expect(gas.find((d) => d.no === '107')?.req).toBe('M');
+    expect(drawingsFor('BULK_CARRIER').find((d) => d.no === '106')).toBeUndefined();
+    expect(drawingsFor('FISHING').find((d) => d.no === '34')).toMatchObject({ req: 'C', code: 'M4' });
+    expect(drawingsFor('FISHING').find((d) => d.no === '81')).toMatchObject({ req: 'C', code: 'O15', cond: 'jika L > 24 m' });
+    const fpso = drawingsFor('FPSO');
+    expect(fpso.find((d) => d.no === '63')).toMatchObject({ req: 'C', code: 'O13' });
+    expect(fpso.find((d) => d.no === '41')?.req).toBe('M');
+    expect(drawingsFor('FSO').find((d) => d.no === '41')?.req).toBe('O');
+  });
+
+  it('kapal kargo: bottom damage bersyarat dengan keterangan double bottom', () => {
+    const d = drawingsFor('GENERAL_CARGO').find((x) => x.no === '40');
+    expect(d).toMatchObject({ req: 'C', code: 'M3' });
+    expect(d?.cond).toContain('double bottom');
   });
 });
 

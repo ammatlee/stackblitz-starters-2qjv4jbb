@@ -128,6 +128,22 @@ const isPontoon = (t: string): boolean => /pontoon/i.test(t);
 const isLct = (t: string): boolean => /\blct\b|landing craft/i.test(t);
 const isOtherBarge = (t: string): boolean => /barge|tongkang/i.test(t);
 
+/** Jenis kapal lain: urutan penting (Ro-Ro Passenger sebelum Ro-Ro, Ro-Ro Cargo sebelum General Cargo). */
+const OTHER_TYPES: [RegExp, DrawingCol][] = [
+  [/ro[\s-]?ro.*(passenger|penumpang)|ropax/i, 'RORO_PASSENGER'],
+  [/ro[\s-]?ro/i, 'RORO_CARGO'],
+  [/passenger|penumpang/i, 'PASSENGER'],
+  [/container|kontainer/i, 'CONTAINER'],
+  [/bulk|ore carrier/i, 'BULK_CARRIER'],
+  [/gas carrier|\blng\b|\blpg\b/i, 'GAS_CARRIER'],
+  [/supply|\bpsv\b|\bosv\b|offshore service/i, 'SUPPLY'],
+  [/fishing|ikan/i, 'FISHING'],
+  [/dredg/i, 'DREDGER'],
+  [/fpso/i, 'FPSO'],
+  [/\bfso\b/i, 'FSO'],
+  [/general cargo|dry cargo|multi[\s-]?purpose|cargo ship|kargo/i, 'GENERAL_CARGO'],
+];
+
 export function resolveDrawingCol(i: DrawingColInput): DrawingColResult {
   const manual = asDrawingCol(i.override);
   if (manual) return { col: manual, needFlashPoint: false };
@@ -147,6 +163,8 @@ export function resolveDrawingCol(i: DrawingColInput): DrawingColResult {
   }
   if (isLct(t)) return { col: 'LCT', needFlashPoint: false };
   if (isOtherBarge(t)) return { col: i.propelled ? 'BARGE_F' : 'BARGE_E', needFlashPoint: false };
+  const other = OTHER_TYPES.find(([re]) => re.test(t));
+  if (other) return { col: other[1], needFlashPoint: false };
   return { col: null, needFlashPoint: false };
 }
 
