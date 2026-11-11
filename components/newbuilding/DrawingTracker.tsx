@@ -5,6 +5,8 @@ import { supabase } from '../../lib/supabase';
 import { Button, Chip } from '../Controls';
 import { Fold } from '../classValidity/ui';
 import DateInput from '../DateInput';
+import { downloadText, exportStamp } from '../../lib/fleetExport';
+import { drawingsToCSV, slugName } from '../../lib/drawingExport';
 import { DRAWING_COLS, DRAWING_COL_LABEL, DRAWING_GROUP_LABEL, DRAWING_LIST_REV } from '../../lib/drawingList';
 import type { DrawingCol } from '../../lib/drawingList';
 import {
@@ -232,6 +234,11 @@ export default function DrawingTracker({ projectId, projectName, vesselType, pro
 
   const manualOk = asDrawingCol(override) !== null;
 
+  const doExport = () => {
+    if (!col) return;
+    downloadText(`gambar-${slugName(projectName)}-${exportStamp()}.csv`, 'text/csv', drawingsToCSV(projectName, col, list, rows));
+  };
+
   return (
     <main className="mx-auto max-w-3xl px-3 py-6 sm:px-4 sm:py-8">
       <Button size="sm" onClick={onBack}>← Tahapan</Button>
@@ -298,6 +305,10 @@ export default function DrawingTracker({ projectId, projectName, vesselType, pro
           <p className="mt-1 text-xs text-slate-500">
             {stillOpen === 0 ? 'Semua gambar yang dihitung sudah closed.' : `${stillOpen} gambar yang dihitung masih open.`} Gambar &quot;jika ada&quot; tidak dihitung ke progress.
           </p>
+
+          <div className="mt-3">
+            <Button size="sm" onClick={doExport}>Ekspor CSV (Excel)</Button>
+          </div>
 
           <div className="mt-3 space-y-2">
             <input className={INPUT} placeholder="Cari gambar (mis. shaft, 16.2)" value={q} onChange={(e) => setQ(e.target.value)} />
