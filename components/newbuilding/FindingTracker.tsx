@@ -5,14 +5,18 @@ import { supabase } from '../../lib/supabase';
 import { Button, Chip } from '../Controls';
 import DateInput from '../DateInput';
 import { useDialog } from '../DialogProvider';
-import { FINDING_ITEMS, FINDING_STATUSES, FINDING_STATUS_LABEL, findingItemLabel, sortFindings, summarizeFindings } from '../../lib/newbuildingFindings';
+import FindingPhotos from './FindingPhotos';
+import { FINDING_ITEMS, FINDING_STATUSES, FINDING_STATUS_LABEL, findingCode, findingItemLabel, sortFindings, summarizeFindings } from '../../lib/newbuildingFindings';
 import type { FindingRow, FindingStatus } from '../../lib/newbuildingFindings';
+import type { PhotoPhase } from '../../lib/newbuildingPhotos';
+import { removePhotoFiles } from '../../lib/photoUpload';
 
 const INPUT = 'w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm';
-const COLS = 'id,item_key,description,location,status,found_date,closed_date,note';
+const COLS = 'id,item_key,description,location,status,found_date,closed_date,note,seq,source_tank_id,source_kind';
 
 type Patch = Partial<Omit<FindingRow, 'id'>>;
 type StatusFilter = FindingStatus | 'all';
+type PhotoMap = Record<string, { phase: PhotoPhase }[]>;
 const GENERAL = '__umum__';
 
 const todayIso = (): string => {
@@ -41,13 +45,17 @@ function BlurInput({ value, placeholder, disabled, onSave }: { value: string; pl
   );
 }
 
-function FindingItem({ r, busy, onPatch, onDelete }: { r: FindingRow; busy: boolean; onPatch: (p: Patch) => void; onDelete: () => void }) {
+function FindingItem({ r, projectId, photos, busy, onPatch, onPhotos, onDelete }: { r: FindingRow; projectId: string; photos: { phase: PhotoPhase }[]; busy: boolean; onPatch: (p: Patch) => void; onPhotos: (rows: { phase: PhotoPhase }[]) => void; onDelete: () => void }) {
   const open = r.status === 'open';
   const toggle = () => onPatch({ status: open ? 'closed' : 'open', closed_date: open ? todayIso() : null });
   return (
     <li className={`rounded-xl border p-3 ${open ? 'border-amber-300 bg-amber-50/50' : 'border-teal-200 bg-teal-50/50'}`}>
       <div className="flex items-center justify-between gap-2">
-        <span className="text-[11px] font-bold uppercase tracking-wide text-slate-500">{findingItemLabel(r.item_key)}</span>
+        <span className="text-[11px] font-bold uppercase tracking-wide text-slate-500">
+          {findingCode(r.seq) !== '' && <b className="mr-1 text-slate-900">{findingCode(r.seq)}</b>}
+          {findingItemLabel(r.item_key)}
+          {r.source_tank_id !== null && <span className="ml-1 rounded bg-slate-200 px-1 py-0.5 text-[10px] normal-case text-slate-700">dari uji tangki</span>}
+        </span>
         <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${open ? 'bg-amber-200 text-amber-900' : 'bg-teal-600 text-white'}`}>{FINDING_STATUS_LABEL[r.status]}</span>
       </div>
       <div className="mt-2 space-y-2">
@@ -67,6 +75,7 @@ function FindingItem({ r, busy, onPatch, onDelete }: { r: FindingRow; busy: bool
           </label>
         )}
       </div>
+      <FindingPhotos projectId={projectId} findingId={r.id} defaultPhase={open ? 'temuan' : 'perbaikan'} disabled={busy} known={photos} onChange={onPhotos} />
       <div className="mt-3 flex items-center justify-between gap-2">
         <Button size="sm" variant={open ? 'primary' : 'secondary'} disabled={busy} onClick={toggle}>
           {open ? 'Tutup temuan' : 'Buka kembali'}
@@ -91,6 +100,7 @@ export default function FindingTracker({ projectId, projectName, onBack }: { pro
   const [itemKey, setItemKey] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('open');
   const [itemFilter, setItemFilter] = useState<string | null>(null);
+  const [photoMap, setPhotoMap] = useState<PhotoMap>({});
 
   const load = useCallback(async () => {
     if (!supabase) return;
@@ -98,6 +108,16 @@ export default function FindingTracker({ projectId, projectName, onBack }: { pro
     const { data, error } = await supabase.from('nb_findings').select(COLS).eq('project_id', projectId).order('created_at', { ascending: true });
     if (error) setErr(error.message + (/relation|does not exist/i.test(error.message) ? ' (sudah menjalankan SQL nb_findings?)' : ''));
     else setRows((data ?? []) as FindingRow[]);
+    // jumlah foto per temuan (hanya fase), untuk judul bagian foto
+    const ph = await supabase.from('nb_finding_photos').select('finding_id,phase').eq('project_id', projectId);
+    if (ph.error) {
+      const msg = ph.error.message + (/relation|does not exist/i.test(ph.error.message) ? ' (sudah menjalankan SQL foto temuan?)' : '');
+      setErr((e) => e || msg);
+    } else {
+      const m: PhotoMap = {};
+      for (const x of (ph.data ?? []) as { finding_id: string; phase: PhotoPhase }[]) (m[x.finding_id] ??= []).push({ phase: x.phase });
+      setPhotoMap(m);
+    }
     setLoaded(true);
   }, [projectId]);
 
@@ -152,16 +172,25 @@ export default function FindingTracker({ projectId, projectName, onBack }: { pro
 
   const remove = async (row: FindingRow) => {
     if (!supabase) return;
-    if (!(await confirm({ title: 'Hapus temuan?', message: `Hapus temuan "${row.description}"? Bila sudah selesai, lebih baik ditutup (Closed) saja.`, confirmText: 'Hapus', tone: 'danger' }))) return;
+    const nPhoto = photoMap[row.id]?.length ?? 0;
+    if (!(await confirm({ title: 'Hapus temuan?', message: `Hapus temuan "${row.description}"${nPhoto > 0 ? ` beserta ${nPhoto} fotonya` : ''}? Bila sudah selesai, lebih baik ditutup (Closed) saja.`, confirmText: 'Hapus', tone: 'danger' }))) return;
     setBusyId(row.id);
     setErr('');
+    // jalur foto dicatat dulu: baris fotonya ikut terhapus bersama temuan, berkasnya dihapus sesudahnya
+    const pp = nPhoto > 0 ? await supabase.from('nb_finding_photos').select('path').eq('finding_id', row.id) : null;
     const r = await supabase.from('nb_findings').delete().eq('id', row.id);
     setBusyId('');
     if (r.error) {
       setErr(r.error.message);
       return;
     }
+    if (pp && !pp.error) await removePhotoFiles(((pp.data ?? []) as { path: string }[]).map((x) => x.path));
     setRows((l) => l.filter((x) => x.id !== row.id));
+    setPhotoMap((m) => {
+      const rest = { ...m };
+      delete rest[row.id];
+      return rest;
+    });
   };
 
   return (
@@ -169,7 +198,7 @@ export default function FindingTracker({ projectId, projectName, onBack }: { pro
       <Button size="sm" onClick={onBack}>← Tahapan</Button>
       <p className="mt-4 text-xs font-semibold uppercase tracking-widest text-teal-700">Daftar temuan (punchlist)</p>
       <h1 className="mt-1 text-xl font-extrabold text-slate-900">{projectName}</h1>
-      <p className="mt-1 text-sm text-slate-600">Catatan temuan dan pengingat. Tidak mengubah status item di Tahapan.</p>
+      <p className="mt-1 text-sm text-slate-600">Catatan temuan dan pengingat, lengkap dengan foto dokumentasi. Tidak mengubah status item di Tahapan.</p>
 
       {err && <p className="mt-4 rounded-xl border border-red-300 bg-red-50 p-3 text-sm text-red-800">{err}</p>}
 
@@ -242,7 +271,7 @@ export default function FindingTracker({ projectId, projectName, onBack }: { pro
       ) : (
         <ul className="mt-4 space-y-3">
           {shown.map((r) => (
-            <FindingItem key={r.id} r={r} busy={busyId === r.id} onPatch={(p) => patch(r.id, p)} onDelete={() => remove(r)} />
+            <FindingItem key={r.id} r={r} projectId={projectId} photos={photoMap[r.id] ?? []} busy={busyId === r.id} onPatch={(p) => patch(r.id, p)} onPhotos={(list) => setPhotoMap((m) => ({ ...m, [r.id]: list }))} onDelete={() => remove(r)} />
           ))}
         </ul>
       )}
