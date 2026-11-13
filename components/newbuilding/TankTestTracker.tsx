@@ -20,11 +20,11 @@ import {
 } from '../../lib/newbuildingTankTests';
 import type { LeakMethod, StructStatus, TankTestRow, TestStatus } from '../../lib/newbuildingTankTests';
 import { tankFindingText } from '../../lib/newbuildingFindings';
-import { catalogGroups, countKind, isOilCarrier, kindOfName, nextTankName } from '../../lib/newbuildingTankCatalog';
-import type { TankKind } from '../../lib/newbuildingTankCatalog';
+import { TANK_SIDES, TANK_SIDE_LABEL, catalogGroups, countKind, duplicateTankIds, isOilCarrier, kindOfName, nextTankName, rowsNeedingSide, tankDisplayName } from '../../lib/newbuildingTankCatalog';
+import type { TankKind, TankSide } from '../../lib/newbuildingTankCatalog';
 
 const INPUT = 'w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm';
-const COLS = 'id,name,leak_status,leak_method,leak_date,struct_status,struct_head,struct_date,note,leak_count,struct_leak,struct_deform';
+const COLS = 'id,name,side,leak_status,leak_method,leak_date,struct_status,struct_head,struct_date,note,leak_count,struct_leak,struct_deform';
 
 type Patch = Partial<Omit<TankTestRow, 'id'>>;
 
@@ -60,7 +60,7 @@ const TONE: Record<string, string> = {
   tidak_lulus: 'border-red-200 bg-red-50/50',
 };
 
-function TankItem({ r, busy, hint, onPatch, onDelete, onBadHead, onBadCount, onFinding }: { r: TankTestRow; busy: boolean; hint: string | null; onPatch: (p: Patch) => void; onDelete: () => void; onBadHead: () => void; onBadCount: () => void; onFinding: (kind: 'leak' | 'struct') => void }) {
+function TankItem({ r, busy, hint, showSide, dup, onPatch, onDelete, onBadHead, onBadCount, onFinding }: { r: TankTestRow; busy: boolean; hint: string | null; showSide: boolean; dup: boolean; onPatch: (p: Patch) => void; onDelete: () => void; onBadHead: () => void; onBadCount: () => void; onFinding: (kind: 'leak' | 'struct') => void }) {
   const leakDone = r.leak_status !== 'belum';
   const structDone = r.struct_status === 'lulus' || r.struct_status === 'tidak_lulus';
   const tone = r.leak_status === 'tidak_lulus' || r.struct_status === 'tidak_lulus' ? TONE.tidak_lulus : r.leak_status === 'lulus' && (r.struct_status === 'lulus' || r.struct_status === 'tidak_perlu') ? TONE.lulus : 'border-slate-200 bg-white';
@@ -88,6 +88,20 @@ function TankItem({ r, busy, hint, onPatch, onDelete, onBadHead, onBadCount, onF
           Hapus
         </button>
       </div>
+
+      {showSide && (
+        <div className="mt-2">
+          <span className="mb-1 block text-xs font-semibold text-slate-600">Posisi (bila lebih dari satu tangki sejenis)</span>
+          <div className="flex flex-wrap gap-2">
+            {TANK_SIDES.map((sd: TankSide) => (
+              <Chip key={sd} selected={r.side === sd} disabled={busy} onClick={() => onPatch({ side: r.side === sd ? null : sd })}>
+                {sd} · {TANK_SIDE_LABEL[sd]}
+              </Chip>
+            ))}
+          </div>
+          {dup && <p className="mt-1 text-[11px] font-semibold text-amber-800">Nama dan posisi sama dengan tangki lain. Pilih P/C/S yang berbeda atau ubah namanya.</p>}
+        </div>
+      )}
 
       <p className="mt-3 text-xs font-bold text-slate-700">Leak test</p>
       <div className="mt-1 flex flex-wrap gap-2">
@@ -230,12 +244,13 @@ export default function TankTestTracker({ projectId, projectName, vesselType, pr
   const pts = useMemo(() => leakPointCount(rows), [rows]);
   const groups = useMemo(() => catalogGroups({ propelled, oil: isOilCarrier(vesselType) }, showAll), [propelled, vesselType, showAll]);
   const names = useMemo(() => rows.map((r) => r.name), [rows]);
+  const sideIds = useMemo(() => rowsNeedingSide(rows), [rows]);
+  const dupIds = useMemo(() => duplicateTankIds(rows), [rows]);
 
   /** Tambah satu tangki dari katalog. Nomor diambil dari daftar yang ada ditambah yang sedang disimpan. */
   const addKind = async (k: TankKind) => {
     if (!supabase) return;
     const name = nextTankName(k, [...rowsRef.current.map((r) => r.name), ...pending.current]);
-    if (name === null) return;
     pending.current.push(name);
     setErr('');
     setInfo('');
@@ -281,7 +296,7 @@ export default function TankTestTracker({ projectId, projectName, vesselType, pr
   /** Membuat temuan Open dari uji yang tidak lulus. Tidak membuat dobel bila temuan Open yang sama sudah ada. */
   const makeFinding = async (row: TankTestRow, kind: 'leak' | 'struct') => {
     if (!supabase) return;
-    const f = tankFindingText(row.name, kind, kind === 'leak' ? leakDetail(row.leak_count) : structDetail(row.struct_leak, row.struct_deform));
+    const f = tankFindingText(tankDisplayName(row.name, row.side), kind, kind === 'leak' ? leakDetail(row.leak_count) : structDetail(row.struct_leak, row.struct_deform));
     setBusyId(row.id);
     setErr('');
     setInfo('');
@@ -293,7 +308,7 @@ export default function TankTestTracker({ projectId, projectName, vesselType, pr
     }
     if ((ex.data ?? []).length > 0) {
       setBusyId('');
-      setInfo(`Sudah ada temuan Open untuk ${row.name} di item ini.`);
+      setInfo(`Sudah ada temuan Open untuk ${tankDisplayName(row.name, row.side)} di item ini.`);
       return;
     }
     const r = await supabase.from('nb_findings').insert({ project_id: projectId, ...f, status: 'open', found_date: todayIso() });
@@ -302,11 +317,11 @@ export default function TankTestTracker({ projectId, projectName, vesselType, pr
       setErr(r.error.message);
       return;
     }
-    setInfo(`Temuan dibuat untuk ${row.name}. Lihat di Daftar temuan (halaman Tahapan).`);
+    setInfo(`Temuan dibuat untuk ${tankDisplayName(row.name, row.side)}. Lihat di Daftar temuan (halaman Tahapan).`);
   };
 
   const remove = async (row: TankTestRow) => {
-    if (!supabase || !window.confirm(`Hapus "${row.name}" dari daftar uji?`)) return;
+    if (!supabase || !window.confirm(`Hapus "${tankDisplayName(row.name, row.side)}" dari daftar uji?`)) return;
     setBusyId(row.id);
     setErr('');
     const r = await supabase.from('nb_tank_tests').delete().eq('id', row.id);
@@ -349,7 +364,7 @@ export default function TankTestTracker({ projectId, projectName, vesselType, pr
                   {g.kinds.map((k) => {
                     const n = countKind(names, k);
                     return (
-                      <Chip key={k.key} selected={n > 0} disabled={!!k.single && n > 0} className="disabled:cursor-not-allowed" onClick={() => addKind(k)}>
+                      <Chip key={k.key} selected={n > 0} onClick={() => addKind(k)}>
                         {k.label}
                         {n > 0 ? ` ×${n}` : ''}
                       </Chip>
@@ -363,7 +378,7 @@ export default function TankTestTracker({ projectId, projectName, vesselType, pr
                 Tampilkan semua jenis
               </Chip>
             </div>
-            <p className="mt-2 text-xs text-slate-500">Nama diberi nomor otomatis (mis. Freshwater tank 1, 2). Nama bisa diubah di daftar bila perlu, mis. tambahkan P/S.</p>
+            <p className="mt-2 text-xs text-slate-500">Nama diberi nomor otomatis (mis. Freshwater tank 1, 2). Jenis yang biasanya satu (mis. Fore peak) tidak diberi nomor; bila ditambah lagi, bedakan dengan P/C/S di barisnya.</p>
           </div>
         </details>
       )}
@@ -393,7 +408,7 @@ export default function TankTestTracker({ projectId, projectName, vesselType, pr
       ) : (
         <ul className="mt-4 space-y-3">
           {rows.map((r) => (
-            <TankItem key={r.id} r={r} busy={busyId === r.id} hint={kindOfName(r.name)?.hint ?? null} onPatch={(p) => patch(r.id, p)} onDelete={() => remove(r)} onBadHead={() => setErr('Tinggi uji harus berupa angka dalam meter, mis. 2,4.')} onBadCount={() => setErr('Jumlah titik bocor harus bilangan bulat 0 sampai 999.')} onFinding={(k) => makeFinding(r, k)} />
+            <TankItem key={r.id} r={r} busy={busyId === r.id} hint={kindOfName(r.name)?.hint ?? null} showSide={sideIds.has(r.id)} dup={dupIds.has(r.id)} onPatch={(p) => patch(r.id, p)} onDelete={() => remove(r)} onBadHead={() => setErr('Tinggi uji harus berupa angka dalam meter, mis. 2,4.')} onBadCount={() => setErr('Jumlah titik bocor harus bilangan bulat 0 sampai 999.')} onFinding={(k) => makeFinding(r, k)} />
           ))}
         </ul>
       )}
