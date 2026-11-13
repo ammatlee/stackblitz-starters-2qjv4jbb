@@ -288,6 +288,8 @@ function Inner() {
       <TankTestTracker
         projectId={tankP.id}
         projectName={tankP.name}
+        vesselType={tankP.vessel_type}
+        propelled={effPropelled(tankP.vessel_type, tankP.propelled)}
         onBack={() => {
           setStageP(tankP);
           setTankP(null);
