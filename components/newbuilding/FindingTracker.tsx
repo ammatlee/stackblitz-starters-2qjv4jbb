@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { Button, Chip } from '../Controls';
 import DateInput from '../DateInput';
@@ -11,9 +11,12 @@ import { FINDING_ITEMS, FINDING_STATUSES, FINDING_STATUS_LABEL, findingCode, fin
 import type { FindingRow, FindingStatus } from '../../lib/newbuildingFindings';
 import type { PhotoPhase } from '../../lib/newbuildingPhotos';
 import { removePhotoFiles } from '../../lib/photoUpload';
+import { updateWithVersion } from '../../lib/optimisticLock';
+import type { LockClient } from '../../lib/optimisticLock';
 
 const INPUT = 'w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm';
 const COLS = 'id,item_key,description,location,status,found_date,closed_date,note,seq,source_tank_id,source_kind';
+const COLS_V = COLS + ',version';
 
 type Patch = Partial<Omit<FindingRow, 'id'>>;
 type StatusFilter = FindingStatus | 'all';
@@ -102,13 +105,20 @@ export default function FindingTracker({ projectId, projectName, onBack }: { pro
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('open');
   const [itemFilter, setItemFilter] = useState<string | null>(null);
   const [photoMap, setPhotoMap] = useState<PhotoMap>({});
+  // kolom version ikut dibaca; bila SQL-nya belum dijalankan, beralih ke kolom tanpa version
+  const colsRef = useRef<string>(COLS_V);
 
   const load = useCallback(async () => {
     if (!supabase) return;
     setErr('');
-    const { data, error } = await supabase.from('nb_findings').select(COLS).eq('project_id', projectId).order('created_at', { ascending: true });
+    let res = await supabase.from('nb_findings').select(colsRef.current).eq('project_id', projectId).order('created_at', { ascending: true });
+    if (res.error && /version/i.test(res.error.message)) {
+      colsRef.current = COLS;
+      res = await supabase.from('nb_findings').select(COLS).eq('project_id', projectId).order('created_at', { ascending: true });
+    }
+    const { data, error } = res;
     if (error) setErr(error.message + (/relation|does not exist/i.test(error.message) ? ' (sudah menjalankan SQL nb_findings?)' : ''));
-    else setRows((data ?? []) as FindingRow[]);
+    else setRows((data ?? []) as unknown as FindingRow[]);
     // jumlah foto per temuan (hanya fase), untuk judul bagian foto
     const ph = await supabase.from('nb_finding_photos').select('finding_id,phase').eq('project_id', projectId);
     if (ph.error) {
@@ -144,14 +154,14 @@ export default function FindingTracker({ projectId, projectName, onBack }: { pro
     const r = await supabase
       .from('nb_findings')
       .insert({ project_id: projectId, item_key: itemKey, description: d, location: loc.trim() || null, status: 'open', found_date: todayIso() })
-      .select(COLS)
+      .select(colsRef.current)
       .single();
     setAdding(false);
     if (r.error) {
       setErr(r.error.message);
       return;
     }
-    setRows((l) => [...l, r.data as FindingRow]);
+    setRows((l) => [...l, r.data as unknown as FindingRow]);
     setDesc('');
     setLoc('');
     // temuan baru berstatus Open: pastikan terlihat
@@ -160,9 +170,25 @@ export default function FindingTracker({ projectId, projectName, onBack }: { pro
 
   const patch = async (id: string, p: Patch) => {
     if (!supabase) return;
+    const cur = rows.find((x) => x.id === id);
     setBusyId(id);
     setErr('');
-    const r = await supabase.from('nb_findings').update({ ...p, updated_at: new Date().toISOString() }).eq('id', id);
+    const values = { ...p, updated_at: new Date().toISOString() };
+    // simpan hanya bila temuan belum diubah orang lain sejak dibuka (cek version)
+    if (cur && typeof cur.version === 'number') {
+      const lk = await updateWithVersion(supabase as unknown as LockClient, 'nb_findings', id, cur.version, values);
+      setBusyId('');
+      if (lk.status !== 'ok') {
+        if (lk.status === 'conflict') {
+          load();
+          setErr('Temuan ini baru saja diubah orang lain, jadi perubahan Anda tidak disimpan agar tidak menimpa. Data sudah dimuat ulang; ulangi perubahan Anda.');
+        } else setErr(lk.message);
+        return;
+      }
+      setRows((l) => l.map((x) => (x.id === id ? { ...x, ...p, version: lk.version } : x)));
+      return;
+    }
+    const r = await supabase.from('nb_findings').update(values).eq('id', id);
     setBusyId('');
     if (r.error) {
       setErr(r.error.message);

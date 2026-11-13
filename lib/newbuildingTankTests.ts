@@ -25,6 +25,8 @@
      /** Hanya bermakna bila uji struktural tidak lulus: yang ditemukan. */
      struct_leak: boolean;
      struct_deform: boolean;
+     /** Nomor versi untuk penguncian edit bersamaan (sql/nb_versi_edit.sql). Tidak ada bila SQL itu belum dijalankan. */
+     version?: number;
    };
    
    export const LEAK_STATUSES: TestStatus[] = ['belum', 'lulus', 'tidak_lulus'];

@@ -23,11 +23,14 @@ import {
 import type { LeakMethod, StructStatus, TankTestRow, TestStatus } from '../../lib/newbuildingTankTests';
 import { findingCode, tankFindingDescription, tankFindingText } from '../../lib/newbuildingFindings';
 import { removePhotoFiles } from '../../lib/photoUpload';
+import { updateWithVersion } from '../../lib/optimisticLock';
+import type { LockClient } from '../../lib/optimisticLock';
 import { TANK_SIDES, TANK_SIDE_LABEL, catalogGroups, countKind, duplicateTankIds, isOilCarrier, kindOfName, nextTankName, rowsNeedingSide, tankDisplayName } from '../../lib/newbuildingTankCatalog';
 import type { TankKind, TankSide } from '../../lib/newbuildingTankCatalog';
 
 const INPUT = 'w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm';
 const COLS = 'id,name,side,leak_status,leak_method,leak_date,struct_status,struct_head,struct_date,note,leak_count,struct_leak,struct_deform';
+const COLS_V = COLS + ',version';
 
 type Patch = Partial<Omit<TankTestRow, 'id'>>;
 
@@ -248,14 +251,21 @@ export default function TankTestTracker({ projectId, projectName, vesselType, pr
   // nama yang sedang disimpan: supaya ketukan beruntun tidak menghasilkan nomor kembar
   const pending = useRef<string[]>([]);
   const rowsRef = useRef<TankTestRow[]>([]);
+  // kolom version ikut dibaca; bila SQL-nya belum dijalankan, beralih ke kolom tanpa version
+  const colsRef = useRef<string>(COLS_V);
 
   const load = useCallback(async () => {
     if (!supabase) return;
     setErr('');
-    const { data, error } = await supabase.from('nb_tank_tests').select(COLS).eq('project_id', projectId).order('created_at', { ascending: true });
+    let res = await supabase.from('nb_tank_tests').select(colsRef.current).eq('project_id', projectId).order('created_at', { ascending: true });
+    if (res.error && /version/i.test(res.error.message)) {
+      colsRef.current = COLS;
+      res = await supabase.from('nb_tank_tests').select(COLS).eq('project_id', projectId).order('created_at', { ascending: true });
+    }
+    const { data, error } = res;
     if (error) setErr(error.message + (/relation|does not exist/i.test(error.message) ? ' (sudah menjalankan SQL nb_tank_tests dan nb_tank_tests_hasil?)' : ''));
     else {
-      const list = (data ?? []) as TankTestRow[];
+      const list = (data ?? []) as unknown as TankTestRow[];
       setRows(list);
       setCatOpen(list.length === 0);
     }
@@ -284,13 +294,13 @@ export default function TankTestTracker({ projectId, projectName, vesselType, pr
     pending.current.push(name);
     setErr('');
     setInfo('');
-    const r = await supabase.from('nb_tank_tests').insert({ project_id: projectId, name }).select(COLS).single();
+    const r = await supabase.from('nb_tank_tests').insert({ project_id: projectId, name }).select(colsRef.current).single();
     pending.current = pending.current.filter((n) => n !== name);
     if (r.error) {
       setErr(r.error.message);
       return;
     }
-    const row = r.data as TankTestRow;
+    const row = r.data as unknown as TankTestRow;
     rowsRef.current = [...rowsRef.current, row];
     setRows(rowsRef.current);
   };
@@ -300,21 +310,37 @@ export default function TankTestTracker({ projectId, projectName, vesselType, pr
     if (!supabase || n === '' || adding) return;
     setAdding(true);
     setErr('');
-    const r = await supabase.from('nb_tank_tests').insert({ project_id: projectId, name: n }).select(COLS).single();
+    const r = await supabase.from('nb_tank_tests').insert({ project_id: projectId, name: n }).select(colsRef.current).single();
     setAdding(false);
     if (r.error) {
       setErr(r.error.message);
       return;
     }
-    setRows((l) => [...l, r.data as TankTestRow]);
+    setRows((l) => [...l, r.data as unknown as TankTestRow]);
     setName('');
   };
 
   const patch = async (id: string, p: Patch): Promise<boolean> => {
     if (!supabase) return false;
+    const cur = rowsRef.current.find((x) => x.id === id);
     setBusyId(id);
     setErr('');
-    const r = await supabase.from('nb_tank_tests').update({ ...p, updated_at: new Date().toISOString() }).eq('id', id);
+    const values = { ...p, updated_at: new Date().toISOString() };
+    // simpan hanya bila uji tangki ini belum diubah orang lain sejak dibuka (cek version)
+    if (cur && typeof cur.version === 'number') {
+      const lk = await updateWithVersion(supabase as unknown as LockClient, 'nb_tank_tests', id, cur.version, values);
+      setBusyId('');
+      if (lk.status !== 'ok') {
+        if (lk.status === 'conflict') {
+          load();
+          setErr('Uji tangki ini baru saja diubah orang lain, jadi perubahan Anda tidak disimpan agar tidak menimpa. Data sudah dimuat ulang; ulangi perubahan Anda.');
+        } else setErr(lk.message);
+        return false;
+      }
+      setRows((l) => l.map((x) => (x.id === id ? { ...x, ...p, version: lk.version } : x)));
+      return true;
+    }
+    const r = await supabase.from('nb_tank_tests').update(values).eq('id', id);
     setBusyId('');
     if (r.error) {
       setErr(r.error.message);
@@ -415,7 +441,8 @@ export default function TankTestTracker({ projectId, projectName, vesselType, pr
   };
 
   const remove = async (row: TankTestRow) => {
-    if (!supabase || !window.confirm(`Hapus "${tankDisplayName(row.name, row.side)}" dari daftar uji?`)) return;
+    if (!supabase) return;
+    if (!(await confirm({ title: 'Hapus dari daftar uji?', message: `Hapus "${tankDisplayName(row.name, row.side)}" dari daftar uji?`, confirmText: 'Hapus', tone: 'danger' }))) return;
     setBusyId(row.id);
     setErr('');
     const r = await supabase.from('nb_tank_tests').delete().eq('id', row.id);

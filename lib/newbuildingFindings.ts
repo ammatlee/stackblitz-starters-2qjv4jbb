@@ -19,6 +19,8 @@
      /** Temuan yang dibuat dari uji kompartemen: tangki dan jenis ujinya. null = dicatat manual. */
      source_tank_id: string | null;
      source_kind: 'leak' | 'struct' | null;
+     /** Nomor versi untuk penguncian edit bersamaan (sql/nb_versi_edit.sql). Tidak ada bila SQL itu belum dijalankan. */
+     version?: number;
    };
 
    /** Kode temuan untuk dibaca dan dirujuk, mis. PL-007. Kosong bila nomor belum ada. */
