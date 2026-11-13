@@ -70,10 +70,10 @@
    /** Teks pengingat singkat, mis. "3 temuan Open". */
    export const openFindingsText = (n: number): string => `${n} temuan Open`;
    
-   /** Uraian awal temuan yang dibuat dari uji kompartemen yang tidak lulus. */
-   export const tankFindingText = (name: string, kind: 'leak' | 'struct'): { item_key: string; description: string; location: string } => ({
+   /** Uraian awal temuan yang dibuat dari uji kompartemen yang tidak lulus. detail = rincian hasil, mis. "3 titik bocor". */
+   export const tankFindingText = (name: string, kind: 'leak' | 'struct', detail?: string | null): { item_key: string; description: string; location: string } => ({
      item_key: kind === 'leak' ? 'fabrication.leaktest' : 'fabrication.structtest',
-     description: kind === 'leak' ? 'Leak test tidak lulus' : 'Structural test tidak lulus',
+     description: (kind === 'leak' ? 'Leak test tidak lulus' : 'Structural test tidak lulus') + (detail ? `: ${detail}` : ''),
      location: name,
    });
    
