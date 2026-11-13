@@ -13,7 +13,7 @@
     /** Nama dasar. Baris yang dibuat: "<label> 1", "<label> 2", dst (jenis tunggal tanpa nomor). */
     label: string;
     group: string;
-    /** Hanya satu per kapal (mis. fore peak): tidak diberi nomor dan tidak bisa ditambah dua kali. */
+    /** Biasanya satu per kapal (mis. fore peak): tidak diberi nomor. Bila ditambah lagi, tangkinya dibedakan dengan P/C/S. */
     single?: boolean;
     /** Bila ada dan hasilnya false, jenis ini disembunyikan kecuali "Tampilkan semua jenis". */
     applies?: (c: TankCtx) => boolean;
@@ -69,10 +69,10 @@
   
   export const kindOfName = (name: string): TankKind | null => TANK_KINDS.find((k) => matchesKind(name, k.label)) ?? null;
   
-  /** Nama baris berikutnya untuk jenis ini. null bila jenis tunggal dan sudah ada. */
-  export function nextTankName(k: Pick<TankKind, 'label' | 'single'>, names: string[]): string | null {
+  /** Nama baris berikutnya untuk jenis ini. Jenis tunggal tetap bernama polos; tangki kedua dibedakan lewat P/C/S, bukan nomor. */
+  export function nextTankName(k: Pick<TankKind, 'label' | 'single'>, names: string[]): string {
     const hits = names.filter((n) => matchesKind(n, k.label));
-    if (k.single) return hits.length > 0 ? null : k.label;
+    if (k.single) return k.label;
     let max = 0;
     for (const n of hits) {
       const m = n.trim().match(/\s(\d+)$/);
@@ -80,7 +80,35 @@
     }
     return `${k.label} ${max + 1}`;
   }
-  
+
+  /** Penanda posisi tangki: Port, Center, Starboard. Disimpan terpisah dari nama. */
+  export type TankSide = 'P' | 'C' | 'S';
+  export const TANK_SIDES: TankSide[] = ['P', 'C', 'S'];
+  export const TANK_SIDE_LABEL: Record<TankSide, string> = { P: 'Port', C: 'Center', S: 'Starboard' };
+
+  /** Nama untuk tampilan dan teks temuan, mis. "Fore peak tank (P)". */
+  export const tankDisplayName = (name: string, side: TankSide | null | undefined): string => (side ? `${name} (${side})` : name);
+
+  type SideRow = { id: string; name: string; side: TankSide | null };
+
+  /** Kunci kelompok "tangki sejenis": jenis katalog bila dikenal, selain itu nama polos. */
+  const groupKey = (name: string): string => kindOfName(name)?.key ?? `n:${name.trim().toLowerCase()}`;
+
+  /** Baris yang perlu menampilkan pilihan P/C/S: ada tangki sejenis lain, atau penandanya sudah terisi (supaya bisa diubah/dikosongkan). */
+  export function rowsNeedingSide(rows: SideRow[]): Set<string> {
+    const count = new Map<string, number>();
+    for (const r of rows) count.set(groupKey(r.name), (count.get(groupKey(r.name)) ?? 0) + 1);
+    return new Set(rows.filter((r) => r.side != null || (count.get(groupKey(r.name)) ?? 0) > 1).map((r) => r.id));
+  }
+
+  /** Baris yang kembar: nama dan penanda sama persis dengan baris lain. Perlu dibedakan dengan P/C/S atau nama. */
+  export function duplicateTankIds(rows: SideRow[]): Set<string> {
+    const count = new Map<string, number>();
+    const key = (r: SideRow) => `${r.name.trim().toLowerCase()}|${r.side ?? ''}`;
+    for (const r of rows) count.set(key(r), (count.get(key(r)) ?? 0) + 1);
+    return new Set(rows.filter((r) => (count.get(key(r)) ?? 0) > 1).map((r) => r.id));
+  }
+
   export const kindsFor = (c: TankCtx, showAll: boolean): TankKind[] => TANK_KINDS.filter((k) => showAll || !k.applies || k.applies(c));
   
   export function catalogGroups(c: TankCtx, showAll: boolean): { title: string; kinds: TankKind[] }[] {

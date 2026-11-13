@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { TANK_GROUPS, TANK_KINDS, catalogGroups, countKind, isOilCarrier, kindOfName, kindsFor, matchesKind, nextTankName } from '../lib/newbuildingTankCatalog';
+import { TANK_GROUPS, TANK_KINDS, TANK_SIDES, catalogGroups, countKind, duplicateTankIds, isOilCarrier, kindOfName, kindsFor, matchesKind, nextTankName, rowsNeedingSide, tankDisplayName } from '../lib/newbuildingTankCatalog';
 
 const fw = TANK_KINDS.find((k) => k.key === 'freshwater')!;
 const fore = TANK_KINDS.find((k) => k.key === 'forepeak')!;
@@ -33,9 +33,53 @@ describe('Katalog tangki', () => {
     expect(matchesKind('Freshwater tank (P)', fw.label)).toBe(false);
   });
 
-  it('jenis tunggal: satu kali saja, tanpa nomor', () => {
+  it('jenis tunggal: tanpa nomor, tangki kedua tetap boleh (dibedakan dengan P/C/S)', () => {
     expect(nextTankName(fore, [])).toBe('Fore peak tank');
-    expect(nextTankName(fore, ['Fore peak tank'])).toBeNull();
+    expect(nextTankName(fore, ['Fore peak tank'])).toBe('Fore peak tank');
+  });
+
+  it('penanda P/C/S dan nama tampilan', () => {
+    expect(TANK_SIDES).toEqual(['P', 'C', 'S']);
+    expect(tankDisplayName('Fore peak tank', 'P')).toBe('Fore peak tank (P)');
+    expect(tankDisplayName('Fore peak tank', null)).toBe('Fore peak tank');
+  });
+
+  it('pilihan P/C/S hanya muncul bila ada tangki sejenis lain atau penanda sudah terisi', () => {
+    const one = [{ id: 'a', name: 'Fore peak tank', side: null }];
+    expect(rowsNeedingSide(one).size).toBe(0);
+    const two = [
+      { id: 'a', name: 'Fore peak tank', side: null },
+      { id: 'b', name: 'Fore peak tank', side: null },
+      { id: 'c', name: 'Chain locker', side: null },
+    ];
+    expect(Array.from(rowsNeedingSide(two)).sort()).toEqual(['a', 'b']);
+    expect(rowsNeedingSide([{ id: 'c', name: 'Chain locker', side: 'P' }]).has('c')).toBe(true);
+    // jenis katalog bernomor dihitung satu kelompok
+    const nums = [
+      { id: 'x', name: 'Ballast tank 1', side: null },
+      { id: 'y', name: 'Ballast tank 2', side: null },
+    ];
+    expect(rowsNeedingSide(nums).size).toBe(2);
+    // nama bebas dihitung per nama polos
+    const free = [
+      { id: 'p', name: 'Tangki X', side: null },
+      { id: 'q', name: 'tangki x', side: null },
+      { id: 'r', name: 'Tangki Y', side: null },
+    ];
+    expect(Array.from(rowsNeedingSide(free)).sort()).toEqual(['p', 'q']);
+  });
+
+  it('baris kembar: nama dan penanda sama persis', () => {
+    const rows = [
+      { id: 'a', name: 'Fore peak tank', side: null },
+      { id: 'b', name: 'Fore peak tank', side: null },
+      { id: 'c', name: 'Ballast tank 1', side: 'P' as const },
+      { id: 'd', name: 'Ballast tank 1', side: 'S' as const },
+      { id: 'e', name: 'Ballast tank 2', side: 'P' as const },
+      { id: 'f', name: 'ballast tank 2', side: 'P' as const },
+    ];
+    expect(Array.from(duplicateTankIds(rows)).sort()).toEqual(['a', 'b', 'e', 'f']);
+    expect(duplicateTankIds([{ id: 'a', name: 'Fore peak tank', side: 'P' }, { id: 'b', name: 'Fore peak tank', side: 'S' }]).size).toBe(0);
   });
 
   it('jenis yang namanya mirip tidak saling menghitung', () => {

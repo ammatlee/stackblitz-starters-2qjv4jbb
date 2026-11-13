@@ -1,6 +1,8 @@
 /* Daftar uji Leak dan Structural per kompartemen. Hanya pencatatan:
    tidak mengubah status item Leak test/Structural test di Tahapan dan tidak masuk hitungan progress. */
 
+   import type { TankSide } from './newbuildingTankCatalog';
+
    export type TestStatus = 'belum' | 'lulus' | 'tidak_lulus';
    export type StructStatus = TestStatus | 'tidak_perlu';
    export type LeakMethod = 'hose' | 'air' | 'vacuum' | 'hydro' | 'lainnya';
@@ -8,6 +10,8 @@
    export type TankTestRow = {
      id: string;
      name: string;
+     /** Posisi tangki bila ada lebih dari satu sejenis. null = tidak dibedakan. */
+     side: TankSide | null;
      leak_status: TestStatus;
      leak_method: LeakMethod | null;
      leak_date: string | null;
