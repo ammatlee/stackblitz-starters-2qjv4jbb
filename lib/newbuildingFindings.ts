@@ -14,7 +14,15 @@
      found_date: string | null;
      closed_date: string | null;
      note: string | null;
+     /** Nomor urut per proyek (PL-001). Diisi otomatis oleh database. */
+     seq: number | null;
+     /** Temuan yang dibuat dari uji kompartemen: tangki dan jenis ujinya. null = dicatat manual. */
+     source_tank_id: string | null;
+     source_kind: 'leak' | 'struct' | null;
    };
+
+   /** Kode temuan untuk dibaca dan dirujuk, mis. PL-007. Kosong bila nomor belum ada. */
+   export const findingCode = (seq: number | null | undefined): string => (seq == null ? '' : `PL-${String(seq).padStart(3, '0')}`);
    
    export const FINDING_STATUSES: FindingStatus[] = ['open', 'closed'];
    export const FINDING_STATUS_LABEL: Record<FindingStatus, string> = { open: 'Open', closed: 'Closed' };
@@ -70,10 +78,13 @@
    /** Teks pengingat singkat, mis. "3 temuan Open". */
    export const openFindingsText = (n: number): string => `${n} temuan Open`;
    
-   /** Uraian awal temuan yang dibuat dari uji kompartemen yang tidak lulus. detail = rincian hasil, mis. "3 titik bocor". */
+   /** Uraian otomatis temuan dari uji yang tidak lulus. detail = rincian hasil, mis. "3 titik bocor". */
+   export const tankFindingDescription = (kind: 'leak' | 'struct', detail?: string | null): string =>
+     (kind === 'leak' ? 'Leak test tidak lulus' : 'Structural test tidak lulus') + (detail ? `: ${detail}` : '');
+
+   /** Isi awal temuan yang dibuat dari uji kompartemen yang tidak lulus. name = nama tampilan tangki (sudah dengan P/C/S). */
    export const tankFindingText = (name: string, kind: 'leak' | 'struct', detail?: string | null): { item_key: string; description: string; location: string } => ({
      item_key: kind === 'leak' ? 'fabrication.leaktest' : 'fabrication.structtest',
-     description: (kind === 'leak' ? 'Leak test tidak lulus' : 'Structural test tidak lulus') + (detail ? `: ${detail}` : ''),
+     description: tankFindingDescription(kind, detail),
      location: name,
    });
-   

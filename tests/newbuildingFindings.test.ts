@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { FINDING_ITEMS, GENERAL_KEY, findingItemLabel, openFindingsText, sortFindings, summarizeFindings, tankFindingText } from '../lib/newbuildingFindings';
+import { FINDING_ITEMS, GENERAL_KEY, findingCode, findingItemLabel, openFindingsText, sortFindings, summarizeFindings, tankFindingDescription, tankFindingText } from '../lib/newbuildingFindings';
 import { STAGES, stageItemKey } from '../lib/newbuildingStages';
 
 describe('Daftar temuan', () => {
@@ -55,5 +55,20 @@ describe('Daftar temuan', () => {
   it('temuan dari uji kompartemen yang tidak lulus', () => {
     expect(tankFindingText('Fore peak', 'leak')).toEqual({ item_key: 'fabrication.leaktest', description: 'Leak test tidak lulus', location: 'Fore peak' });
     expect(tankFindingText('Fore peak', 'struct').item_key).toBe('fabrication.structtest');
+  });
+
+  it('kode temuan PL dengan tiga angka', () => {
+    expect(findingCode(1)).toBe('PL-001');
+    expect(findingCode(42)).toBe('PL-042');
+    expect(findingCode(1234)).toBe('PL-1234');
+    expect(findingCode(null)).toBe('');
+  });
+
+  it('uraian otomatis temuan uji: dengan dan tanpa rincian', () => {
+    expect(tankFindingDescription('leak')).toBe('Leak test tidak lulus');
+    expect(tankFindingDescription('leak', '3 titik bocor')).toBe('Leak test tidak lulus: 3 titik bocor');
+    expect(tankFindingDescription('struct', 'bocor dan deformasi')).toBe('Structural test tidak lulus: bocor dan deformasi');
+    expect(tankFindingText('Fore peak tank (P)', 'leak', '2 titik bocor').description).toBe(tankFindingDescription('leak', '2 titik bocor'));
+    expect(tankFindingText('Fore peak tank (P)', 'leak').location).toBe('Fore peak tank (P)');
   });
 });
