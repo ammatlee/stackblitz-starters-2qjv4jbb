@@ -4,7 +4,14 @@
    import { FINDING_ITEMS, GENERAL_KEY, findingCode, findingItemLabel } from './newbuildingFindings';
    import type { FindingRow } from './newbuildingFindings';
    
-   /** Kolom temuan yang dipakai rekap. */
+   /** Label status khusus rekap (salinan teks dan Word): seluruhnya berbahasa Indonesia, searah dengan tombol "Tutup temuan" / "Buka kembali".
+   Label di layar daftar (Open/Closed) tidak diubah. */
+export const RECAP_STATUS_LABEL: Record<'open' | 'closed', string> = { open: 'Terbuka', closed: 'Ditutup' };
+
+/** Judul rekap, dipakai di salinan teks dan file Word. */
+export const RECAP_TITLE = 'DAFTAR TEMUAN (PUNCHLIST)';
+
+/** Kolom temuan yang dipakai rekap. */
    export type PunchRow = Pick<FindingRow, 'id' | 'item_key' | 'description' | 'location' | 'status' | 'found_date' | 'closed_date' | 'note' | 'seq'>;
    
    export type PunchGroup<T extends PunchRow = PunchRow> = { key: string; label: string; rows: T[] };
@@ -71,19 +78,19 @@
    /** Judul baris temuan di rekap: kode PL, lalu lokasi bila ada. */
    export const punchTitle = (r: PunchRow): string => [findingCode(r.seq), r.location ?? ''].filter((x) => x !== '').join(' · ') || 'Temuan';
    
-   /** Ringkasan satu baris: "2 Open · 1 Closed". Closed tidak ditulis bila 0. */
+   /** Ringkasan satu baris: "2 terbuka · 1 ditutup". Bagian "ditutup" tidak ditulis bila 0. */
    export function punchlistSummaryText(c: { open: number; closed: number }): string {
-     return c.closed > 0 ? `${c.open} Open · ${c.closed} Closed` : `${c.open} Open`;
+     return c.closed > 0 ? `${c.open} terbuka · ${c.closed} ditutup` : `${c.open} terbuka`;
    }
    
    /** Teks polos untuk disalin ke pesan. photos: nomor foto per id temuan. */
    export function punchlistText(o: { projectName: string; dateIso: string; groups: PunchGroup[]; photos: Record<string, { seq: number | null }[]> }): string {
      const c = punchlistCounts(o.groups);
-     const lines: string[] = [`PUNCHLIST: ${o.projectName}`, `Per ${dmy(o.dateIso)} · ${punchlistSummaryText(c)}`];
+     const lines: string[] = [`${RECAP_TITLE}: ${o.projectName}`, `Per ${dmy(o.dateIso)} · ${punchlistSummaryText(c)}`];
      for (const g of o.groups) {
        lines.push('', g.label.toUpperCase());
        for (const r of g.rows) {
-         lines.push(`${punchTitle(r)}${r.status === 'closed' ? ` [Closed${r.closed_date ? ' ' + dmy(r.closed_date) : ''}]` : ''}`);
+         lines.push(`${punchTitle(r)}${r.status === 'closed' ? ` [${RECAP_STATUS_LABEL.closed}${r.closed_date ? ' ' + dmy(r.closed_date) : ''}]` : ''}`);
          lines.push(r.description);
          if (r.note) lines.push(`Tindak lanjut: ${r.note}`);
          const ref = photoRefs(o.photos[r.id] ?? []);

@@ -6,6 +6,7 @@ import { Button, Chip } from '../Controls';
 import DateInput from '../DateInput';
 import { useDialog } from '../DialogProvider';
 import FindingPhotos from './FindingPhotos';
+import PunchlistRecap from './PunchlistRecap';
 import { FINDING_ITEMS, FINDING_STATUSES, FINDING_STATUS_LABEL, findingCode, findingItemLabel, sortFindings, summarizeFindings } from '../../lib/newbuildingFindings';
 import type { FindingRow, FindingStatus } from '../../lib/newbuildingFindings';
 import type { PhotoPhase } from '../../lib/newbuildingPhotos';
@@ -236,6 +237,8 @@ export default function FindingTracker({ projectId, projectName, onBack }: { pro
           </Button>
         </div>
       </div>
+
+      {loaded && sum.total > 0 && <PunchlistRecap projectId={projectId} projectName={projectName} rows={rows} />}
 
       {loaded && sum.total > 0 && (
         <>

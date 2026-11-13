@@ -45,11 +45,11 @@ describe('Rekap punchlist', () => {
     expect(g[0].rows.map((r) => r.id)).toEqual(['c', 'b', 'd', 'e', 'a']);
   });
 
-  it('hitungan Open dan Closed', () => {
+  it('hitungan terbuka dan ditutup', () => {
     const g = groupPunchlist([row('a', 1, null), row('b', 2, null, 'closed'), row('c', 3, 'fabrication.fitup')], true);
     expect(punchlistCounts(g)).toEqual({ open: 2, closed: 1, total: 3 });
-    expect(punchlistSummaryText({ open: 2, closed: 1 })).toBe('2 Open · 1 Closed');
-    expect(punchlistSummaryText({ open: 2, closed: 0 })).toBe('2 Open');
+    expect(punchlistSummaryText({ open: 2, closed: 1 })).toBe('2 terbuka · 1 ditutup');
+    expect(punchlistSummaryText({ open: 2, closed: 0 })).toBe('2 terbuka');
   });
 
   it('rujukan foto dan judul baris', () => {
@@ -67,13 +67,14 @@ describe('Rekap punchlist', () => {
       row('b', 2, 'fabrication.fitup', 'closed', { closed_date: '2026-11-12' }),
     ];
     const t = punchlistText({ projectName: 'Kapal X', dateIso: '2026-11-13', groups: groupPunchlist(rows, true), photos: { a: [{ seq: 1 }, { seq: 2 }] } });
-    expect(t).toContain('PUNCHLIST: Kapal X');
-    expect(t).toContain('Per 13-11-2026 · 1 Open · 1 Closed');
+    expect(t).toContain('DAFTAR TEMUAN (PUNCHLIST): Kapal X');
+    expect(t).toContain('Per 13-11-2026 · 1 terbuka · 1 ditutup');
     expect(t).toContain('FIT UP');
-    expect(t).toContain('PL-002 [Closed 12-11-2026]');
+    expect(t).toContain('PL-002 [Ditutup 12-11-2026]');
     expect(t).toContain('PL-001 · Fore peak tank (P)');
     expect(t).toContain('Tindak lanjut: las ulang');
     expect(t).toContain('Foto 1, 2');
+    expect(t).not.toMatch(/\b(Open|Closed|Status|Follow|Photo)\b/);
     expect(punchlistText({ projectName: 'K', dateIso: '2026-11-13', groups: [], photos: {} })).toContain('Tidak ada temuan.');
   });
 });

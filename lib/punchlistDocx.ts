@@ -5,7 +5,7 @@
    import { findingCode } from './newbuildingFindings';
    import { PHOTO_BUCKET, PHOTO_PHASE_LABEL, photoCode, sortPhotos } from './newbuildingPhotos';
    import type { PhotoPhase } from './newbuildingPhotos';
-   import { dmy, photoRefs, punchTitle, punchlistCounts, punchlistSummaryText } from './punchlist';
+   import { RECAP_STATUS_LABEL, RECAP_TITLE, dmy, photoRefs, punchTitle, punchlistCounts, punchlistSummaryText } from './punchlist';
    import type { PunchGroup } from './punchlist';
    
    export type DocImage = { data: Uint8Array; width: number; height: number };
@@ -77,7 +77,7 @@
        });
    
      const counts = punchlistCounts(o.groups);
-     kids.push(para('PUNCHLIST', { bold: true, size: 30, center: true, after: 60 }));
+     kids.push(para(RECAP_TITLE, { bold: true, size: 30, center: true, after: 60 }));
      kids.push(para(o.projectName, { bold: true, size: 24, center: true, after: 60 }));
      kids.push(para(`Per ${dmy(o.dateIso)} · ${punchlistSummaryText(counts)}`, { size: 20, center: true, after: 200 }));
    
@@ -85,14 +85,14 @@
    
      for (const g of o.groups) {
        kids.push(para(`${g.label} (${g.rows.length})`, { bold: true, size: 22, before: 240, after: 80, keepNext: true }));
-       const head = ['No', 'Lokasi', 'Uraian temuan', 'Tgl temuan', 'Status'];
+       const head = ['No.', 'Lokasi', 'Uraian temuan', 'Tanggal temuan', 'Status'];
        const rows = [
          new TableRow({ tableHeader: true, cantSplit: true, children: head.map((h, i) => cell(W[i], [para(h, { bold: true, size: 18 })], 'E2E8F0')) }),
          ...g.rows.map((r) => {
            const ref = photoRefs(o.photos[r.id] ?? []);
            const desc = [para(r.description, { size: 18 })];
            if (r.note) desc.push(para(`Tindak lanjut: ${r.note}`, { italics: true, size: 16 }));
-           const status = [para(r.status === 'open' ? 'Open' : 'Closed', { bold: true, size: 18 })];
+           const status = [para(RECAP_STATUS_LABEL[r.status], { bold: true, size: 18 })];
            if (r.status === 'closed' && r.closed_date) status.push(para(dmy(r.closed_date), { size: 16 }));
            if (ref) status.push(para(`${ref} (lihat lampiran)`, { size: 16 }));
            return new TableRow({
@@ -154,14 +154,14 @@
    
      const doc = new Document({
        creator: 'Surveyor',
-       title: `Punchlist ${o.projectName}`,
+       title: `Daftar temuan ${o.projectName}`,
        styles: { default: { document: { run: { font: 'Arial', size: 20 } } } },
        sections: [
          {
            properties: { page: { size: { width: 11906, height: 16838 }, margin: { top: 1134, right: 1134, bottom: 1134, left: 1134 } } },
            footers: {
              default: new Footer({
-               children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: `${o.projectName} · Punchlist · hal. `, size: 16 }), new TextRun({ children: [PageNumber.CURRENT], size: 16 })] })],
+               children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: `${o.projectName} · Daftar temuan · hal. `, size: 16 }), new TextRun({ children: [PageNumber.CURRENT], size: 16 })] })],
              }),
            },
            children: kids,
