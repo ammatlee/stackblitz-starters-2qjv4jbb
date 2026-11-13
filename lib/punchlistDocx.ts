@@ -1,21 +1,21 @@
 /* Punchlist → file Word (.docx): tabel temuan per item, lalu lampiran foto dengan nomor dan keterangan.
-   Library "docx" dimuat hanya saat tombol Unduh ditekan. Foto dimasukkan ke bingkai 4:3 berukuran sama (tanpa dipotong) supaya seragam dan file tidak berat. Halaman landscape. */
+   Library "docx" dimuat hanya saat tombol Unduh ditekan. Foto dipotong di tengah ke bingkai 4:3 supaya semuanya berukuran sama dan file tidak berat. Halaman landscape. */
 
    import { supabase } from './supabase';
    import { findingCode } from './newbuildingFindings';
    import { PHOTO_BUCKET, PHOTO_PHASE_LABEL, photoCode, sortPhotos } from './newbuildingPhotos';
    import type { PhotoPhase } from './newbuildingPhotos';
-   import { RECAP_STATUS_LABEL, RECAP_TITLE, dmy, photoRefs, punchTitle, punchlistCounts, punchlistSummaryText } from './punchlist';
+   import { RECAP_STATUS_LABEL, RECAP_TITLE, dmy, punchlistCounts, punchlistSummaryText } from './punchlist';
    import type { PunchGroup } from './punchlist';
    
    export type DocImage = { data: Uint8Array; width: number; height: number };
    export type DocPhoto = { id: string; seq: number | null; phase: PhotoPhase; caption: string | null; image: DocImage | null };
    
    /** Bingkai foto seragam (4:3). Piksel hasil unduh dan ukuran tampil di dokumen. */
-   export const PHOTO_BOX = { width: 960, height: 720 };
-   export const PHOTO_DOC_SIZE = { width: 320, height: 240 };
+   export const PHOTO_BOX = { width: 640, height: 480 };
+   export const PHOTO_DOC_SIZE = { width: 228, height: 171 };
    
-   /** Unduh satu foto dari Storage, lalu taruh utuh (tanpa dipotong) di tengah bingkai 4:3 berlatar abu muda, jadi semua foto berukuran sama. null bila gagal (foto itu ditulis "tidak dapat dimuat"). Hanya di peramban. */
+   /** Unduh satu foto dari Storage, lalu potong di tengah ke bingkai 4:3 (memenuhi bingkai), jadi semua foto berukuran sama. null bila gagal (foto itu ditulis "tidak dapat dimuat"). Hanya di peramban. */
    export async function loadDocImage(path: string, quality = 0.75): Promise<DocImage | null> {
      if (!supabase) return null;
      const dl = await supabase.storage.from(PHOTO_BUCKET).download(path);
@@ -29,17 +29,17 @@
          i.src = url;
        });
        const { width, height } = PHOTO_BOX;
-       const k = Math.min(width / Math.max(1, img.naturalWidth), height / Math.max(1, img.naturalHeight));
-       const w = Math.max(1, Math.round(img.naturalWidth * k));
-       const h = Math.max(1, Math.round(img.naturalHeight * k));
+       const k = Math.max(width / Math.max(1, img.naturalWidth), height / Math.max(1, img.naturalHeight));
+       const w = img.naturalWidth * k;
+       const h = img.naturalHeight * k;
        const cv = document.createElement('canvas');
        cv.width = width;
        cv.height = height;
        const ctx = cv.getContext('2d');
        if (!ctx) return null;
-       ctx.fillStyle = '#f1f5f9';
+       ctx.fillStyle = '#ffffff';
        ctx.fillRect(0, 0, width, height);
-       ctx.drawImage(img, Math.round((width - w) / 2), Math.round((height - h) / 2), w, h);
+       ctx.drawImage(img, (width - w) / 2, (height - h) / 2, w, h);
        const blob = await new Promise<Blob | null>((res) => cv.toBlob((b) => res(b), 'image/jpeg', quality));
        if (!blob) return null;
        return { data: new Uint8Array(await blob.arrayBuffer()), width, height };
@@ -67,7 +67,9 @@
        });
    
      const PAGE_W = 14570; // A4 landscape (16838) dikurangi margin kiri-kanan
-     const W = [1300, 2700, 6670, 1700, 2200]; // jumlah = PAGE_W
+     const hasPhotos = o.groups.some((g) => g.rows.some((r) => (o.photos[r.id] ?? []).length > 0));
+     // Tanpa foto: lima kolom. Dengan foto: dua kolom foto di sebelah kanan Status.
+     const W = hasPhotos ? [800, 1500, 2300, 1300, 1300, 3685, 3685] : [1300, 2700, 6670, 1700, 2200]; // jumlah = PAGE_W
      const cell = (w: number, paras: InstanceType<typeof Paragraph>[], fill?: string) =>
        new TableCell({
          width: { size: w, type: WidthType.DXA },
@@ -75,6 +77,18 @@
          shading: fill ? { type: ShadingType.CLEAR, color: 'auto', fill } : undefined,
          children: paras,
        });
+   
+     /** Sel foto satu tahap (kondisi temuan / setelah perbaikan); bila ada beberapa foto, ditumpuk. */
+     const photoCell = (w: number, list: DocPhoto[]) => {
+       const inner: InstanceType<typeof Paragraph>[] = [];
+       if (list.length === 0) inner.push(new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: '-', size: 18, color: '94A3B8' })] }));
+       list.forEach((ph, i) => {
+         if (ph.image) inner.push(new Paragraph({ alignment: AlignmentType.CENTER, spacing: { before: i > 0 ? 120 : 0, after: 40 }, children: [new ImageRun({ type: 'jpg', data: ph.image.data, transformation: PHOTO_DOC_SIZE })] }));
+         else inner.push(para('(foto tidak dapat dimuat)', { italics: true, size: 16, center: true }));
+         inner.push(new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: 0 }, children: [new TextRun({ text: photoCode(ph.seq), bold: true, size: 16 }), ...(ph.caption ? [new TextRun({ text: ` · ${ph.caption}`, size: 16 })] : [])] }));
+       });
+       return cell(w, inner);
+     };
    
      const counts = punchlistCounts(o.groups);
      kids.push(para(RECAP_TITLE, { bold: true, size: 30, center: true, after: 60 }));
@@ -85,16 +99,15 @@
    
      for (const g of o.groups) {
        kids.push(para(`${g.label} (${g.rows.length})`, { bold: true, size: 22, before: 240, after: 80, keepNext: true }));
-       const head = ['No.', 'Lokasi', 'Uraian temuan', 'Tanggal temuan', 'Status'];
+       const head = ['No.', 'Lokasi', 'Uraian temuan', 'Tanggal temuan', 'Status', ...(hasPhotos ? [`Foto ${PHOTO_PHASE_LABEL.temuan.toLowerCase()}`, `Foto ${PHOTO_PHASE_LABEL.perbaikan.toLowerCase()}`] : [])];
        const rows = [
-         new TableRow({ tableHeader: true, cantSplit: true, children: head.map((h, i) => cell(W[i], [para(h, { bold: true, size: 18 })], 'E2E8F0')) }),
+         new TableRow({ tableHeader: true, cantSplit: true, children: head.map((h, i) => cell(W[i], [para(h, { bold: true, size: 18, center: i >= 5 })], 'E2E8F0')) }),
          ...g.rows.map((r) => {
-           const ref = photoRefs(o.photos[r.id] ?? []);
+           const list = sortPhotos(o.photos[r.id] ?? []);
            const desc = [para(r.description, { size: 18 })];
            if (r.note) desc.push(para(`Tindak lanjut: ${r.note}`, { italics: true, size: 16 }));
            const status = [para(RECAP_STATUS_LABEL[r.status], { bold: true, size: 18 })];
            if (r.status === 'closed' && r.closed_date) status.push(para(dmy(r.closed_date), { size: 16 }));
-           if (ref) status.push(para(`${ref} (lihat lampiran)`, { size: 16 }));
            return new TableRow({
              cantSplit: true,
              children: [
@@ -103,39 +116,13 @@
                cell(W[2], desc),
                cell(W[3], [para(dmy(r.found_date) || '-', { size: 18 })]),
                cell(W[4], status),
+               ...(hasPhotos ? [photoCell(W[5], list.filter((x) => x.phase === 'temuan')), photoCell(W[6], list.filter((x) => x.phase === 'perbaikan'))] : []),
              ],
            });
          }),
        ];
        kids.push(new Table({ width: { size: PAGE_W, type: WidthType.DXA }, columnWidths: W, layout: TableLayoutType.FIXED, rows }));
        kids.push(para('', { after: 0 }));
-     }
-   
-     // Lampiran foto: satu baris per temuan (keterangan | foto kondisi temuan | foto setelah perbaikan)
-     const withPhotos = o.groups.flatMap((g) => g.rows).filter((r) => (o.photos[r.id] ?? []).length > 0);
-     if (withPhotos.length > 0) {
-       kids.push(para('LAMPIRAN FOTO', { bold: true, size: 24, after: 120, pageBreakBefore: true, keepNext: true }));
-       const PW = [3170, 5700, 5700]; // jumlah = PAGE_W
-       const photoCell = (w: number, list: DocPhoto[]) => {
-         const inner: InstanceType<typeof Paragraph>[] = [];
-         if (list.length === 0) inner.push(new Paragraph({ alignment: AlignmentType.CENTER, spacing: { before: 400 }, children: [new TextRun({ text: 'Belum ada foto', italics: true, size: 16, color: '94A3B8' })] }));
-         list.forEach((ph, i) => {
-           if (ph.image) inner.push(new Paragraph({ alignment: AlignmentType.CENTER, spacing: { before: i > 0 ? 120 : 0, after: 40 }, children: [new ImageRun({ type: 'jpg', data: ph.image.data, transformation: PHOTO_DOC_SIZE })] }));
-           else inner.push(para('(foto tidak dapat dimuat)', { italics: true, size: 16, center: true }));
-           inner.push(new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: 0 }, children: [new TextRun({ text: photoCode(ph.seq), bold: true, size: 16 }), ...(ph.caption ? [new TextRun({ text: ` · ${ph.caption}`, size: 16 })] : [])] }));
-         });
-         return cell(w, inner);
-       };
-       const head = ['Temuan', PHOTO_PHASE_LABEL.temuan, PHOTO_PHASE_LABEL.perbaikan];
-       const trs = [
-         new TableRow({ tableHeader: true, cantSplit: true, children: head.map((h, i) => cell(PW[i], [para(h, { bold: true, size: 18, center: i > 0 })], 'E2E8F0')) }),
-         ...withPhotos.map((r) => {
-           const list = sortPhotos(o.photos[r.id] ?? []);
-           const info = [para(punchTitle(r), { bold: true, size: 18, after: 60 }), para(r.description, { size: 18 }), para(`Status: ${RECAP_STATUS_LABEL[r.status]}${r.status === 'closed' && r.closed_date ? ` (${dmy(r.closed_date)})` : ''}`, { size: 16, before: 60 })];
-           return new TableRow({ cantSplit: true, children: [cell(PW[0], info), photoCell(PW[1], list.filter((x) => x.phase === 'temuan')), photoCell(PW[2], list.filter((x) => x.phase === 'perbaikan'))] });
-         }),
-       ];
-       kids.push(new Table({ width: { size: PAGE_W, type: WidthType.DXA }, columnWidths: PW, layout: TableLayoutType.FIXED, rows: trs }));
      }
    
      const doc = new Document({
