@@ -9,6 +9,8 @@ import type { MatTipe } from '../../lib/materialRules';
 import { STAGES, STAGE_STATUSES, STAGE_STATUS_LABEL, applicableItems, firstOpenStage, hiddenItemCount, isStageDone, overallProgress, stageItemKey, stageProgress } from '../../lib/newbuildingStages';
 import { criteriaFor, suggestRegime } from '../../lib/newbuildingCriteria';
 import CriteriaFold from './CriteriaFold';
+import { summarizeTankTests, tankSummaryText } from '../../lib/newbuildingTankTests';
+import type { TankSummary } from '../../lib/newbuildingTankTests';
 import { drawingSummary } from '../../lib/newbuildingDrawings';
 import type { DrawingSummary } from '../../lib/newbuildingDrawings';
 import type { CriteriaSet, Regime } from '../../lib/newbuildingCriteria';
@@ -27,6 +29,7 @@ type Props = {
   onBack: () => void;
   onOpenMaterial: () => void;
   onOpenDrawing: () => void;
+  onOpenTankTests: () => void;
 };
 
 type Patch = Partial<Omit<StageRow, 'item_key'>>;
@@ -84,6 +87,7 @@ function ItemRow({
   drawInfo,
   crit,
   regimeHint,
+  tank,
 }: {
   it: StageItem;
   row: StageRow | undefined;
@@ -96,6 +100,7 @@ function ItemRow({
   drawInfo: DrawingSummary | null;
   crit?: CriteriaSet | null;
   regimeHint?: { regime: Regime | null; reason: string } | null;
+  tank?: { kind: 'leak' | 'struct'; sum: TankSummary | null; onOpen: () => void } | null;
 }) {
   const status: StageStatus = row?.status ?? 'belum';
   const done = status === 'selesai';
@@ -122,6 +127,12 @@ function ItemRow({
             ))}
           </div>
           {crit && <CriteriaFold set={crit} regimeHint={regimeHint} />}
+          {tank && (
+            <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-slate-600">
+              <Button size="sm" onClick={tank.onOpen}>Daftar uji per kompartemen</Button>
+              {tank.sum && tank.sum.total > 0 && <span>{tankSummaryText(tank.kind, tank.sum)}</span>}
+            </div>
+          )}
           {(done || note !== '') && (
             <div className="mt-2 grid gap-2 sm:grid-cols-2">
               {done && (
@@ -198,7 +209,7 @@ function StageCard({ st, state, p, open, children }: { st: Stage; state: StageSt
   );
 }
 
-export default function StageTracker({ projectId, projectName, tipe, propelled, international, gt, vesselType, onBack, onOpenMaterial, onOpenDrawing }: Props) {
+export default function StageTracker({ projectId, projectName, tipe, propelled, international, gt, vesselType, onBack, onOpenMaterial, onOpenDrawing, onOpenTankTests }: Props) {
   const [rows, setRows] = useState<Map<string, StageRow>>(new Map());
   const [loaded, setLoaded] = useState(false);
   const [err, setErr] = useState('');
@@ -208,6 +219,7 @@ export default function StageTracker({ projectId, projectName, tipe, propelled, 
   const [fp, setFp] = useState<boolean | null>(null);
   const [override, setOverride] = useState<string | null>(null);
   const [drawLoaded, setDrawLoaded] = useState(false);
+  const [tankRows, setTankRows] = useState<{ leak_status: 'belum' | 'lulus' | 'tidak_lulus'; struct_status: 'belum' | 'lulus' | 'tidak_lulus' | 'tidak_perlu' }[] | null>(null);
 
   const ctx = useMemo(() => ({ tipe, propelled }), [tipe, propelled]);
   const regimeHint = useMemo(() => suggestRegime({ propelled, international, gt }), [propelled, international, gt]);
@@ -231,6 +243,9 @@ export default function StageTracker({ projectId, projectName, tipe, propelled, 
       setDrawRows(new Map(((dr.data ?? []) as { item_key: string; status: 'open' | 'closed' | 'tidak_ada' }[]).map((r) => [r.item_key, { status: r.status }])));
       setDrawLoaded(true);
     }
+    // daftar uji per kompartemen: bila tabelnya belum ada, Tahapan tetap jalan tanpa ringkasan
+    const tt = await supabase.from('nb_tank_tests').select('leak_status,struct_status').eq('project_id', projectId);
+    if (!tt.error) setTankRows((tt.data ?? []) as NonNullable<typeof tankRows>);
     if (!pm.error && pm.data) {
       const m = pm.data as { fp_above60: boolean | null; drawing_col: string | null };
       setFp(m.fp_above60);
@@ -244,6 +259,7 @@ export default function StageTracker({ projectId, projectName, tipe, propelled, 
   }, [load]);
 
   const drawInfo = useMemo(() => (drawLoaded ? drawingSummary({ vesselType, propelled, fpAbove60: fp, override }, drawRows) : null), [drawLoaded, vesselType, propelled, fp, override, drawRows]);
+  const tankSum = useMemo(() => (tankRows ? summarizeTankTests(tankRows) : null), [tankRows]);
   const total = useMemo(() => overallProgress(ctx, rows), [ctx, rows]);
   const hidden = useMemo(() => hiddenItemCount(ctx), [ctx]);
 
@@ -335,6 +351,7 @@ export default function StageTracker({ projectId, projectName, tipe, propelled, 
                           drawInfo={drawInfo}
                           crit={criteriaFor(key)}
                           regimeHint={regimeHint}
+                          tank={key === 'fabrication.leaktest' ? { kind: 'leak', sum: tankSum, onOpen: onOpenTankTests } : key === 'fabrication.structtest' ? { kind: 'struct', sum: tankSum, onOpen: onOpenTankTests } : null}
                         />
                       );
                     })}
