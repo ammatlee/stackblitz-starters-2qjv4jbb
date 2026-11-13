@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { supabase } from '../../lib/supabase';
 import { Button, Chip } from '../Controls';
 import DateInput from '../DateInput';
+import { useDialog } from '../DialogProvider';
 import {
   LEAK_METHODS,
   LEAK_METHOD_LABEL,
@@ -19,7 +20,7 @@ import {
   summarizeTankTests,
 } from '../../lib/newbuildingTankTests';
 import type { LeakMethod, StructStatus, TankTestRow, TestStatus } from '../../lib/newbuildingTankTests';
-import { tankFindingText } from '../../lib/newbuildingFindings';
+import { findingCode, tankFindingDescription, tankFindingText } from '../../lib/newbuildingFindings';
 import { TANK_SIDES, TANK_SIDE_LABEL, catalogGroups, countKind, duplicateTankIds, isOilCarrier, kindOfName, nextTankName, rowsNeedingSide, tankDisplayName } from '../../lib/newbuildingTankCatalog';
 import type { TankKind, TankSide } from '../../lib/newbuildingTankCatalog';
 
@@ -27,6 +28,14 @@ const INPUT = 'w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text
 const COLS = 'id,name,side,leak_status,leak_method,leak_date,struct_status,struct_head,struct_date,note,leak_count,struct_leak,struct_deform';
 
 type Patch = Partial<Omit<TankTestRow, 'id'>>;
+
+/** Temuan yang dibuat dari uji tangki (hanya kolom yang dipakai di halaman ini). */
+type FindingLink = { id: string; seq: number | null; status: 'open' | 'closed'; source_tank_id: string; source_kind: 'leak' | 'struct' };
+const LINK_COLS = 'id,seq,status,source_tank_id,source_kind';
+const KINDS: ('leak' | 'struct')[] = ['leak', 'struct'];
+
+const detailFor = (r: TankTestRow, kind: 'leak' | 'struct'): string | null => (kind === 'leak' ? leakDetail(r.leak_count) : structDetail(r.struct_leak, r.struct_deform));
+const statusOf = (r: TankTestRow, kind: 'leak' | 'struct'): TestStatus | StructStatus => (kind === 'leak' ? r.leak_status : r.struct_status);
 
 const todayIso = (): string => {
   const d = new Date();
@@ -60,7 +69,7 @@ const TONE: Record<string, string> = {
   tidak_lulus: 'border-red-200 bg-red-50/50',
 };
 
-function TankItem({ r, busy, hint, showSide, dup, onPatch, onDelete, onBadHead, onBadCount, onFinding }: { r: TankTestRow; busy: boolean; hint: string | null; showSide: boolean; dup: boolean; onPatch: (p: Patch) => void; onDelete: () => void; onBadHead: () => void; onBadCount: () => void; onFinding: (kind: 'leak' | 'struct') => void }) {
+function TankItem({ r, busy, hint, showSide, dup, leakLink, structLink, onPatch, onDelete, onBadHead, onBadCount, onFinding }: { r: TankTestRow; busy: boolean; hint: string | null; showSide: boolean; dup: boolean; leakLink: FindingLink | null; structLink: FindingLink | null; onPatch: (p: Patch) => void; onDelete: () => void; onBadHead: () => void; onBadCount: () => void; onFinding: (kind: 'leak' | 'struct') => void }) {
   const leakDone = r.leak_status !== 'belum';
   const structDone = r.struct_status === 'lulus' || r.struct_status === 'tidak_lulus';
   const tone = r.leak_status === 'tidak_lulus' || r.struct_status === 'tidak_lulus' ? TONE.tidak_lulus : r.leak_status === 'lulus' && (r.struct_status === 'lulus' || r.struct_status === 'tidak_perlu') ? TONE.lulus : 'border-slate-200 bg-white';
@@ -129,9 +138,13 @@ function TankItem({ r, busy, hint, showSide, dup, onPatch, onDelete, onBadHead, 
         </label>
       )}
       {r.leak_status === 'tidak_lulus' && (
-        <Button size="sm" variant="warn" className="mt-2" disabled={busy} onClick={() => onFinding('leak')}>
-          Jadikan temuan
-        </Button>
+        leakLink ? (
+          <p className="mt-2 text-xs font-semibold text-amber-800">Temuan {findingCode(leakLink.seq)} · Open (masuk Daftar temuan)</p>
+        ) : (
+          <Button size="sm" variant="warn" className="mt-2" disabled={busy} onClick={() => onFinding('leak')}>
+            Buat temuan
+          </Button>
+        )
       )}
       {leakDone && (
         <>
@@ -172,9 +185,13 @@ function TankItem({ r, busy, hint, showSide, dup, onPatch, onDelete, onBadHead, 
         </div>
       )}
       {r.struct_status === 'tidak_lulus' && (
-        <Button size="sm" variant="warn" className="mt-2" disabled={busy} onClick={() => onFinding('struct')}>
-          Jadikan temuan
-        </Button>
+        structLink ? (
+          <p className="mt-2 text-xs font-semibold text-amber-800">Temuan {findingCode(structLink.seq)} · Open (masuk Daftar temuan)</p>
+        ) : (
+          <Button size="sm" variant="warn" className="mt-2" disabled={busy} onClick={() => onFinding('struct')}>
+            Buat temuan
+          </Button>
+        )
       )}
       {structDone && (
         <div className="mt-2 grid gap-2 sm:grid-cols-2">
@@ -209,6 +226,8 @@ function TankItem({ r, busy, hint, showSide, dup, onPatch, onDelete, onBadHead, 
 }
 
 export default function TankTestTracker({ projectId, projectName, vesselType, propelled, onBack }: { projectId: string; projectName: string; vesselType: string | null; propelled: boolean; onBack: () => void }) {
+  const { confirm } = useDialog();
+  const [links, setLinks] = useState<FindingLink[]>([]);
   const [rows, setRows] = useState<TankTestRow[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [err, setErr] = useState('');
@@ -232,6 +251,9 @@ export default function TankTestTracker({ projectId, projectName, vesselType, pr
       setRows(list);
       setCatOpen(list.length === 0);
     }
+    const fl = await supabase.from('nb_findings').select(LINK_COLS).eq('project_id', projectId).not('source_tank_id', 'is', null).order('created_at', { ascending: true });
+    if (fl.error) setErr(fl.error.message + ' (sudah menjalankan SQL langkah 1: kolom source_tank_id di nb_findings?)');
+    else setLinks((fl.data ?? []) as FindingLink[]);
     setLoaded(true);
   }, [projectId]);
 
@@ -280,44 +302,104 @@ export default function TankTestTracker({ projectId, projectName, vesselType, pr
     setName('');
   };
 
-  const patch = async (id: string, p: Patch) => {
-    if (!supabase) return;
+  const patch = async (id: string, p: Patch): Promise<boolean> => {
+    if (!supabase) return false;
     setBusyId(id);
     setErr('');
     const r = await supabase.from('nb_tank_tests').update({ ...p, updated_at: new Date().toISOString() }).eq('id', id);
     setBusyId('');
     if (r.error) {
       setErr(r.error.message);
-      return;
+      return false;
     }
     setRows((l) => l.map((x) => (x.id === id ? { ...x, ...p } : x)));
+    return true;
   };
 
-  /** Membuat temuan Open dari uji yang tidak lulus. Tidak membuat dobel bila temuan Open yang sama sudah ada. */
-  const makeFinding = async (row: TankTestRow, kind: 'leak' | 'struct') => {
+  const openLink = (tankId: string, kind: 'leak' | 'struct'): FindingLink | null => links.find((l) => l.source_tank_id === tankId && l.source_kind === kind && l.status === 'open') ?? null;
+
+  /** Membuat temuan Open dari uji yang tidak lulus, tertaut ke tangkinya. Tidak membuat dobel bila temuan Open untuk tangki dan jenis uji ini sudah ada. */
+  const ensureFinding = async (row: TankTestRow, kind: 'leak' | 'struct') => {
     if (!supabase) return;
-    const f = tankFindingText(tankDisplayName(row.name, row.side), kind, kind === 'leak' ? leakDetail(row.leak_count) : structDetail(row.struct_leak, row.struct_deform));
-    setBusyId(row.id);
     setErr('');
     setInfo('');
-    const ex = await supabase.from('nb_findings').select('id').eq('project_id', projectId).eq('item_key', f.item_key).eq('location', f.location).eq('status', 'open').limit(1);
+    const ex = await supabase.from('nb_findings').select(LINK_COLS).eq('project_id', projectId).eq('source_tank_id', row.id).eq('source_kind', kind).eq('status', 'open').limit(1);
     if (ex.error) {
-      setBusyId('');
-      setErr(ex.error.message + (/relation|does not exist/i.test(ex.error.message) ? ' (sudah menjalankan SQL nb_findings?)' : ''));
+      setErr(ex.error.message + (/relation|does not exist|column/i.test(ex.error.message) ? ' (sudah menjalankan SQL nb_findings dan SQL langkah 1?)' : ''));
       return;
     }
     if ((ex.data ?? []).length > 0) {
-      setBusyId('');
-      setInfo(`Sudah ada temuan Open untuk ${tankDisplayName(row.name, row.side)} di item ini.`);
+      const have = ex.data![0] as FindingLink;
+      setLinks((l) => (l.some((x) => x.id === have.id) ? l : [...l, have]));
       return;
     }
-    const r = await supabase.from('nb_findings').insert({ project_id: projectId, ...f, status: 'open', found_date: todayIso() });
-    setBusyId('');
+    const name = tankDisplayName(row.name, row.side);
+    const f = tankFindingText(name, kind, detailFor(row, kind));
+    // nomor PL dibuat database; bila dua simpan bertabrakan, coba sekali lagi
+    let res = await supabase.from('nb_findings').insert({ project_id: projectId, ...f, status: 'open', found_date: todayIso(), source_tank_id: row.id, source_kind: kind }).select(LINK_COLS).single();
+    if (res.error && /duplicate|unique/i.test(res.error.message)) {
+      res = await supabase.from('nb_findings').insert({ project_id: projectId, ...f, status: 'open', found_date: todayIso(), source_tank_id: row.id, source_kind: kind }).select(LINK_COLS).single();
+    }
+    if (res.error) {
+      setErr(res.error.message);
+      return;
+    }
+    const link = res.data as FindingLink;
+    setLinks((l) => [...l, link]);
+    setInfo(`Temuan ${findingCode(link.seq)} dibuat otomatis untuk ${name}. Lihat di Daftar temuan (halaman Tahapan).`);
+  };
+
+  /** Uji masih tidak lulus tetapi rinciannya, nama, atau posisinya berubah: samakan temuan Open yang tertaut. Uraian atau lokasi yang sudah diubah manual tidak ditimpa. */
+  const refreshFinding = async (prev: TankTestRow, next: TankTestRow, kind: 'leak' | 'struct') => {
+    if (!supabase) return;
+    const ex = await supabase.from('nb_findings').select('id,description,location').eq('project_id', projectId).eq('source_tank_id', next.id).eq('source_kind', kind).eq('status', 'open').limit(1);
+    if (ex.error || (ex.data ?? []).length === 0) return;
+    const cur = ex.data![0] as { id: string; description: string; location: string | null };
+    const upd: { description?: string; location?: string; updated_at: string } = { updated_at: new Date().toISOString() };
+    if (cur.description === tankFindingDescription(kind, detailFor(prev, kind))) upd.description = tankFindingDescription(kind, detailFor(next, kind));
+    if (cur.location === tankDisplayName(prev.name, prev.side)) upd.location = tankDisplayName(next.name, next.side);
+    if (upd.description === undefined && upd.location === undefined) return;
+    const r = await supabase.from('nb_findings').update(upd).eq('id', cur.id);
+    if (r.error) setErr(r.error.message);
+  };
+
+  /** Uji tidak lagi tidak lulus: tawarkan menutup temuan Open yang tertaut (Lulus atau Tidak perlu) atau menghapusnya (dikembalikan ke Belum, mis. salah ketuk). */
+  const resolveFinding = async (next: TankTestRow, kind: 'leak' | 'struct') => {
+    if (!supabase) return;
+    const lk = openLink(next.id, kind);
+    if (!lk) return;
+    const code = findingCode(lk.seq);
+    const name = tankDisplayName(next.name, next.side);
+    const toBelum = statusOf(next, kind) === 'belum';
+    const ok = await confirm(
+      toBelum
+        ? { title: `Hapus temuan ${code}?`, message: `Status ${name} dikembalikan ke Belum. Hapus temuan ${code} yang dibuat otomatis (mis. bila tadi salah ketuk)?`, confirmText: 'Hapus temuan', cancelText: 'Biarkan Open', tone: 'danger' }
+        : { title: `Tutup temuan ${code}?`, message: `${name} sudah tidak berstatus Tidak lulus. Tutup temuan ${code} (Closed)?`, confirmText: 'Tutup temuan', cancelText: 'Biarkan Open' }
+    );
+    if (!ok) return;
+    setErr('');
+    const r = toBelum ? await supabase.from('nb_findings').delete().eq('id', lk.id) : await supabase.from('nb_findings').update({ status: 'closed', closed_date: todayIso(), updated_at: new Date().toISOString() }).eq('id', lk.id);
     if (r.error) {
       setErr(r.error.message);
       return;
     }
-    setInfo(`Temuan dibuat untuk ${tankDisplayName(row.name, row.side)}. Lihat di Daftar temuan (halaman Tahapan).`);
+    setLinks((l) => (toBelum ? l.filter((x) => x.id !== lk.id) : l.map((x) => (x.id === lk.id ? { ...x, status: 'closed' as const } : x))));
+    setInfo(toBelum ? `Temuan ${code} dihapus.` : `Temuan ${code} ditutup.`);
+  };
+
+  /** Simpan perubahan baris uji, lalu sinkronkan temuan: dibuat saat jadi Tidak lulus, diperbarui saat rinciannya berubah, ditawarkan ditutup saat tidak lagi Tidak lulus. */
+  const patchTank = async (row: TankTestRow, p: Patch) => {
+    const ok = await patch(row.id, p);
+    if (!ok) return;
+    const next: TankTestRow = { ...row, ...p };
+    for (const kind of KINDS) {
+      const was = statusOf(row, kind) === 'tidak_lulus';
+      const now = statusOf(next, kind) === 'tidak_lulus';
+      if (!was && now) await ensureFinding(next, kind);
+      else if (was && now) {
+        if (detailFor(row, kind) !== detailFor(next, kind) || row.name !== next.name || row.side !== next.side) await refreshFinding(row, next, kind);
+      } else if (was && !now) await resolveFinding(next, kind);
+    }
   };
 
   const remove = async (row: TankTestRow) => {
@@ -398,7 +480,7 @@ export default function TankTestTracker({ projectId, projectName, vesselType, pr
         </Button>
       </div>
       <p className="mt-2 text-xs text-slate-500">
-        Uji struktural wajib untuk satu tangki dari tiap grup yang mirip, tangki lain cukup leak test (S14 Part C 2.4). Tandai tangki yang cukup leak test dengan &quot;Tidak perlu&quot;. Pengecualian dan rezim yang berlaku ada di Kriteria penerimaan pada item Structural test. Bila uji tidak lulus, catat rinciannya lalu ketuk &quot;Jadikan temuan&quot;; setelah diperbaiki dan diuji ulang, ubah status ke Lulus (rincian di baris ini ikut dikosongkan, riwayatnya tetap ada di Daftar temuan).
+        Uji struktural wajib untuk satu tangki dari tiap grup yang mirip, tangki lain cukup leak test (S14 Part C 2.4). Tandai tangki yang cukup leak test dengan &quot;Tidak perlu&quot;. Pengecualian dan rezim yang berlaku ada di Kriteria penerimaan pada item Structural test. Bila uji tidak lulus, temuan otomatis dibuat di Daftar temuan; catat rinciannya di sini. Setelah diperbaiki dan diuji ulang, ubah status ke Lulus lalu pilih menutup temuannya (rincian di baris ini ikut dikosongkan, riwayatnya tetap ada di Daftar temuan). Bila diuji ulang dan tidak lulus lagi, dibuat temuan baru.
       </p>
 
       {!loaded ? (
@@ -408,7 +490,7 @@ export default function TankTestTracker({ projectId, projectName, vesselType, pr
       ) : (
         <ul className="mt-4 space-y-3">
           {rows.map((r) => (
-            <TankItem key={r.id} r={r} busy={busyId === r.id} hint={kindOfName(r.name)?.hint ?? null} showSide={sideIds.has(r.id)} dup={dupIds.has(r.id)} onPatch={(p) => patch(r.id, p)} onDelete={() => remove(r)} onBadHead={() => setErr('Tinggi uji harus berupa angka dalam meter, mis. 2,4.')} onBadCount={() => setErr('Jumlah titik bocor harus bilangan bulat 0 sampai 999.')} onFinding={(k) => makeFinding(r, k)} />
+            <TankItem key={r.id} r={r} busy={busyId === r.id} hint={kindOfName(r.name)?.hint ?? null} showSide={sideIds.has(r.id)} dup={dupIds.has(r.id)} leakLink={openLink(r.id, 'leak')} structLink={openLink(r.id, 'struct')} onPatch={(p) => patchTank(r, p)} onDelete={() => remove(r)} onBadHead={() => setErr('Tinggi uji harus berupa angka dalam meter, mis. 2,4.')} onBadCount={() => setErr('Jumlah titik bocor harus bilangan bulat 0 sampai 999.')} onFinding={(k) => ensureFinding(r, k)} />
           ))}
         </ul>
       )}
