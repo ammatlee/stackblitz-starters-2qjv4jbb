@@ -1,5 +1,5 @@
 /* Punchlist → file Word (.docx): tabel temuan per item, lalu lampiran foto dengan nomor dan keterangan.
-   Library "docx" dimuat hanya saat tombol Unduh ditekan. Foto dikecilkan (maks. 900 px) supaya file tidak berat. */
+   Library "docx" dimuat hanya saat tombol Unduh ditekan. Foto dimasukkan ke bingkai 4:3 berukuran sama (tanpa dipotong) supaya seragam dan file tidak berat. Halaman landscape. */
 
    import { supabase } from './supabase';
    import { findingCode } from './newbuildingFindings';
@@ -11,8 +11,12 @@
    export type DocImage = { data: Uint8Array; width: number; height: number };
    export type DocPhoto = { id: string; seq: number | null; phase: PhotoPhase; caption: string | null; image: DocImage | null };
    
-   /** Unduh satu foto dari Storage dan kecilkan untuk dokumen. null bila gagal (foto itu ditulis "tidak dapat dimuat"). Hanya di peramban. */
-   export async function loadDocImage(path: string, maxSide = 900, quality = 0.75): Promise<DocImage | null> {
+   /** Bingkai foto seragam (4:3). Piksel hasil unduh dan ukuran tampil di dokumen. */
+   export const PHOTO_BOX = { width: 960, height: 720 };
+   export const PHOTO_DOC_SIZE = { width: 320, height: 240 };
+   
+   /** Unduh satu foto dari Storage, lalu taruh utuh (tanpa dipotong) di tengah bingkai 4:3 berlatar abu muda, jadi semua foto berukuran sama. null bila gagal (foto itu ditulis "tidak dapat dimuat"). Hanya di peramban. */
+   export async function loadDocImage(path: string, quality = 0.75): Promise<DocImage | null> {
      if (!supabase) return null;
      const dl = await supabase.storage.from(PHOTO_BUCKET).download(path);
      if (dl.error || !dl.data) return null;
@@ -24,17 +28,18 @@
          i.onerror = () => rej(new Error('gagal dibaca'));
          i.src = url;
        });
-       const k = Math.min(1, maxSide / Math.max(img.naturalWidth, img.naturalHeight));
-       const width = Math.max(1, Math.round(img.naturalWidth * k));
-       const height = Math.max(1, Math.round(img.naturalHeight * k));
+       const { width, height } = PHOTO_BOX;
+       const k = Math.min(width / Math.max(1, img.naturalWidth), height / Math.max(1, img.naturalHeight));
+       const w = Math.max(1, Math.round(img.naturalWidth * k));
+       const h = Math.max(1, Math.round(img.naturalHeight * k));
        const cv = document.createElement('canvas');
        cv.width = width;
        cv.height = height;
        const ctx = cv.getContext('2d');
        if (!ctx) return null;
-       ctx.fillStyle = '#ffffff';
+       ctx.fillStyle = '#f1f5f9';
        ctx.fillRect(0, 0, width, height);
-       ctx.drawImage(img, 0, 0, width, height);
+       ctx.drawImage(img, Math.round((width - w) / 2), Math.round((height - h) / 2), w, h);
        const blob = await new Promise<Blob | null>((res) => cv.toBlob((b) => res(b), 'image/jpeg', quality));
        if (!blob) return null;
        return { data: new Uint8Array(await blob.arrayBuffer()), width, height };
@@ -45,15 +50,9 @@
      }
    }
    
-   /** Ukuran foto di dokumen (piksel), menjaga perbandingan, maksimal 300 x 300. */
-   export function fitImage(w: number, h: number, maxW = 300, maxH = 300): { width: number; height: number } {
-     const k = Math.min(1, maxW / Math.max(1, w), maxH / Math.max(1, h));
-     return { width: Math.max(1, Math.round(w * k)), height: Math.max(1, Math.round(h * k)) };
-   }
-   
    export async function punchlistDocxBlob(o: { projectName: string; dateIso: string; groups: PunchGroup[]; photos: Record<string, DocPhoto[]> }): Promise<Blob> {
      const d = await import('docx');
-     const { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, WidthType, AlignmentType, ShadingType, BorderStyle, ImageRun, Footer, PageNumber, TableLayoutType } = d;
+     const { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, WidthType, AlignmentType, ShadingType, ImageRun, Footer, PageNumber, TableLayoutType, PageOrientation } = d;
    
      type Block = InstanceType<typeof Paragraph> | InstanceType<typeof Table>;
      const kids: Block[] = [];
@@ -67,7 +66,8 @@
          children: [new TextRun({ text, bold: p.bold, italics: p.italics, size: p.size })],
        });
    
-     const W = [1000, 2000, 4038, 1200, 1400]; // jumlah 9638 = lebar halaman A4 dikurangi margin
+     const PAGE_W = 14570; // A4 landscape (16838) dikurangi margin kiri-kanan
+     const W = [1300, 2700, 6670, 1700, 2200]; // jumlah = PAGE_W
      const cell = (w: number, paras: InstanceType<typeof Paragraph>[], fill?: string) =>
        new TableCell({
          width: { size: w, type: WidthType.DXA },
@@ -107,49 +107,35 @@
            });
          }),
        ];
-       kids.push(new Table({ width: { size: 9638, type: WidthType.DXA }, columnWidths: W, layout: TableLayoutType.FIXED, rows }));
+       kids.push(new Table({ width: { size: PAGE_W, type: WidthType.DXA }, columnWidths: W, layout: TableLayoutType.FIXED, rows }));
        kids.push(para('', { after: 0 }));
      }
    
-     // Lampiran foto: hanya temuan yang punya foto, dua foto per baris
+     // Lampiran foto: satu baris per temuan (keterangan | foto kondisi temuan | foto setelah perbaikan)
      const withPhotos = o.groups.flatMap((g) => g.rows).filter((r) => (o.photos[r.id] ?? []).length > 0);
      if (withPhotos.length > 0) {
        kids.push(para('LAMPIRAN FOTO', { bold: true, size: 24, after: 120, pageBreakBefore: true, keepNext: true }));
-       const none = { style: BorderStyle.NONE, size: 0, color: 'FFFFFF' };
-       const noBorders = { top: none, bottom: none, left: none, right: none };
-       const photoCell = (ph: DocPhoto | undefined) => {
+       const PW = [3170, 5700, 5700]; // jumlah = PAGE_W
+       const photoCell = (w: number, list: DocPhoto[]) => {
          const inner: InstanceType<typeof Paragraph>[] = [];
-         if (ph) {
-           if (ph.image) {
-             const sz = fitImage(ph.image.width, ph.image.height);
-             inner.push(new Paragraph({ spacing: { after: 40 }, children: [new ImageRun({ type: 'jpg', data: ph.image.data, transformation: sz })] }));
-           } else {
-             inner.push(para('(foto tidak dapat dimuat)', { italics: true, size: 16 }));
-           }
-           inner.push(para(`${photoCode(ph.seq)} · ${PHOTO_PHASE_LABEL[ph.phase]}`, { bold: true, size: 16, after: 0 }));
-           if (ph.caption) inner.push(para(ph.caption, { size: 16, after: 0 }));
-         } else {
-           inner.push(new Paragraph({ children: [] }));
-         }
-         return new TableCell({ width: { size: 4819, type: WidthType.DXA }, borders: noBorders, margins: { top: 40, bottom: 80, left: 60, right: 60 }, children: inner });
+         if (list.length === 0) inner.push(new Paragraph({ alignment: AlignmentType.CENTER, spacing: { before: 400 }, children: [new TextRun({ text: 'Belum ada foto', italics: true, size: 16, color: '94A3B8' })] }));
+         list.forEach((ph, i) => {
+           if (ph.image) inner.push(new Paragraph({ alignment: AlignmentType.CENTER, spacing: { before: i > 0 ? 120 : 0, after: 40 }, children: [new ImageRun({ type: 'jpg', data: ph.image.data, transformation: PHOTO_DOC_SIZE })] }));
+           else inner.push(para('(foto tidak dapat dimuat)', { italics: true, size: 16, center: true }));
+           inner.push(new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: 0 }, children: [new TextRun({ text: photoCode(ph.seq), bold: true, size: 16 }), ...(ph.caption ? [new TextRun({ text: ` · ${ph.caption}`, size: 16 })] : [])] }));
+         });
+         return cell(w, inner);
        };
-   
-       for (const r of withPhotos) {
-         kids.push(para(`${punchTitle(r)}: ${r.description}`, { bold: true, size: 20, before: 200, after: 80, keepNext: true }));
-         const list = sortPhotos(o.photos[r.id] ?? []);
-         const trs: InstanceType<typeof TableRow>[] = [];
-         for (let i = 0; i < list.length; i += 2) trs.push(new TableRow({ cantSplit: true, children: [photoCell(list[i]), photoCell(list[i + 1])] }));
-         kids.push(
-           new Table({
-             width: { size: 9638, type: WidthType.DXA },
-             columnWidths: [4819, 4819],
-             layout: TableLayoutType.FIXED,
-             borders: { ...noBorders, insideHorizontal: none, insideVertical: none },
-             rows: trs,
-           })
-         );
-         kids.push(para('', { after: 0 }));
-       }
+       const head = ['Temuan', PHOTO_PHASE_LABEL.temuan, PHOTO_PHASE_LABEL.perbaikan];
+       const trs = [
+         new TableRow({ tableHeader: true, cantSplit: true, children: head.map((h, i) => cell(PW[i], [para(h, { bold: true, size: 18, center: i > 0 })], 'E2E8F0')) }),
+         ...withPhotos.map((r) => {
+           const list = sortPhotos(o.photos[r.id] ?? []);
+           const info = [para(punchTitle(r), { bold: true, size: 18, after: 60 }), para(r.description, { size: 18 }), para(`Status: ${RECAP_STATUS_LABEL[r.status]}${r.status === 'closed' && r.closed_date ? ` (${dmy(r.closed_date)})` : ''}`, { size: 16, before: 60 })];
+           return new TableRow({ cantSplit: true, children: [cell(PW[0], info), photoCell(PW[1], list.filter((x) => x.phase === 'temuan')), photoCell(PW[2], list.filter((x) => x.phase === 'perbaikan'))] });
+         }),
+       ];
+       kids.push(new Table({ width: { size: PAGE_W, type: WidthType.DXA }, columnWidths: PW, layout: TableLayoutType.FIXED, rows: trs }));
      }
    
      const doc = new Document({
@@ -158,7 +144,7 @@
        styles: { default: { document: { run: { font: 'Arial', size: 20 } } } },
        sections: [
          {
-           properties: { page: { size: { width: 11906, height: 16838 }, margin: { top: 1134, right: 1134, bottom: 1134, left: 1134 } } },
+           properties: { page: { size: { width: 11906, height: 16838, orientation: PageOrientation.LANDSCAPE }, margin: { top: 1134, right: 1134, bottom: 1134, left: 1134 } } },
            footers: {
              default: new Footer({
                children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: `${o.projectName} · Daftar temuan · hal. `, size: 16 }), new TextRun({ children: [PageNumber.CURRENT], size: 16 })] })],
