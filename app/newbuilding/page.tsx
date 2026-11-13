@@ -13,6 +13,7 @@ import type { MatTipe } from '../../lib/materialRules';
 import MaterialTracker from '../../components/newbuilding/materialTracker';
 import StageTracker from '../../components/newbuilding/StageTracker';
 import DrawingTracker from '../../components/newbuilding/DrawingTracker';
+import TankTestTracker from '../../components/newbuilding/TankTestTracker';
 import { fetchAllRows } from '../../lib/fetchAll';
 import { groupByProject, projectOverview } from '../../lib/newbuildingOverview';
 import type { ProjectOverview } from '../../lib/newbuildingOverview';
@@ -159,6 +160,7 @@ function Inner() {
   const [stageP, setStageP] = useState<Project | null>(null);
   const [matFromStage, setMatFromStage] = useState(false);
   const [drawP, setDrawP] = useState<Project | null>(null);
+  const [tankP, setTankP] = useState<Project | null>(null);
   const [ov, setOv] = useState<Map<string, ProjectOverview>>(new Map());
 
   const load = useCallback(async () => {
@@ -257,6 +259,18 @@ function Inner() {
       />
     );
 
+  if (tankP)
+    return (
+      <TankTestTracker
+        projectId={tankP.id}
+        projectName={tankP.name}
+        onBack={() => {
+          setStageP(tankP);
+          setTankP(null);
+        }}
+      />
+    );
+
   if (stageP)
     return (
       <StageTracker
@@ -275,6 +289,10 @@ function Inner() {
         }}
         onOpenDrawing={() => {
           setDrawP(stageP);
+          setStageP(null);
+        }}
+        onOpenTankTests={() => {
+          setTankP(stageP);
           setStageP(null);
         }}
       />
