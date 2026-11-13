@@ -5,6 +5,7 @@ import { supabase } from '../../lib/supabase';
 import { Button, Chip } from '../Controls';
 import DateInput from '../DateInput';
 import { useDialog } from '../DialogProvider';
+import FindingPhotos from './FindingPhotos';
 import {
   LEAK_METHODS,
   LEAK_METHOD_LABEL,
@@ -21,6 +22,7 @@ import {
 } from '../../lib/newbuildingTankTests';
 import type { LeakMethod, StructStatus, TankTestRow, TestStatus } from '../../lib/newbuildingTankTests';
 import { findingCode, tankFindingDescription, tankFindingText } from '../../lib/newbuildingFindings';
+import { removePhotoFiles } from '../../lib/photoUpload';
 import { TANK_SIDES, TANK_SIDE_LABEL, catalogGroups, countKind, duplicateTankIds, isOilCarrier, kindOfName, nextTankName, rowsNeedingSide, tankDisplayName } from '../../lib/newbuildingTankCatalog';
 import type { TankKind, TankSide } from '../../lib/newbuildingTankCatalog';
 
@@ -69,7 +71,7 @@ const TONE: Record<string, string> = {
   tidak_lulus: 'border-red-200 bg-red-50/50',
 };
 
-function TankItem({ r, busy, hint, showSide, dup, leakLink, structLink, onPatch, onDelete, onBadHead, onBadCount, onFinding }: { r: TankTestRow; busy: boolean; hint: string | null; showSide: boolean; dup: boolean; leakLink: FindingLink | null; structLink: FindingLink | null; onPatch: (p: Patch) => void; onDelete: () => void; onBadHead: () => void; onBadCount: () => void; onFinding: (kind: 'leak' | 'struct') => void }) {
+function TankItem({ r, projectId, busy, hint, showSide, dup, leakLink, structLink, onPatch, onDelete, onBadHead, onBadCount, onFinding }: { r: TankTestRow; busy: boolean; hint: string | null; projectId: string; showSide: boolean; dup: boolean; leakLink: FindingLink | null; structLink: FindingLink | null; onPatch: (p: Patch) => void; onDelete: () => void; onBadHead: () => void; onBadCount: () => void; onFinding: (kind: 'leak' | 'struct') => void }) {
   const leakDone = r.leak_status !== 'belum';
   const structDone = r.struct_status === 'lulus' || r.struct_status === 'tidak_lulus';
   const tone = r.leak_status === 'tidak_lulus' || r.struct_status === 'tidak_lulus' ? TONE.tidak_lulus : r.leak_status === 'lulus' && (r.struct_status === 'lulus' || r.struct_status === 'tidak_perlu') ? TONE.lulus : 'border-slate-200 bg-white';
@@ -139,7 +141,10 @@ function TankItem({ r, busy, hint, showSide, dup, leakLink, structLink, onPatch,
       )}
       {r.leak_status === 'tidak_lulus' && (
         leakLink ? (
-          <p className="mt-2 text-xs font-semibold text-amber-800">Temuan {findingCode(leakLink.seq)} · Open (masuk Daftar temuan)</p>
+          <>
+            <p className="mt-2 text-xs font-semibold text-amber-800">Temuan {findingCode(leakLink.seq)} · Open (masuk Daftar temuan)</p>
+            <FindingPhotos projectId={projectId} findingId={leakLink.id} defaultPhase="temuan" disabled={busy} />
+          </>
         ) : (
           <Button size="sm" variant="warn" className="mt-2" disabled={busy} onClick={() => onFinding('leak')}>
             Buat temuan
@@ -186,7 +191,10 @@ function TankItem({ r, busy, hint, showSide, dup, leakLink, structLink, onPatch,
       )}
       {r.struct_status === 'tidak_lulus' && (
         structLink ? (
-          <p className="mt-2 text-xs font-semibold text-amber-800">Temuan {findingCode(structLink.seq)} · Open (masuk Daftar temuan)</p>
+          <>
+            <p className="mt-2 text-xs font-semibold text-amber-800">Temuan {findingCode(structLink.seq)} · Open (masuk Daftar temuan)</p>
+            <FindingPhotos projectId={projectId} findingId={structLink.id} defaultPhase="temuan" disabled={busy} />
+          </>
         ) : (
           <Button size="sm" variant="warn" className="mt-2" disabled={busy} onClick={() => onFinding('struct')}>
             Buat temuan
@@ -371,9 +379,12 @@ export default function TankTestTracker({ projectId, projectName, vesselType, pr
     const code = findingCode(lk.seq);
     const name = tankDisplayName(next.name, next.side);
     const toBelum = statusOf(next, kind) === 'belum';
+    // bila temuan akan dihapus, catat dulu foto-fotonya: baris foto ikut terhapus, berkasnya dihapus sesudahnya
+    const pp = toBelum ? await supabase.from('nb_finding_photos').select('path').eq('finding_id', lk.id) : null;
+    const paths = pp && !pp.error ? ((pp.data ?? []) as { path: string }[]).map((x) => x.path) : [];
     const ok = await confirm(
       toBelum
-        ? { title: `Hapus temuan ${code}?`, message: `Status ${name} dikembalikan ke Belum. Hapus temuan ${code} yang dibuat otomatis (mis. bila tadi salah ketuk)?`, confirmText: 'Hapus temuan', cancelText: 'Biarkan Open', tone: 'danger' }
+        ? { title: `Hapus temuan ${code}?`, message: `Status ${name} dikembalikan ke Belum. Hapus temuan ${code} yang dibuat otomatis (mis. bila tadi salah ketuk)${paths.length > 0 ? `, beserta ${paths.length} fotonya` : ''}?`, confirmText: 'Hapus temuan', cancelText: 'Biarkan Open', tone: 'danger' }
         : { title: `Tutup temuan ${code}?`, message: `${name} sudah tidak berstatus Tidak lulus. Tutup temuan ${code} (Closed)?`, confirmText: 'Tutup temuan', cancelText: 'Biarkan Open' }
     );
     if (!ok) return;
@@ -383,6 +394,7 @@ export default function TankTestTracker({ projectId, projectName, vesselType, pr
       setErr(r.error.message);
       return;
     }
+    if (toBelum) await removePhotoFiles(paths);
     setLinks((l) => (toBelum ? l.filter((x) => x.id !== lk.id) : l.map((x) => (x.id === lk.id ? { ...x, status: 'closed' as const } : x))));
     setInfo(toBelum ? `Temuan ${code} dihapus.` : `Temuan ${code} ditutup.`);
   };
@@ -490,7 +502,7 @@ export default function TankTestTracker({ projectId, projectName, vesselType, pr
       ) : (
         <ul className="mt-4 space-y-3">
           {rows.map((r) => (
-            <TankItem key={r.id} r={r} busy={busyId === r.id} hint={kindOfName(r.name)?.hint ?? null} showSide={sideIds.has(r.id)} dup={dupIds.has(r.id)} leakLink={openLink(r.id, 'leak')} structLink={openLink(r.id, 'struct')} onPatch={(p) => patchTank(r, p)} onDelete={() => remove(r)} onBadHead={() => setErr('Tinggi uji harus berupa angka dalam meter, mis. 2,4.')} onBadCount={() => setErr('Jumlah titik bocor harus bilangan bulat 0 sampai 999.')} onFinding={(k) => ensureFinding(r, k)} />
+            <TankItem key={r.id} r={r} busy={busyId === r.id} hint={kindOfName(r.name)?.hint ?? null} showSide={sideIds.has(r.id)} dup={dupIds.has(r.id)} projectId={projectId} leakLink={openLink(r.id, 'leak')} structLink={openLink(r.id, 'struct')} onPatch={(p) => patchTank(r, p)} onDelete={() => remove(r)} onBadHead={() => setErr('Tinggi uji harus berupa angka dalam meter, mis. 2,4.')} onBadCount={() => setErr('Jumlah titik bocor harus bilangan bulat 0 sampai 999.')} onFinding={(k) => ensureFinding(r, k)} />
           ))}
         </ul>
       )}
