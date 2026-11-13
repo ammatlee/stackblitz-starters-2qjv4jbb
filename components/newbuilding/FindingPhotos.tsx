@@ -4,7 +4,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { Button, Chip } from '../Controls';
 import { useDialog } from '../DialogProvider';
-import { PHOTO_PHASES, PHOTO_PHASE_LABEL, normalizeCaption, photoCode, photoSummary, sortPhotos } from '../../lib/newbuildingPhotos';
+import { PHOTO_PHASES, PHOTO_PHASE_LABEL, normalizeCaption, photoCode, photoSummary, sortPhotos, thumbPath } from '../../lib/newbuildingPhotos';
 import type { FindingPhoto, PhotoPhase } from '../../lib/newbuildingPhotos';
 import { photoUrls, removePhotoFiles, uploadFindingPhoto } from '../../lib/photoUpload';
 
@@ -89,7 +89,7 @@ export default function FindingPhotos({
     const missing = rows.map((r) => r.path).filter((p) => !urls[p] && !askedRef.current.has(p));
     if (missing.length === 0) return;
     missing.forEach((p) => askedRef.current.add(p));
-    photoUrls(missing)
+    photoUrls([...missing, ...missing.map(thumbPath)])
       .then((m) => setUrls((u) => ({ ...u, ...m })))
       .catch((e: unknown) => setErr(e instanceof Error ? e.message : 'Foto tidak bisa dibuka.'));
   }, [open, rows, urls]);
@@ -203,15 +203,16 @@ export default function FindingPhotos({
             <ul className="space-y-3">
               {rows.map((ph) => {
                 const url = urls[ph.path];
+                const thumb = urls[thumbPath(ph.path)] ?? url;
                 return (
                   <li key={ph.id} className="flex gap-3 rounded-lg border border-slate-200 bg-white p-2">
                     {url ? (
                       <a href={url} target="_blank" rel="noopener noreferrer" className="shrink-0" aria-label={`Buka ${photoCode(ph.seq)} ukuran penuh`}>
                         {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={url} alt={photoCode(ph.seq)} loading="lazy" className="h-24 w-24 rounded-lg bg-slate-100 object-cover" />
+                        <img src={thumb} alt={photoCode(ph.seq)} loading="lazy" className="h-24 w-32 rounded-lg bg-slate-100 object-cover" />
                       </a>
                     ) : (
-                      <div className="flex h-24 w-24 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-[11px] text-slate-400">Memuat…</div>
+                      <div className="flex h-24 w-32 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-[11px] text-slate-400">Memuat…</div>
                     )}
                     <div className="min-w-0 flex-1 space-y-2">
                       <p className="text-xs font-extrabold text-slate-900">{photoCode(ph.seq)}</p>

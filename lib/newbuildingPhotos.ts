@@ -47,6 +47,12 @@
    /** Lokasi berkas: folder pertama = id akun (dipakai aturan akses Storage), lalu proyek dan temuan. */
    export const photoPath = (uid: string, projectId: string, findingId: string, fileId: string): string => `${uid}/${projectId}/${findingId}/${fileId}.jpg`;
    
+   /** Bingkai thumbnail 4:3: dipotong di tengah saat unggah, dipakai di layar dan di Word. */
+   export const THUMB_SIZE = { width: 480, height: 360 };
+   
+   /** Lokasi thumbnail satu foto, di folder yang sama: x.jpg menjadi x.thumb.jpg. */
+   export const thumbPath = (path: string): string => path.replace(/\.jpg$/i, '') + '.thumb.jpg';
+   
    /** Keterangan dari ketikan: dipangkas, kosong = null, maksimal 200 huruf. */
    export function normalizeCaption(v: string): string | null {
      const t = v.trim();

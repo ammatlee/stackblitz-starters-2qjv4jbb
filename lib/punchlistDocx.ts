@@ -3,7 +3,7 @@
 
    import { supabase } from './supabase';
    import { findingCode } from './newbuildingFindings';
-   import { PHOTO_BUCKET, PHOTO_PHASE_LABEL, photoCode, sortPhotos } from './newbuildingPhotos';
+   import { PHOTO_BUCKET, PHOTO_PHASE_LABEL, THUMB_SIZE, photoCode, sortPhotos, thumbPath } from './newbuildingPhotos';
    import type { PhotoPhase } from './newbuildingPhotos';
    import { RECAP_STATUS_LABEL, RECAP_TITLE, dmy, punchlistCounts, punchlistSummaryText } from './punchlist';
    import type { PunchGroup } from './punchlist';
@@ -12,12 +12,14 @@
    export type DocPhoto = { id: string; seq: number | null; phase: PhotoPhase; caption: string | null; image: DocImage | null };
    
    /** Bingkai foto seragam (4:3). Piksel hasil unduh dan ukuran tampil di dokumen. */
-   export const PHOTO_BOX = { width: 640, height: 480 };
+   export const PHOTO_BOX = THUMB_SIZE;
    export const PHOTO_DOC_SIZE = { width: 228, height: 171 };
    
-   /** Unduh satu foto dari Storage, lalu potong di tengah ke bingkai 4:3 (memenuhi bingkai), jadi semua foto berukuran sama. null bila gagal (foto itu ditulis "tidak dapat dimuat"). Hanya di peramban. */
+   /** Unduh satu foto dari Storage. Thumbnail 4:3 bila ada dipakai langsung (kecil dan cepat); bila tidak, foto penuh dipotong di tengah ke bingkai 4:3 (memenuhi bingkai), jadi semua foto berukuran sama. null bila gagal (foto itu ditulis "tidak dapat dimuat"). Hanya di peramban. */
    export async function loadDocImage(path: string, quality = 0.75): Promise<DocImage | null> {
      if (!supabase) return null;
+     const th = await supabase.storage.from(PHOTO_BUCKET).download(thumbPath(path));
+     if (!th.error && th.data) return { data: new Uint8Array(await th.data.arrayBuffer()), width: PHOTO_BOX.width, height: PHOTO_BOX.height };
      const dl = await supabase.storage.from(PHOTO_BUCKET).download(path);
      if (dl.error || !dl.data) return null;
      const url = URL.createObjectURL(dl.data);

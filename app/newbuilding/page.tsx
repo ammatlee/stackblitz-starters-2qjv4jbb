@@ -17,6 +17,7 @@ import TankTestTracker from '../../components/newbuilding/TankTestTracker';
 import FindingTracker from '../../components/newbuilding/FindingTracker';
 import { openFindingsText } from '../../lib/newbuildingFindings';
 import { fetchAllRows } from '../../lib/fetchAll';
+import { removePhotoFiles } from '../../lib/photoUpload';
 import { groupByProject, projectOverview } from '../../lib/newbuildingOverview';
 import type { ProjectOverview } from '../../lib/newbuildingOverview';
 import type { StageRow } from '../../lib/newbuildingStages';
@@ -249,11 +250,18 @@ function Inner() {
   const remove = async (p: Project) => {
     if (!supabase) return;
     if (!(await confirm({ title: 'Hapus proyek?', message: `Hapus proyek "${p.name}"? Data proyek ini tidak bisa dikembalikan.`, confirmText: 'Hapus', tone: 'danger' }))) return;
+    // jalur foto dicatat dulu: barisnya ikut terhapus bersama proyek, berkasnya dihapus sesudahnya
+    const pp = await fetchAllRows((a, b) => supabase!.from('nb_finding_photos').select('path').eq('project_id', p.id).order('path').range(a, b));
+    if (pp.error) {
+      setErr(pp.error.message);
+      return;
+    }
     const r = await supabase.from('nb_projects').delete().eq('id', p.id);
     if (r.error) {
       setErr(r.error.message);
       return;
     }
+    await removePhotoFiles((pp.data as { path: string }[]).map((x) => x.path));
     await load();
   };
 

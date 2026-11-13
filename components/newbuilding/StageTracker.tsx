@@ -251,7 +251,15 @@ export default function StageTracker({ projectId, projectName, tipe, propelled, 
   const load = useCallback(async () => {
     if (!supabase) return;
     setErr('');
-    const { data, error } = await supabase.from('nb_stage_status').select('item_key,status,done_date,note').eq('project_id', projectId);
+    // lima bacaan berjalan bersamaan; hanya tahapan yang wajib, sisanya bersifat ringkasan
+    const [st, dr, pm, tt, fd] = await Promise.all([
+      supabase.from('nb_stage_status').select('item_key,status,done_date,note').eq('project_id', projectId),
+      supabase.from('nb_drawing_status').select('item_key,status').eq('project_id', projectId),
+      supabase.from('nb_projects').select('fp_above60,drawing_col').eq('id', projectId).maybeSingle(),
+      supabase.from('nb_tank_tests').select('leak_status,struct_status').eq('project_id', projectId),
+      supabase.from('nb_findings').select('item_key,status').eq('project_id', projectId),
+    ]);
+    const { data, error } = st;
     if (error) {
       setErr(error.message + (/relation|does not exist/i.test(error.message) ? ' (sudah menjalankan SQL nb_stage_status?)' : ''));
       setLoaded(true);
@@ -261,17 +269,13 @@ export default function StageTracker({ projectId, projectName, tipe, propelled, 
     setRows(map);
     setOpenKey(firstOpenStage({ tipe, propelled }, map)?.key ?? null);
     // ringkasan gambar: bila tabelnya belum ada, Tahapan tetap jalan tanpa ringkasan
-    const dr = await supabase.from('nb_drawing_status').select('item_key,status').eq('project_id', projectId);
-    const pm = await supabase.from('nb_projects').select('fp_above60,drawing_col').eq('id', projectId).maybeSingle();
     if (!dr.error) {
       setDrawRows(new Map(((dr.data ?? []) as { item_key: string; status: 'open' | 'closed' | 'tidak_ada' }[]).map((r) => [r.item_key, { status: r.status }])));
       setDrawLoaded(true);
     }
     // daftar uji per kompartemen: bila tabelnya belum ada, Tahapan tetap jalan tanpa ringkasan
-    const tt = await supabase.from('nb_tank_tests').select('leak_status,struct_status').eq('project_id', projectId);
     if (!tt.error) setTankRows((tt.data ?? []) as NonNullable<typeof tankRows>);
     // daftar temuan: bila tabelnya belum ada, Tahapan tetap jalan tanpa pengingat
-    const fd = await supabase.from('nb_findings').select('item_key,status').eq('project_id', projectId);
     if (!fd.error) setFindRows((fd.data ?? []) as NonNullable<typeof findRows>);
     if (!pm.error && pm.data) {
       const m = pm.data as { fp_above60: boolean | null; drawing_col: string | null };

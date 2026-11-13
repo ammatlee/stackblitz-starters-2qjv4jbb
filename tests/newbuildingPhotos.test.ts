@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { PHOTO_BUCKET, PHOTO_CAPTION_MAX, checkPhotoFile, normalizeCaption, photoCode, photoPath, photoSummary, photoTitle, sortPhotos } from '../lib/newbuildingPhotos';
+import { PHOTO_BUCKET, PHOTO_CAPTION_MAX, checkPhotoFile, normalizeCaption, photoCode, photoPath, photoSummary, photoTitle, sortPhotos, thumbPath } from '../lib/newbuildingPhotos';
 
 describe('Foto temuan', () => {
   it('kode foto dan rujukan lengkap', () => {
@@ -21,6 +21,11 @@ describe('Foto temuan', () => {
   it('lokasi berkas diawali id akun lalu proyek dan temuan', () => {
     expect(photoPath('u1', 'p1', 'f1', 'x')).toBe('u1/p1/f1/x.jpg');
     expect(PHOTO_BUCKET).toBe('newbuilding-photos');
+  });
+
+  it('thumbnail disimpan di folder yang sama dengan akhiran .thumb.jpg', () => {
+    expect(thumbPath('u1/p1/f1/x.jpg')).toBe('u1/p1/f1/x.thumb.jpg');
+    expect(thumbPath(thumbPath('a/b.jpg'))).toBe('a/b.thumb.thumb.jpg');
   });
 
   it('keterangan: dipangkas, kosong jadi null, dibatasi panjangnya', () => {
