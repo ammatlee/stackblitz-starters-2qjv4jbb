@@ -236,7 +236,7 @@ export default function TankTestTracker({ projectId, projectName, onBack }: { pr
         </Button>
       </div>
       <p className="mt-2 text-xs text-slate-500">
-        Uji struktural wajib untuk satu tangki dari tiap grup yang mirip, tangki lain cukup leak test (S14 Part C 2.4). Tandai tangki yang cukup leak test dengan "Tidak perlu". Pengecualian dan rezim yang berlaku ada di Kriteria penerimaan pada item Structural test.
+        Uji struktural wajib untuk satu tangki dari tiap grup yang mirip, tangki lain cukup leak test (S14 Part C 2.4). Tandai tangki yang cukup leak test dengan &quot;Tidak perlu&quot;. Pengecualian dan rezim yang berlaku ada di Kriteria penerimaan pada item Structural test.
       </p>
 
       {!loaded ? (
