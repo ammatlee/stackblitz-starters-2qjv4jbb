@@ -12,6 +12,7 @@ import CriteriaFold from './CriteriaFold';
 import { summarizeTankTests, tankSummaryText } from '../../lib/newbuildingTankTests';
 import type { TankSummary } from '../../lib/newbuildingTankTests';
 import { drawingSummary } from '../../lib/newbuildingDrawings';
+import { openFindingsText, summarizeFindings } from '../../lib/newbuildingFindings';
 import type { DrawingSummary } from '../../lib/newbuildingDrawings';
 import type { CriteriaSet, Regime } from '../../lib/newbuildingCriteria';
 import type { Stage, StageItem, StageProgress, StageRow, StageStatus } from '../../lib/newbuildingStages';
@@ -30,9 +31,13 @@ type Props = {
   onOpenMaterial: () => void;
   onOpenDrawing: () => void;
   onOpenTankTests: () => void;
+  onOpenFindings: () => void;
 };
 
 type Patch = Partial<Omit<StageRow, 'item_key'>>;
+
+/** Tahap setelah Fabrication: temuan Open yang tersisa diingatkan di sini. */
+const AFTER_FABRICATION = ['keel', 'commissioning', 'completion'];
 
 const todayIso = (): string => {
   const d = new Date();
@@ -88,6 +93,8 @@ function ItemRow({
   crit,
   regimeHint,
   tank,
+  findOpen,
+  onOpenFindings,
 }: {
   it: StageItem;
   row: StageRow | undefined;
@@ -101,11 +108,15 @@ function ItemRow({
   crit?: CriteriaSet | null;
   regimeHint?: { regime: Regime | null; reason: string } | null;
   tank?: { kind: 'leak' | 'struct'; sum: TankSummary | null; onOpen: () => void } | null;
+  findOpen: number;
+  onOpenFindings: () => void;
 }) {
   const status: StageStatus = row?.status ?? 'belum';
   const done = status === 'selesai';
   const na = status === 'tidak_ada';
   const note = row?.note ?? '';
+  // item ditandai Selesai padahal daftar uji per kompartemen belum lulus semua: hanya pengingat
+  const tankGap = tank && done && tank.sum && tank.sum.total > 0 ? (tank.kind === 'leak' ? tank.sum.total - tank.sum.leakPass : tank.sum.structNeeded - tank.sum.structPass) : 0;
   return (
     <li className={`rounded-xl border p-3 ${done ? 'border-teal-200 bg-teal-50/50' : 'border-slate-200 bg-white'} ${na ? 'opacity-60' : ''}`}>
       <p className={`text-sm font-semibold ${na ? 'text-slate-400 line-through' : 'text-slate-900'}`}>{it.label}</p>
@@ -131,6 +142,17 @@ function ItemRow({
             <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-slate-600">
               <Button size="sm" onClick={tank.onOpen}>Daftar uji per kompartemen</Button>
               {tank.sum && tank.sum.total > 0 && <span>{tankSummaryText(tank.kind, tank.sum)}</span>}
+            </div>
+          )}
+          {tankGap > 0 && tank && (
+            <p className="mt-2 rounded-lg border border-amber-300 bg-amber-50 p-2 text-xs text-amber-900">
+              Item ini ditandai Selesai, tetapi {tankGap} kompartemen di daftar uji belum {tank.kind === 'leak' ? 'lulus leak test' : 'lulus uji struktural'}. Hanya pengingat.
+            </p>
+          )}
+          {findOpen > 0 && (
+            <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-amber-900">
+              <span className="font-semibold">{openFindingsText(findOpen)}</span>
+              <Button size="sm" variant="warn" onClick={onOpenFindings}>Lihat temuan</Button>
             </div>
           )}
           {(done || note !== '') && (
@@ -209,7 +231,7 @@ function StageCard({ st, state, p, open, children }: { st: Stage; state: StageSt
   );
 }
 
-export default function StageTracker({ projectId, projectName, tipe, propelled, international, gt, vesselType, onBack, onOpenMaterial, onOpenDrawing, onOpenTankTests }: Props) {
+export default function StageTracker({ projectId, projectName, tipe, propelled, international, gt, vesselType, onBack, onOpenMaterial, onOpenDrawing, onOpenTankTests, onOpenFindings }: Props) {
   const [rows, setRows] = useState<Map<string, StageRow>>(new Map());
   const [loaded, setLoaded] = useState(false);
   const [err, setErr] = useState('');
@@ -220,6 +242,8 @@ export default function StageTracker({ projectId, projectName, tipe, propelled, 
   const [override, setOverride] = useState<string | null>(null);
   const [drawLoaded, setDrawLoaded] = useState(false);
   const [tankRows, setTankRows] = useState<{ leak_status: 'belum' | 'lulus' | 'tidak_lulus'; struct_status: 'belum' | 'lulus' | 'tidak_lulus' | 'tidak_perlu' }[] | null>(null);
+
+  const [findRows, setFindRows] = useState<{ item_key: string | null; status: 'open' | 'closed' }[] | null>(null);
 
   const ctx = useMemo(() => ({ tipe, propelled }), [tipe, propelled]);
   const regimeHint = useMemo(() => suggestRegime({ propelled, international, gt }), [propelled, international, gt]);
@@ -246,6 +270,9 @@ export default function StageTracker({ projectId, projectName, tipe, propelled, 
     // daftar uji per kompartemen: bila tabelnya belum ada, Tahapan tetap jalan tanpa ringkasan
     const tt = await supabase.from('nb_tank_tests').select('leak_status,struct_status').eq('project_id', projectId);
     if (!tt.error) setTankRows((tt.data ?? []) as NonNullable<typeof tankRows>);
+    // daftar temuan: bila tabelnya belum ada, Tahapan tetap jalan tanpa pengingat
+    const fd = await supabase.from('nb_findings').select('item_key,status').eq('project_id', projectId);
+    if (!fd.error) setFindRows((fd.data ?? []) as NonNullable<typeof findRows>);
     if (!pm.error && pm.data) {
       const m = pm.data as { fp_above60: boolean | null; drawing_col: string | null };
       setFp(m.fp_above60);
@@ -260,6 +287,7 @@ export default function StageTracker({ projectId, projectName, tipe, propelled, 
 
   const drawInfo = useMemo(() => (drawLoaded ? drawingSummary({ vesselType, propelled, fpAbove60: fp, override }, drawRows) : null), [drawLoaded, vesselType, propelled, fp, override, drawRows]);
   const tankSum = useMemo(() => (tankRows ? summarizeTankTests(tankRows) : null), [tankRows]);
+  const findSum = useMemo(() => (findRows ? summarizeFindings(findRows) : null), [findRows]);
   const total = useMemo(() => overallProgress(ctx, rows), [ctx, rows]);
   const hidden = useMemo(() => hiddenItemCount(ctx), [ctx]);
 
@@ -334,6 +362,23 @@ export default function StageTracker({ projectId, projectName, tipe, propelled, 
                       <Button size="sm" variant="warn" className="mt-2" onClick={onOpenDrawing}>Buka pelacak gambar</Button>
                     </div>
                   )}
+                  {st.key === 'fabrication' && (
+                    <div className="mb-3 flex flex-wrap items-center gap-2 text-xs text-slate-600">
+                      <Button size="sm" onClick={onOpenFindings}>Daftar temuan</Button>
+                      {findSum && findSum.total > 0 && (
+                        <span>
+                          <b className={findSum.open > 0 ? 'text-amber-800' : ''}>{findSum.open}</b> Open · <b>{findSum.closed}</b> Closed
+                        </span>
+                      )}
+                    </div>
+                  )}
+                  {AFTER_FABRICATION.includes(st.key) && findSum && findSum.open > 0 && (
+                    <div className="mb-3 rounded-xl border border-amber-300 bg-amber-50 p-3 text-xs text-amber-900">
+                      <p className="font-semibold">Masih ada {openFindingsText(findSum.open)} di daftar temuan.</p>
+                      <p className="mt-0.5">Temuan sebaiknya sudah ditutup sebelum tahap ini. Ini hanya pengingat, tahap tetap bisa dilanjutkan.</p>
+                      <Button size="sm" variant="warn" className="mt-2" onClick={onOpenFindings}>Buka daftar temuan</Button>
+                    </div>
+                  )}
                   <ul className="space-y-2">
                     {applicableItems(st, ctx).map((it) => {
                       const key = stageItemKey(st, it);
@@ -351,6 +396,8 @@ export default function StageTracker({ projectId, projectName, tipe, propelled, 
                           drawInfo={drawInfo}
                           crit={criteriaFor(key)}
                           regimeHint={regimeHint}
+                          findOpen={findSum ? findSum.openByItem[key] ?? 0 : 0}
+                          onOpenFindings={onOpenFindings}
                           tank={key === 'fabrication.leaktest' ? { kind: 'leak', sum: tankSum, onOpen: onOpenTankTests } : key === 'fabrication.structtest' ? { kind: 'struct', sum: tankSum, onOpen: onOpenTankTests } : null}
                         />
                       );

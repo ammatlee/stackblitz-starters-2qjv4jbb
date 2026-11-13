@@ -14,6 +14,8 @@ import MaterialTracker from '../../components/newbuilding/materialTracker';
 import StageTracker from '../../components/newbuilding/StageTracker';
 import DrawingTracker from '../../components/newbuilding/DrawingTracker';
 import TankTestTracker from '../../components/newbuilding/TankTestTracker';
+import FindingTracker from '../../components/newbuilding/FindingTracker';
+import { openFindingsText } from '../../lib/newbuildingFindings';
 import { fetchAllRows } from '../../lib/fetchAll';
 import { groupByProject, projectOverview } from '../../lib/newbuildingOverview';
 import type { ProjectOverview } from '../../lib/newbuildingOverview';
@@ -161,6 +163,8 @@ function Inner() {
   const [matFromStage, setMatFromStage] = useState(false);
   const [drawP, setDrawP] = useState<Project | null>(null);
   const [tankP, setTankP] = useState<Project | null>(null);
+  const [findP, setFindP] = useState<Project | null>(null);
+  const [openFind, setOpenFind] = useState<Map<string, number>>(new Map());
   const [ov, setOv] = useState<Map<string, ProjectOverview>>(new Map());
 
   const load = useCallback(async () => {
@@ -174,6 +178,14 @@ function Inner() {
     }
     const projects = (data ?? []) as Project[];
     setList(projects);
+
+    // pengingat temuan Open per proyek; bila tabelnya belum ada, kartu tampil tanpa pengingat
+    const fd = await fetchAllRows((a, b) => supabase!.from('nb_findings').select('id,project_id').eq('status', 'open').order('id').range(a, b));
+    if (!fd.error) {
+      const counts = new Map<string, number>();
+      for (const r of fd.data as { project_id: string }[]) counts.set(r.project_id, (counts.get(r.project_id) ?? 0) + 1);
+      setOpenFind(counts);
+    }
 
     // ringkasan progress per proyek; bila tabelnya belum ada, kartu tampil tanpa ringkasan
     const st = await fetchAllRows((a, b) => supabase!.from('nb_stage_status').select('project_id,item_key,status').order('project_id').order('item_key').range(a, b));
@@ -259,6 +271,18 @@ function Inner() {
       />
     );
 
+  if (findP)
+    return (
+      <FindingTracker
+        projectId={findP.id}
+        projectName={findP.name}
+        onBack={() => {
+          setStageP(findP);
+          setFindP(null);
+        }}
+      />
+    );
+
   if (tankP)
     return (
       <TankTestTracker
@@ -293,6 +317,10 @@ function Inner() {
         }}
         onOpenTankTests={() => {
           setTankP(stageP);
+          setStageP(null);
+        }}
+        onOpenFindings={() => {
+          setFindP(stageP);
           setStageP(null);
         }}
       />
@@ -426,6 +454,7 @@ function Inner() {
                     <span className="shrink-0 rounded-full bg-teal-600 px-3 py-1 text-xs font-bold text-white">{tipe ? `Tipe ${tipe}` : 'Tipe ?'}</span>
                   </div>
                   <Overview o={ov.get(p.id)} />
+                  {(openFind.get(p.id) ?? 0) > 0 && <p className="mt-2 text-xs font-semibold text-amber-800">{openFindingsText(openFind.get(p.id) ?? 0)}</p>}
                   <div className="mt-3 flex gap-2">
                     <Button size="sm" variant="primary" onClick={() => setStageP(p)}>Tahapan</Button>
                     <Button

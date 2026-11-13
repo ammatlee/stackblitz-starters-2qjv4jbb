@@ -15,6 +15,7 @@ import {
   summarizeTankTests,
 } from '../../lib/newbuildingTankTests';
 import type { LeakMethod, StructStatus, TankTestRow, TestStatus } from '../../lib/newbuildingTankTests';
+import { tankFindingText } from '../../lib/newbuildingFindings';
 
 const INPUT = 'w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm';
 const COLS = 'id,name,leak_status,leak_method,leak_date,struct_status,struct_head,struct_date,note';
@@ -53,7 +54,7 @@ const TONE: Record<string, string> = {
   tidak_lulus: 'border-red-200 bg-red-50/50',
 };
 
-function TankItem({ r, busy, onPatch, onDelete, onBadHead }: { r: TankTestRow; busy: boolean; onPatch: (p: Patch) => void; onDelete: () => void; onBadHead: () => void }) {
+function TankItem({ r, busy, onPatch, onDelete, onBadHead, onFinding }: { r: TankTestRow; busy: boolean; onPatch: (p: Patch) => void; onDelete: () => void; onBadHead: () => void; onFinding: (kind: 'leak' | 'struct') => void }) {
   const leakDone = r.leak_status !== 'belum';
   const structDone = r.struct_status === 'lulus' || r.struct_status === 'tidak_lulus';
   const tone = r.leak_status === 'tidak_lulus' || r.struct_status === 'tidak_lulus' ? TONE.tidak_lulus : r.leak_status === 'lulus' && (r.struct_status === 'lulus' || r.struct_status === 'tidak_perlu') ? TONE.lulus : 'border-slate-200 bg-white';
@@ -83,6 +84,11 @@ function TankItem({ r, busy, onPatch, onDelete, onBadHead }: { r: TankTestRow; b
           </Chip>
         ))}
       </div>
+      {r.leak_status === 'tidak_lulus' && (
+        <Button size="sm" variant="warn" className="mt-2" disabled={busy} onClick={() => onFinding('leak')}>
+          Jadikan temuan
+        </Button>
+      )}
       {leakDone && (
         <>
           <div className="mt-2 flex flex-wrap gap-2">
@@ -107,6 +113,11 @@ function TankItem({ r, busy, onPatch, onDelete, onBadHead }: { r: TankTestRow; b
           </Chip>
         ))}
       </div>
+      {r.struct_status === 'tidak_lulus' && (
+        <Button size="sm" variant="warn" className="mt-2" disabled={busy} onClick={() => onFinding('struct')}>
+          Jadikan temuan
+        </Button>
+      )}
       {structDone && (
         <div className="mt-2 grid gap-2 sm:grid-cols-2">
           <label className="block">
@@ -146,6 +157,7 @@ export default function TankTestTracker({ projectId, projectName, onBack }: { pr
   const [busyId, setBusyId] = useState('');
   const [name, setName] = useState('');
   const [adding, setAdding] = useState(false);
+  const [info, setInfo] = useState('');
 
   const load = useCallback(async () => {
     if (!supabase) return;
@@ -190,6 +202,33 @@ export default function TankTestTracker({ projectId, projectName, onBack }: { pr
     setRows((l) => l.map((x) => (x.id === id ? { ...x, ...p } : x)));
   };
 
+  /** Membuat temuan Open dari uji yang tidak lulus. Tidak membuat dobel bila temuan Open yang sama sudah ada. */
+  const makeFinding = async (row: TankTestRow, kind: 'leak' | 'struct') => {
+    if (!supabase) return;
+    const f = tankFindingText(row.name, kind);
+    setBusyId(row.id);
+    setErr('');
+    setInfo('');
+    const ex = await supabase.from('nb_findings').select('id').eq('project_id', projectId).eq('item_key', f.item_key).eq('location', f.location).eq('status', 'open').limit(1);
+    if (ex.error) {
+      setBusyId('');
+      setErr(ex.error.message + (/relation|does not exist/i.test(ex.error.message) ? ' (sudah menjalankan SQL nb_findings?)' : ''));
+      return;
+    }
+    if ((ex.data ?? []).length > 0) {
+      setBusyId('');
+      setInfo(`Sudah ada temuan Open untuk ${row.name} di item ini.`);
+      return;
+    }
+    const r = await supabase.from('nb_findings').insert({ project_id: projectId, ...f, status: 'open', found_date: todayIso() });
+    setBusyId('');
+    if (r.error) {
+      setErr(r.error.message);
+      return;
+    }
+    setInfo(`Temuan dibuat untuk ${row.name}. Lihat di Daftar temuan (halaman Tahapan).`);
+  };
+
   const remove = async (row: TankTestRow) => {
     if (!supabase || !window.confirm(`Hapus "${row.name}" dari daftar uji?`)) return;
     setBusyId(row.id);
@@ -211,6 +250,7 @@ export default function TankTestTracker({ projectId, projectName, onBack }: { pr
       <p className="mt-1 text-sm text-slate-600">Catatan pelaksanaan uji. Tidak mengubah status item di Tahapan.</p>
 
       {err && <p className="mt-4 rounded-xl border border-red-300 bg-red-50 p-3 text-sm text-red-800">{err}</p>}
+      {info && <p className="mt-4 rounded-xl border border-teal-200 bg-teal-50 p-3 text-sm text-teal-900">{info}</p>}
 
       {loaded && sum.total > 0 && (
         <div className="mt-3 rounded-xl border border-slate-200 bg-white p-3 text-xs text-slate-700">
@@ -246,7 +286,7 @@ export default function TankTestTracker({ projectId, projectName, onBack }: { pr
       ) : (
         <ul className="mt-4 space-y-3">
           {rows.map((r) => (
-            <TankItem key={r.id} r={r} busy={busyId === r.id} onPatch={(p) => patch(r.id, p)} onDelete={() => remove(r)} onBadHead={() => setErr('Tinggi uji harus berupa angka dalam meter, mis. 2,4.')} />
+            <TankItem key={r.id} r={r} busy={busyId === r.id} onPatch={(p) => patch(r.id, p)} onDelete={() => remove(r)} onBadHead={() => setErr('Tinggi uji harus berupa angka dalam meter, mis. 2,4.')} onFinding={(k) => makeFinding(r, k)} />
           ))}
         </ul>
       )}
