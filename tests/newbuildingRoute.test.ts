@@ -15,7 +15,7 @@ describe('Alamat Bangunan Baru', () => {
   });
 
   it('setiap layar dibaca dan ditulis kembali dengan sama', () => {
-    for (const view of ['stage', 'material', 'drawing', 'tank', 'finding'] as const) {
+    for (const view of ['stage', 'material', 'drawing', 'tank', 'finding', 'docs'] as const) {
       const r = { projectId: 'p-1', view };
       expect(parseRoute(routeSearch(r))).toEqual(r);
     }
@@ -27,6 +27,13 @@ describe('Alamat Bangunan Baru', () => {
     expect(parseRoute(routeSearch(r))).toEqual(r);
     expect(parseRoute('?p=p1&v=material')).toEqual({ projectId: 'p1', view: 'material' });
     expect(parseRoute('?p=p1&v=tank&f=s')).toEqual({ projectId: 'p1', view: 'tank' });
+  });
+
+  it('Material yang dibuka dari Daftar dokumen mengingat asalnya', () => {
+    const r = { projectId: 'p1', view: 'material' as const, fromDocs: true };
+    expect(routeSearch(r)).toBe('?p=p1&v=material&f=d');
+    expect(parseRoute(routeSearch(r))).toEqual(r);
+    expect(parseRoute('?p=p1&v=docs&f=d')).toEqual({ projectId: 'p1', view: 'docs' });
   });
 
   it('id proyek dengan karakter khusus aman di alamat', () => {

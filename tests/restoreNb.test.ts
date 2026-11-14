@@ -62,7 +62,7 @@ const backup = () =>
 
 beforeEach(() => {
   h.failIds.clear();
-  for (const t of ['nb_projects', 'nb_stage_status', 'nb_drawing_status', 'nb_material_status', 'nb_tank_tests', 'nb_findings', 'nb_finding_photos']) h.db[t] = [];
+  for (const t of ['nb_projects', 'nb_stage_status', 'nb_drawing_status', 'nb_material_status', 'nb_doc_status', 'nb_tank_tests', 'nb_findings', 'nb_finding_photos']) h.db[t] = [];
   h.db.nb_projects = [{ id: 'p9', owner: ME }];
   h.db.nb_stage_status = [{ project_id: 'p9', item_key: 'x.a', status: 'belum' }];
 });

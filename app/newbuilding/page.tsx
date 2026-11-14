@@ -16,6 +16,7 @@ import StageTracker from '../../components/newbuilding/StageTracker';
 import DrawingTracker from '../../components/newbuilding/DrawingTracker';
 import TankTestTracker from '../../components/newbuilding/TankTestTracker';
 import FindingTracker from '../../components/newbuilding/FindingTracker';
+import DocTracker from '../../components/newbuilding/DocTracker';
 import { openFindingsText } from '../../lib/newbuildingFindings';
 import { fetchAllRows } from '../../lib/fetchAll';
 import { removePhotoFiles } from '../../lib/photoUpload';
@@ -24,6 +25,8 @@ import type { NbRoute } from '../../lib/newbuildingRoute';
 import { groupByProject, projectOverview } from '../../lib/newbuildingOverview';
 import type { ProjectOverview } from '../../lib/newbuildingOverview';
 import type { StageRow } from '../../lib/newbuildingStages';
+import type { DocStatus } from '../../lib/newbuildingCertDocs';
+import type { MatStatus } from '../../lib/materialTracker';
 import { INPUT } from '../../components/newbuilding/fields';
 import { updateWithVersion } from '../../lib/optimisticLock';
 import type { LockClient } from '../../lib/optimisticLock';
@@ -43,6 +46,8 @@ type Project = {
   updated_at: string;
   fp_above60?: boolean | null;
   drawing_col?: string | null;
+  /** Ada permohonan load line; kosong bila kolomnya belum ada (SQL nb_doc_status belum dijalankan). */
+  load_line?: boolean | null;
   /** Penanda edit bersamaan; kosong bila kolom version belum ada di database. */
   version?: number | null;
   /** Terisi bila proyek diarsipkan; kosong bila kolomnya belum ada atau proyek aktif. */
@@ -60,11 +65,14 @@ type Draft = {
   gt: string;
   notasi_l20: boolean;
   propelled: boolean | null; // null = otomatis dari jenis kapal
+  load_line: boolean;
+  /** true bila proyek yang dibuka sudah punya kolom load_line di database (kolom ikut disimpan). */
+  load_line_col: boolean;
   /** version proyek saat formulir dibuka (untuk cek edit bersamaan); null = proyek baru atau kolom belum ada. */
   version: number | null;
 };
 
-const EMPTY: Draft = { id: null, name: '', yard: '', hull_no: '', vessel_type: '', application_date: '', international: false, gt: '', notasi_l20: false, propelled: null, version: null };
+const EMPTY: Draft = { id: null, name: '', yard: '', hull_no: '', vessel_type: '', application_date: '', international: false, gt: '', notasi_l20: false, propelled: null, load_line: false, load_line_col: false, version: null };
 
 const toNum = (s: string): number | null => {
   const n = Number(s.replace(',', '.').trim());
@@ -87,6 +95,8 @@ const fromProject = (p: Project): Draft => ({
   gt: p.gt == null ? '' : String(p.gt),
   notasi_l20: p.notasi_l20,
   propelled: p.propelled,
+  load_line: !!p.load_line,
+  load_line_col: typeof p.load_line === 'boolean',
   version: typeof p.version === 'number' ? p.version : null,
 });
 
@@ -161,6 +171,19 @@ function Overview({ o }: { o: ProjectOverview | undefined }) {
       {d && !d.col && (
         <p className="pl-[76px] text-amber-800">{d.needFlashPoint ? 'Gambar: flash point belum diisi' : 'Gambar: daftar belum ditentukan'}</p>
       )}
+      {o.cert && (
+        <>
+          <div className="flex items-center gap-3">
+            <span className="w-16 shrink-0 font-semibold text-slate-500">Dokumen</span>
+            <Bar pct={o.cert.permanent.pct} />
+            <span className="w-20 shrink-0 text-right tabular-nums">{o.cert.permanent.done}/{o.cert.permanent.total} ({o.cert.permanent.pct}%)</span>
+          </div>
+          <p className={`pl-[76px] ${o.cert.interim.missing.length > 0 ? 'text-amber-800' : 'text-teal-800'}`}>
+            {o.cert.interim.missing.length > 0 ? `Interim: kurang ${o.cert.interim.missing.length} dari ${o.cert.interim.total} dokumen` : 'Dokumen Interim lengkap'}
+            {o.cert.permanent.missing.length > 0 ? ` · Permanent kurang ${o.cert.permanent.missing.length}` : ' · Permanent lengkap'}
+          </p>
+        </>
+      )}
     </div>
   );
 }
@@ -189,12 +212,15 @@ function Inner() {
     setErr('');
     // empat bacaan berjalan bersamaan. Hanya baris yang mengubah angka yang dibaca:
     // tahapan yang belum dikerjakan dan gambar yang masih Open tidak perlu dibaca (tanpa baris = Belum / Open).
-    const [pr, fd, st, dr] = await Promise.all([
+    const [pr, fd, st, dr, dc, mt] = await Promise.all([
       sb.from('nb_projects').select('*').order('updated_at', { ascending: false }),
       // pengingat temuan Open per proyek
       fetchAllRows((a, b) => sb.from('nb_findings').select('id,project_id').eq('status', 'open').order('id').range(a, b)),
       fetchAllRows((a, b) => sb.from('nb_stage_status').select('project_id,item_key,status').neq('status', 'belum').order('project_id').order('item_key').range(a, b)),
       fetchAllRows((a, b) => sb.from('nb_drawing_status').select('project_id,item_key,status').neq('status', 'open').order('project_id').order('item_key').range(a, b)),
+      // dokumen sertifikasi dan material: hanya baris yang sudah diisi (tanpa baris = Belum)
+      fetchAllRows((a, b) => sb.from('nb_doc_status').select('project_id,item_key,status').neq('status', 'belum').order('project_id').order('item_key').range(a, b)),
+      fetchAllRows((a, b) => sb.from('nb_material_status').select('project_id,item_key,status').neq('status', 'belum').order('project_id').order('item_key').range(a, b)),
     ]);
     if (pr.error) {
       setErr(pr.error.message + (/relation|does not exist/i.test(pr.error.message) ? ' (sudah menjalankan SQL nb_projects?)' : ''));
@@ -215,6 +241,9 @@ function Inner() {
     if (st.error) return;
     const stageBy = groupByProject(st.data as { project_id: string; item_key: string; status: StageRow['status'] }[]);
     const drawBy = dr.error ? null : groupByProject(dr.data as { project_id: string; item_key: string; status: 'open' | 'closed' | 'tidak_ada' }[]);
+    // bila tabel dokumen belum ada, kartu tampil tanpa ringkasan dokumen
+    const docBy = dc.error ? null : groupByProject(dc.data as { project_id: string; item_key: string; status: DocStatus }[]);
+    const matBy = mt.error ? null : groupByProject(mt.data as { project_id: string; item_key: string; status: MatStatus }[]);
     const next = new Map<string, ProjectOverview>();
     for (const p of projects) {
       const stageRows = new Map<string, StageRow>();
@@ -222,9 +251,10 @@ function Inner() {
       next.set(
         p.id,
         projectOverview(
-          { vesselType: p.vessel_type, propelled: effPropelled(p.vessel_type, p.propelled), tipe: tipeOf(p), fpAbove60: p.fp_above60 ?? null, override: p.drawing_col ?? null },
+          { vesselType: p.vessel_type, propelled: effPropelled(p.vessel_type, p.propelled), tipe: tipeOf(p), fpAbove60: p.fp_above60 ?? null, override: p.drawing_col ?? null, loadLine: !!p.load_line },
           stageRows,
           drawBy ? drawBy.get(p.id) ?? new Map() : null,
+          { docRows: docBy ? docBy.get(p.id) ?? new Map() : null, matRows: matBy ? matBy.get(p.id) ?? new Map() : null },
         ),
       );
     }
@@ -284,6 +314,8 @@ function Inner() {
       gt: toNum(d.gt),
       notasi_l20: d.notasi_l20,
       propelled: d.propelled,
+      // kolom load_line baru ada setelah SQL nb_doc_status dijalankan: ikut disimpan hanya bila sudah ada atau sedang dicentang
+      ...(d.load_line_col || d.load_line ? { load_line: d.load_line } : {}),
     };
     let msg = '';
     let conflict = false;
@@ -302,7 +334,7 @@ function Inner() {
         setD(null);
         await load();
       }
-      setErr(msg);
+      setErr(msg + (/load_line/i.test(msg) ? ' (sudah menjalankan SQL nb_doc_status?)' : ''));
       return;
     }
     setD(null);
@@ -323,7 +355,7 @@ function Inner() {
 
   const remove = async (p: Project) => {
     if (!supabase) return;
-    if (!(await confirm({ title: 'Hapus permanen?', message: `Hapus permanen proyek "${p.name}" beserta semua tahapan, gambar, material, uji tangki, temuan, dan fotonya? Tidak bisa dikembalikan. Unduh cadangan dulu bila ragu.`, confirmText: 'Hapus permanen', tone: 'danger' }))) return;
+    if (!(await confirm({ title: 'Hapus permanen?', message: `Hapus permanen proyek "${p.name}" beserta semua tahapan, gambar, material, dokumen sertifikasi, uji tangki, temuan, dan fotonya? Tidak bisa dikembalikan. Unduh cadangan dulu bila ragu.`, confirmText: 'Hapus permanen', tone: 'danger' }))) return;
     // jalur foto dicatat dulu: barisnya ikut terhapus bersama proyek, berkasnya dihapus sesudahnya
     const pp = await fetchAllRows((a, b) => supabase!.from('nb_finding_photos').select('path').eq('project_id', p.id).order('path').range(a, b));
     if (pp.error) {
@@ -376,11 +408,36 @@ function Inner() {
         international={project.international}
         gt={project.gt}
         vesselType={project.vessel_type}
+        loadLine={!!project.load_line}
         onBack={() => go(LIST_ROUTE)}
         onOpenMaterial={() => go({ projectId: project.id, view: 'material', fromStage: true })}
         onOpenDrawing={() => go({ projectId: project.id, view: 'drawing' })}
         onOpenTankTests={() => go({ projectId: project.id, view: 'tank' })}
         onOpenFindings={() => go({ projectId: project.id, view: 'finding' })}
+        onOpenDocs={() => go({ projectId: project.id, view: 'docs' })}
+      />
+    );
+
+  if (project && route.view === 'docs')
+    return (
+      <DocTracker
+        projectId={project.id}
+        projectName={project.name}
+        vesselType={project.vessel_type}
+        propelled={effPropelled(project.vessel_type, project.propelled)}
+        tipe={tipeOf(project)}
+        loadLine={!!project.load_line}
+        onBack={() => go({ projectId: project.id, view: 'stage' })}
+        onOpenMaterial={() => go({ projectId: project.id, view: 'material', fromDocs: true })}
+        onSetLoadLine={async (v) => {
+          const r = await patchProject(project.id, project.version, { load_line: v });
+          if (r.error) {
+            if (r.conflict) await load();
+            return r.error + (/load_line|column/i.test(r.error) ? ' (sudah menjalankan SQL nb_doc_status?)' : '');
+          }
+          await load();
+          return '';
+        }}
       />
     );
 
@@ -392,7 +449,7 @@ function Inner() {
         tipe={tipeOf(project)}
         vesselType={project.vessel_type}
         propelled={effPropelled(project.vessel_type, project.propelled)}
-        onBack={() => go(route.fromStage ? { projectId: project.id, view: 'stage' } : LIST_ROUTE)}
+        onBack={() => go(route.fromStage ? { projectId: project.id, view: 'stage' } : route.fromDocs ? { projectId: project.id, view: 'docs' } : LIST_ROUTE)}
       />
     );
 
@@ -467,6 +524,11 @@ function Inner() {
           <label className="mt-4 flex items-center gap-2 text-sm font-semibold text-slate-700">
             <input type="checkbox" className="h-4 w-4 accent-teal-600" checked={d.notasi_l20} onChange={(e) => set('notasi_l20', e.target.checked)} />
             Notasi pelayanan dibatasi max L(20)
+          </label>
+
+          <label className="mt-3 flex items-center gap-2 text-sm font-semibold text-slate-700">
+            <input type="checkbox" className="h-4 w-4 accent-teal-600" checked={d.load_line} onChange={(e) => set('load_line', e.target.checked)} />
+            Ada permohonan load line (mewajibkan form F23 dan BA tanda garis muat)
           </label>
 
           <Hasil d={d} />
@@ -551,6 +613,7 @@ function Inner() {
                   {(openFind.get(p.id) ?? 0) > 0 && <p className="mt-2 text-xs font-semibold text-amber-800">{openFindingsText(openFind.get(p.id) ?? 0)}</p>}
                   <div className="mt-3 flex flex-wrap gap-2">
                     <Button size="sm" variant="primary" onClick={() => go({ projectId: p.id, view: 'stage' })}>Tahapan</Button>
+                    <Button size="sm" onClick={() => go({ projectId: p.id, view: 'docs' })}>Dokumen</Button>
                     {p.archived_at ? (
                       <>
                         <Button size="sm" onClick={() => setArchived(p, false)}>Pulihkan</Button>

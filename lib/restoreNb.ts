@@ -15,7 +15,7 @@ import type { Backup } from './restore';
 type Row = Record<string, unknown>;
 
 /** Tabel status per item tidak punya id: barisnya dikenali dari pasangan (project_id, item_key). */
-const COMPOSITE: ReadonlySet<NbTable> = new Set<NbTable>(['nb_stage_status', 'nb_drawing_status', 'nb_material_status']);
+const COMPOSITE: ReadonlySet<NbTable> = new Set<NbTable>(['nb_stage_status', 'nb_drawing_status', 'nb_material_status', 'nb_doc_status']);
 
 /** Kolom yang menunjuk ke induknya. optional = boleh kosong. */
 const REFS: Record<NbTable, { col: string; parent: NbTable; optional?: boolean }[]> = {
@@ -23,6 +23,7 @@ const REFS: Record<NbTable, { col: string; parent: NbTable; optional?: boolean }
   nb_stage_status: [{ col: 'project_id', parent: 'nb_projects' }],
   nb_drawing_status: [{ col: 'project_id', parent: 'nb_projects' }],
   nb_material_status: [{ col: 'project_id', parent: 'nb_projects' }],
+  nb_doc_status: [{ col: 'project_id', parent: 'nb_projects' }],
   nb_tank_tests: [{ col: 'project_id', parent: 'nb_projects' }],
   nb_findings: [
     { col: 'project_id', parent: 'nb_projects' },
@@ -36,7 +37,7 @@ const REFS: Record<NbTable, { col: string; parent: NbTable; optional?: boolean }
 
 export const nbKey = (t: NbTable, r: Row): string => (COMPOSITE.has(t) ? `${String(r.project_id)}|${String(r.item_key)}` : String(r.id));
 
-const zero = (): Record<NbTable, number> => ({ nb_projects: 0, nb_stage_status: 0, nb_drawing_status: 0, nb_material_status: 0, nb_tank_tests: 0, nb_findings: 0, nb_finding_photos: 0 });
+const zero = (): Record<NbTable, number> => ({ nb_projects: 0, nb_stage_status: 0, nb_drawing_status: 0, nb_material_status: 0, nb_doc_status: 0, nb_tank_tests: 0, nb_findings: 0, nb_finding_photos: 0 });
 
 export type NbPlan = {
   toAdd: Record<NbTable, Row[]>;
@@ -63,10 +64,10 @@ async function existingKeys(t: NbTable): Promise<Set<string>> {
 /** Menghitung apa yang akan ditambahkan, TANPA mengubah apa pun di server. */
 export async function planRestoreNb(b: Backup, ownerId: string): Promise<NbPlan> {
   const plan: NbPlan = {
-    toAdd: { nb_projects: [], nb_stage_status: [], nb_drawing_status: [], nb_material_status: [], nb_tank_tests: [], nb_findings: [], nb_finding_photos: [] },
+    toAdd: { nb_projects: [], nb_stage_status: [], nb_drawing_status: [], nb_material_status: [], nb_doc_status: [], nb_tank_tests: [], nb_findings: [], nb_finding_photos: [] },
     exists: zero(),
     notMine: zero(),
-    have: { nb_projects: new Set(), nb_stage_status: new Set(), nb_drawing_status: new Set(), nb_material_status: new Set(), nb_tank_tests: new Set(), nb_findings: new Set(), nb_finding_photos: new Set() },
+    have: { nb_projects: new Set(), nb_stage_status: new Set(), nb_drawing_status: new Set(), nb_material_status: new Set(), nb_doc_status: new Set(), nb_tank_tests: new Set(), nb_findings: new Set(), nb_finding_photos: new Set() },
   };
   for (const t of NB_TABLES) {
     const rows = b.tables[t] ?? [];
@@ -135,6 +136,7 @@ export async function runRestoreNb(plan: NbPlan): Promise<NbResult> {
     nb_stage_status: new Set(),
     nb_drawing_status: new Set(),
     nb_material_status: new Set(),
+    nb_doc_status: new Set(),
     nb_tank_tests: new Set(plan.have.nb_tank_tests),
     nb_findings: new Set(plan.have.nb_findings),
     nb_finding_photos: new Set(),

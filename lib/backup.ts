@@ -24,6 +24,7 @@ const EXTRA: { table: string; order: string[] }[] = [
   { table: 'nb_stage_status', order: ['project_id', 'item_key'] },
   { table: 'nb_drawing_status', order: ['project_id', 'item_key'] },
   { table: 'nb_material_status', order: ['project_id', 'item_key'] },
+  { table: 'nb_doc_status', order: ['project_id', 'item_key'] },
   { table: 'nb_tank_tests', order: ['id'] },
   { table: 'nb_findings', order: ['id'] },
   { table: 'nb_finding_photos', order: ['id'] },
@@ -43,7 +44,7 @@ export type BackupResult = { counts: Record<string, number>; skipped: string[] }
 
 /**
  * Mengunduh data kapal, agenda, pembaruan status, bulletin, pengaturan laporan, jenis kapal sendiri, riwayat perubahan,
- * dan data Bangunan Baru (proyek, tahapan, gambar, material, uji tangki, temuan, data foto)
+ * dan data Bangunan Baru (proyek, tahapan, gambar, material, dokumen sertifikasi, uji tangki, temuan, data foto)
  * sebagai satu file JSON (hanya data yang boleh dibaca akun ini; admin = semua akun).
  * Catatan: file lampiran/gambar di Storage (termasuk foto temuan) tidak ikut; yang tersimpan hanya tautannya.
  */

@@ -14,6 +14,9 @@ import type { TankSummary } from '../../lib/newbuildingTankTests';
 import { drawingSummary } from '../../lib/newbuildingDrawings';
 import { findingGate, openFindingsText, summarizeFindings } from '../../lib/newbuildingFindings';
 import type { DrawingSummary } from '../../lib/newbuildingDrawings';
+import { certGate, summarizeCert } from '../../lib/newbuildingCertDocs';
+import type { CertSummary, DocStatus } from '../../lib/newbuildingCertDocs';
+import type { MatStatus } from '../../lib/materialTracker';
 import type { CriteriaSet, Regime } from '../../lib/newbuildingCriteria';
 import type { Stage, StageItem, StageProgress, StageRow, StageStatus } from '../../lib/newbuildingStages';
 import { INPUT } from './fields';
@@ -29,14 +32,32 @@ type Props = {
   international: boolean;
   gt: number | null;
   vesselType: string | null;
+  /** Ada permohonan load line (menentukan dokumen yang diwajibkan sebelum sertifikat). */
+  loadLine: boolean;
   onBack: () => void;
   onOpenMaterial: () => void;
   onOpenDrawing: () => void;
   onOpenTankTests: () => void;
   onOpenFindings: () => void;
+  onOpenDocs: () => void;
 };
 
 type Patch = Partial<Omit<StageRow, 'item_key'>>;
+
+type GateKind = 'drawing' | 'finding' | 'docs' | 'order';
+
+const GATE_FIX: Record<GateKind, string> = {
+  drawing: 'selesaikan gambarnya',
+  finding: 'tutup temuannya',
+  docs: 'lengkapi dokumennya',
+  order: 'selesaikan item sebelumnya',
+};
+const GATE_BUTTON: Record<GateKind, string> = {
+  drawing: 'Buka pelacak gambar',
+  finding: 'Buka daftar temuan',
+  docs: 'Buka daftar dokumen',
+  order: '',
+};
 
 /** Tahap setelah Fabrication: temuan Open yang tersisa diingatkan di sini. */
 const AFTER_FABRICATION = ['keel', 'commissioning', 'completion'];
@@ -76,6 +97,48 @@ function DrawingMini({ s }: { s: DrawingSummary }) {
   );
 }
 
+/** Pengingat kelengkapan dokumen di tahap Sertifikasi: berapa yang sudah ada dan apa yang masih kurang. */
+function CertPanel({ sum, onOpen }: { sum: CertSummary | null; onOpen: () => void }) {
+  if (!sum) {
+    return (
+      <div className="mb-3 rounded-xl border border-amber-300 bg-amber-50 p-3 text-xs text-amber-900">
+        <p className="font-semibold">Data dokumen sertifikasi belum bisa dibaca.</p>
+        <p className="mt-0.5">Sudah menjalankan SQL nb_doc_status? Selama belum terbaca, Interim dan Permanent tidak bisa diselesaikan.</p>
+        <Button size="sm" variant="warn" className="mt-2" onClick={onOpen}>Buka daftar dokumen</Button>
+      </div>
+    );
+  }
+  const block = (title: string, p: CertSummary['interim']) => (
+    <div className="min-w-0 flex-1">
+      <div className="flex items-center justify-between gap-2 text-xs">
+        <span className="font-bold text-slate-900">{title}</span>
+        <span className="tabular-nums text-slate-600">{p.done}/{p.total}</span>
+      </div>
+      <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-slate-100">
+        <div className="h-full bg-teal-600" style={{ width: `${p.pct}%` }} />
+      </div>
+      {p.missing.length === 0 ? (
+        <p className="mt-1 text-xs font-semibold text-teal-800">Lengkap</p>
+      ) : (
+        <p className="mt-1 text-xs text-amber-900">
+          Kurang {p.missing.length}: {p.missing.slice(0, 3).map((r) => r.item.code ?? r.item.label).join(', ')}
+          {p.missing.length > 3 ? `, dan ${p.missing.length - 3} lainnya` : ''}
+        </p>
+      )}
+    </div>
+  );
+  return (
+    <div className="mb-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
+      <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Kelengkapan dokumen</p>
+      <div className="mt-2 flex flex-col gap-3 sm:flex-row">
+        {block('Interim', sum.interim)}
+        {block('Permanent', sum.permanent)}
+      </div>
+      <Button size="sm" variant="primary" className="mt-3" onClick={onOpen}>Buka daftar dokumen</Button>
+    </div>
+  );
+}
+
 function ItemRow({
   it,
   row,
@@ -91,6 +154,7 @@ function ItemRow({
   tank,
   findOpen,
   onOpenFindings,
+  onOpenDocs,
   gate,
 }: {
   it: StageItem;
@@ -107,8 +171,9 @@ function ItemRow({
   tank?: { kind: 'leak' | 'struct'; sum: TankSummary | null; onOpen: () => void } | null;
   findOpen: number;
   onOpenFindings: () => void;
-  /** Alasan item ini belum boleh Selesai/N/A (gambar atau temuan masih Open); null = boleh. */
-  gate: { msg: string; kind: 'drawing' | 'finding' } | null;
+  onOpenDocs: () => void;
+  /** Alasan item ini belum boleh Selesai/N/A (gambar atau temuan masih Open, dokumen kurang, atau tahap sebelumnya belum selesai); null = boleh. */
+  gate: { msg: string; kind: GateKind } | null;
 }) {
   const status: StageStatus = row?.status ?? 'belum';
   const done = status === 'selesai';
@@ -139,8 +204,10 @@ function ItemRow({
           {gate && (
             <div className="mt-2 rounded-lg border border-red-300 bg-red-50 p-2 text-xs text-red-900">
               <p className="font-semibold">{status !== 'belum' ? 'Status ini tidak sesuai: ' : 'Belum bisa diselesaikan: '}{gate.msg}</p>
-              {status !== 'belum' && <p className="mt-0.5">Ubah kembali ke Belum, atau {gate.kind === 'drawing' ? 'selesaikan gambarnya' : 'tutup temuannya'} dulu.</p>}
-              <Button size="sm" variant="warn" className="mt-2" onClick={gate.kind === 'drawing' ? onOpenDrawing : onOpenFindings}>{gate.kind === 'drawing' ? 'Buka pelacak gambar' : 'Buka daftar temuan'}</Button>
+              {status !== 'belum' && <p className="mt-0.5">Ubah kembali ke Belum, atau {GATE_FIX[gate.kind]} dulu.</p>}
+              {gate.kind !== 'order' && (
+                <Button size="sm" variant="warn" className="mt-2" onClick={gate.kind === 'drawing' ? onOpenDrawing : gate.kind === 'finding' ? onOpenFindings : onOpenDocs}>{GATE_BUTTON[gate.kind]}</Button>
+              )}
             </div>
           )}
           {crit && <CriteriaFold set={crit} regimeHint={regimeHint} />}
@@ -237,7 +304,7 @@ function StageCard({ st, state, p, open, children }: { st: Stage; state: StageSt
   );
 }
 
-export default function StageTracker({ projectId, projectName, tipe, propelled, international, gt, vesselType, onBack, onOpenMaterial, onOpenDrawing, onOpenTankTests, onOpenFindings }: Props) {
+export default function StageTracker({ projectId, projectName, tipe, propelled, international, gt, vesselType, loadLine, onBack, onOpenMaterial, onOpenDrawing, onOpenTankTests, onOpenFindings, onOpenDocs }: Props) {
   const [rows, setRows] = useState<Map<string, StageRow>>(new Map());
   const [loaded, setLoaded] = useState(false);
   const [err, setErr] = useState('');
@@ -252,6 +319,9 @@ export default function StageTracker({ projectId, projectName, tipe, propelled, 
   const [tankRows, setTankRows] = useState<{ leak_status: 'belum' | 'lulus' | 'tidak_lulus'; struct_status: 'belum' | 'lulus' | 'tidak_lulus' | 'tidak_perlu' }[] | null>(null);
 
   const [findRows, setFindRows] = useState<{ item_key: string | null; status: 'open' | 'closed' }[] | null>(null);
+  // dokumen sertifikasi dan status pelacak material; null = tabelnya belum bisa dibaca
+  const [docRows, setDocRows] = useState<Map<string, { status: DocStatus }> | null>(null);
+  const [matRows, setMatRows] = useState<Map<string, { status: MatStatus }> | null>(null);
 
   const ctx = useMemo(() => ({ tipe, propelled }), [tipe, propelled]);
   const regimeHint = useMemo(() => suggestRegime({ propelled, international, gt }), [propelled, international, gt]);
@@ -259,13 +329,15 @@ export default function StageTracker({ projectId, projectName, tipe, propelled, 
   const load = useCallback(async () => {
     if (!supabase) return;
     setErr('');
-    // lima bacaan berjalan bersamaan; hanya tahapan yang wajib, sisanya bersifat ringkasan
-    const [st, dr, pm, tt, fd] = await Promise.all([
+    // tujuh bacaan berjalan bersamaan; hanya tahapan yang wajib, sisanya bersifat ringkasan
+    const [st, dr, pm, tt, fd, dc, mt] = await Promise.all([
       selectKeyed(supabase as unknown as KeyedClient, 'nb_stage_status', 'item_key,status,done_date,note', projectId),
       supabase.from('nb_drawing_status').select('item_key,status').eq('project_id', projectId),
       supabase.from('nb_projects').select('fp_above60,drawing_col').eq('id', projectId).maybeSingle(),
       supabase.from('nb_tank_tests').select('leak_status,struct_status').eq('project_id', projectId),
       supabase.from('nb_findings').select('item_key,status').eq('project_id', projectId),
+      supabase.from('nb_doc_status').select('item_key,status').eq('project_id', projectId),
+      supabase.from('nb_material_status').select('item_key,status').eq('project_id', projectId),
     ]);
     const { data, error } = st;
     versioned.current = st.versioned;
@@ -286,6 +358,9 @@ export default function StageTracker({ projectId, projectName, tipe, propelled, 
     if (!tt.error) setTankRows((tt.data ?? []) as NonNullable<typeof tankRows>);
     // daftar temuan: bila tabelnya belum ada, Tahapan tetap jalan tanpa pengingat
     if (!fd.error) setFindRows((fd.data ?? []) as NonNullable<typeof findRows>);
+    // dokumen sertifikasi: bila tabelnya belum ada, Interim dan Permanent tetap terkunci (penjaga tidak bisa memeriksa)
+    setDocRows(dc.error ? null : new Map(((dc.data ?? []) as { item_key: string; status: DocStatus }[]).map((r) => [r.item_key, { status: r.status }] as [string, { status: DocStatus }])));
+    setMatRows(mt.error ? null : new Map(((mt.data ?? []) as { item_key: string; status: MatStatus }[]).map((r) => [r.item_key, { status: r.status }] as [string, { status: MatStatus }])));
     if (!pm.error && pm.data) {
       const m = pm.data as { fp_above60: boolean | null; drawing_col: string | null };
       setFp(m.fp_above60);
@@ -301,12 +376,20 @@ export default function StageTracker({ projectId, projectName, tipe, propelled, 
   const drawInfo = useMemo(() => (drawLoaded ? drawingSummary({ vesselType, propelled, fpAbove60: fp, override }, drawRows) : null), [drawLoaded, vesselType, propelled, fp, override, drawRows]);
   const tankSum = useMemo(() => (tankRows ? summarizeTankTests(tankRows) : null), [tankRows]);
   const findSum = useMemo(() => (findRows ? summarizeFindings(findRows) : null), [findRows]);
-  /** Penjaga item: gambar masih Open, atau temuan masih Open. null = item boleh diselesaikan. */
-  const gateOf = (key: string): { msg: string; kind: 'drawing' | 'finding' } | null => {
+  const certSum = useMemo(
+    () => (docRows ? summarizeCert({ vesselType, propelled, loadLine, tipe }, { docRows, matRows, interimDone: rows.get('certificate.interim')?.status === 'selesai' }) : null),
+    [docRows, matRows, rows, vesselType, propelled, loadLine, tipe],
+  );
+  const finalStatus = rows.get('certificate.final')?.status;
+  const finalDone = finalStatus === 'selesai' || finalStatus === 'tidak_ada';
+  /** Penjaga item: gambar masih Open, temuan masih Open, atau dokumen sertifikasi kurang. null = item boleh diselesaikan. */
+  const gateOf = (key: string): { msg: string; kind: GateKind } | null => {
     const d = drawingGate(key, drawInfo);
     if (d) return { msg: d, kind: 'drawing' };
     const f = findingGate(key, findSum ? findSum.openByItem : null);
-    return f ? { msg: f, kind: 'finding' } : null;
+    if (f) return { msg: f, kind: 'finding' };
+    const c = certGate(key, certSum, finalDone);
+    return c ? { msg: c.msg, kind: c.kind } : null;
   };
   const total = useMemo(() => overallProgress(ctx, rows), [ctx, rows]);
   const hidden = useMemo(() => hiddenItemCount(ctx), [ctx]);
@@ -413,6 +496,7 @@ export default function StageTracker({ projectId, projectName, tipe, propelled, 
                       <Button size="sm" variant="warn" className="mt-2" onClick={onOpenFindings}>Buka daftar temuan</Button>
                     </div>
                   )}
+                  {st.key === 'certificate' && <CertPanel sum={certSum} onOpen={onOpenDocs} />}
                   <ul className="space-y-2">
                     {applicableItems(st, ctx).map((it) => {
                       const key = stageItemKey(st, it);
@@ -433,6 +517,7 @@ export default function StageTracker({ projectId, projectName, tipe, propelled, 
                           findOpen={findSum ? findSum.openByItem[key] ?? 0 : 0}
                           gate={gateOf(key)}
                           onOpenFindings={onOpenFindings}
+                          onOpenDocs={onOpenDocs}
                           tank={key === 'fabrication.leaktest' ? { kind: 'leak', sum: tankSum, onOpen: onOpenTankTests } : key === 'fabrication.structtest' ? { kind: 'struct', sum: tankSum, onOpen: onOpenTankTests } : null}
                         />
                       );

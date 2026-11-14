@@ -32,6 +32,7 @@ CI (`.github/workflows/ci.yml`) menjalankan tes, tipe, lint, dan build pada seti
 - `lib/optimisticLock.ts` — mencegah dua orang saling menimpa (kolom `version`).
 - `lib/backup.ts`, `lib/restore.ts` — cadangan dan pemulihan JSON.
 - `lib/uploads.ts`, `lib/fileSniff.ts` — unggah lampiran/gambar; isi file diperiksa, bukan hanya ekstensinya.
+- `lib/newbuildingCertDocs.ts` — daftar dokumen sertifikasi Bangunan Baru (Interim dan Permanent, PKBB) dan penjaga tahap Sertifikasi; SQL-nya `sql/nb_doc_status.sql`.
 - `components/` — UI; `components/classValidity/` untuk modul tab Class Validity.
 
 ## Prinsip yang dijaga
