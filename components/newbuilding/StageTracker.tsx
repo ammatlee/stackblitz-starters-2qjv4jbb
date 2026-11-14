@@ -6,7 +6,7 @@ import { Button, Chip } from '../Controls';
 import DateInput from '../DateInput';
 import { TIPE_LEGEND } from '../../lib/materialRules';
 import type { MatTipe } from '../../lib/materialRules';
-import { STAGES, STAGE_STATUSES, STAGE_STATUS_LABEL, applicableItems, firstOpenStage, hiddenItemCount, isStageDone, overallProgress, stageItemKey, stageProgress } from '../../lib/newbuildingStages';
+import { STAGES, STAGE_STATUSES, STAGE_STATUS_LABEL, applicableItems, drawingGate, firstOpenStage, hiddenItemCount, isStageDone, overallProgress, stageItemKey, stageProgress } from '../../lib/newbuildingStages';
 import { criteriaFor, suggestRegime } from '../../lib/newbuildingCriteria';
 import CriteriaFold from './CriteriaFold';
 import { summarizeTankTests, tankSummaryText } from '../../lib/newbuildingTankTests';
@@ -91,6 +91,7 @@ function ItemRow({
   tank,
   findOpen,
   onOpenFindings,
+  gate,
 }: {
   it: StageItem;
   row: StageRow | undefined;
@@ -106,6 +107,8 @@ function ItemRow({
   tank?: { kind: 'leak' | 'struct'; sum: TankSummary | null; onOpen: () => void } | null;
   findOpen: number;
   onOpenFindings: () => void;
+  /** Alasan item ini belum boleh Selesai/N/A (gambar masih Open); null = boleh. */
+  gate: string | null;
 }) {
   const status: StageStatus = row?.status ?? 'belum';
   const done = status === 'selesai';
@@ -128,11 +131,18 @@ function ItemRow({
         <>
           <div className="mt-2 flex flex-wrap gap-2">
             {STAGE_STATUSES.map((s) => (
-              <Chip key={s} selected={status === s} disabled={busy} onClick={() => onStatus(s)}>
+              <Chip key={s} selected={status === s} disabled={busy || (!!gate && s !== 'belum')} onClick={() => onStatus(s)}>
                 {STAGE_STATUS_LABEL[s]}
               </Chip>
             ))}
           </div>
+          {gate && (
+            <div className="mt-2 rounded-lg border border-red-300 bg-red-50 p-2 text-xs text-red-900">
+              <p className="font-semibold">{status !== 'belum' ? 'Status ini tidak sesuai: ' : 'Belum bisa diselesaikan: '}{gate}</p>
+              {status !== 'belum' && <p className="mt-0.5">Ubah kembali ke Belum, atau selesaikan gambarnya dulu.</p>}
+              <Button size="sm" variant="warn" className="mt-2" onClick={onOpenDrawing}>Buka pelacak gambar</Button>
+            </div>
+          )}
           {crit && <CriteriaFold set={crit} regimeHint={regimeHint} />}
           {tank && (
             <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-slate-600">
@@ -325,6 +335,12 @@ export default function StageTracker({ projectId, projectName, tipe, propelled, 
   };
 
   const changeStatus = (st: Stage, it: StageItem, status: StageStatus) => {
+    // penjaga kedua (tombolnya sudah dimatikan di tampilan): selama ada gambar Open, tidak boleh Selesai atau N/A
+    const block = status !== 'belum' ? drawingGate(stageItemKey(st, it), drawInfo) : null;
+    if (block) {
+      setErr(block);
+      return;
+    }
     const prev = rows.get(stageItemKey(st, it));
     save(st, it, { status, done_date: status === 'selesai' ? prev?.done_date ?? todayIso() : null });
   };
@@ -358,7 +374,9 @@ export default function StageTracker({ projectId, projectName, tipe, propelled, 
             const heading = st.group && st.group !== lastGroup ? st.group : null;
             lastGroup = st.group ?? '';
             const p = stageProgress(st, ctx, rows);
-            const done = isStageDone(st, ctx, rows) && p.selesai + p.tidakAda > 0;
+            // tahap tidak dianggap selesai bila ada item yang ditandai Selesai padahal gambar masih Open
+            const inconsistent = applicableItems(st, ctx).some((it) => (rows.get(stageItemKey(st, it))?.status ?? 'belum') !== 'belum' && drawingGate(stageItemKey(st, it), drawInfo) !== null);
+            const done = isStageDone(st, ctx, rows) && p.selesai + p.tidakAda > 0 && !inconsistent;
             const state: StageState = done ? 'done' : openKey === st.key ? 'active' : 'pending';
             return (
               <React.Fragment key={st.key}>
@@ -406,6 +424,7 @@ export default function StageTracker({ projectId, projectName, tipe, propelled, 
                           crit={criteriaFor(key)}
                           regimeHint={regimeHint}
                           findOpen={findSum ? findSum.openByItem[key] ?? 0 : 0}
+                          gate={drawingGate(key, drawInfo)}
                           onOpenFindings={onOpenFindings}
                           tank={key === 'fabrication.leaktest' ? { kind: 'leak', sum: tankSum, onOpen: onOpenTankTests } : key === 'fabrication.structtest' ? { kind: 'struct', sum: tankSum, onOpen: onOpenTankTests } : null}
                         />

@@ -183,5 +183,24 @@ export const isStageDone = (s: Stage, c: StageCtx, rows: Map<string, StageRow>):
   return p.selesai === p.total;
 };
 
+/**
+ * Item yang tidak boleh ditandai Selesai atau N/A selama masih ada gambar berstatus Open:
+ * persetujuan gambar, lalu penyelesaian dan sertifikasi (proyek tidak bisa selesai sebelum semua gambar Closed atau N/A).
+ * Mau menambah atau mengurangi item yang dijaga: ubah daftar ini saja.
+ */
+export const DRAWING_GATED = ['drawing.disetujui', 'completion.completion', 'certificate.interim', 'certificate.final', 'certificate.permanent'];
+
+/** Ringkasan gambar yang dibutuhkan penjaga ini (bentuknya sama dengan DrawingSummary). null = data gambar belum bisa dibaca. */
+export type DrawingGateInput = { open: number; needFlashPoint: boolean } | null;
+
+/** Pesan alasan bila item ini belum boleh Selesai/N/A karena gambar; null bila boleh. */
+export function drawingGate(itemKey: string, d: DrawingGateInput): string | null {
+  if (!DRAWING_GATED.includes(itemKey)) return null;
+  if (d === null) return 'Data gambar belum bisa dibaca, jadi item ini belum bisa diselesaikan. Muat ulang halaman.';
+  if (d.needFlashPoint) return 'Flash point muatan belum diisi, daftar gambar belum bisa ditentukan. Isi di pelacak gambar dulu.';
+  if (d.open > 0) return `Masih ada ${d.open} gambar berstatus Open. Tutup (Closed) atau tandai N/A di pelacak gambar dulu.`;
+  return null;
+}
+
 /** Tahap pertama yang belum selesai (null bila semuanya selesai). */
 export const firstOpenStage = (c: StageCtx, rows: Map<string, StageRow>): Stage | null => STAGES.find((s) => !isStageDone(s, c, rows)) ?? null;
