@@ -16,8 +16,8 @@ import { openFindingsText, summarizeFindings } from '../../lib/newbuildingFindin
 import type { DrawingSummary } from '../../lib/newbuildingDrawings';
 import type { CriteriaSet, Regime } from '../../lib/newbuildingCriteria';
 import type { Stage, StageItem, StageProgress, StageRow, StageStatus } from '../../lib/newbuildingStages';
-
-const INPUT = 'w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm';
+import { INPUT } from './fields';
+import { todayIso } from '../../lib/todayIso';
 
 type Props = {
   projectId: string;
@@ -38,12 +38,6 @@ type Patch = Partial<Omit<StageRow, 'item_key'>>;
 
 /** Tahap setelah Fabrication: temuan Open yang tersisa diingatkan di sini. */
 const AFTER_FABRICATION = ['keel', 'commissioning', 'completion'];
-
-const todayIso = (): string => {
-  const d = new Date();
-  const p = (n: number) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
-};
 
 /** Kolom catatan: disimpan saat kolom ditinggalkan, bukan di setiap ketukan. */
 function NoteInput({ value, disabled, onSave }: { value: string; disabled: boolean; onSave: (v: string) => void }) {

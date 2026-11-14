@@ -7,8 +7,8 @@ import { CELL_LEGEND, COL_LEGEND, NOTES, TIPE_LEGEND, WELDING, cellsFor, parseCe
 import type { MatItem, MatTipe } from '../../lib/materialRules';
 import { STATUSES, STATUS_LABEL, itemKey, progressOf, trackerItems } from '../../lib/materialTracker';
 import type { MatStatus, MatStatusRow } from '../../lib/materialTracker';
+import { INPUT } from './fields';
 
-const INPUT = 'w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm';
 const TD = 'px-1 py-1.5 align-top';
 
 type Props = {

@@ -7,8 +7,8 @@ import { useDialog } from '../DialogProvider';
 import { PHOTO_PHASES, PHOTO_PHASE_LABEL, normalizeCaption, photoCode, photoSummary, sortPhotos, thumbPath } from '../../lib/newbuildingPhotos';
 import type { FindingPhoto, PhotoPhase } from '../../lib/newbuildingPhotos';
 import { photoUrls, removePhotoFiles, uploadFindingPhoto } from '../../lib/photoUpload';
+import { INPUT } from './fields';
 
-const INPUT = 'w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm';
 const COLS = 'id,finding_id,path,caption,phase,seq';
 
 /** Keterangan foto: disimpan saat kolom ditinggalkan. */

@@ -13,42 +13,20 @@ import type { PhotoPhase } from '../../lib/newbuildingPhotos';
 import { removePhotoFiles } from '../../lib/photoUpload';
 import { updateWithVersion } from '../../lib/optimisticLock';
 import type { LockClient } from '../../lib/optimisticLock';
+import { INPUT, BlurInput } from './fields';
+import { todayIso } from '../../lib/todayIso';
 
-const INPUT = 'w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm';
 const COLS = 'id,item_key,description,location,status,found_date,closed_date,note,seq,source_tank_id,source_kind';
 const COLS_V = COLS + ',version';
+/** Bentuk hasil bacaan yang dipakai di sini; menyeragamkan tipe hasil select yang kolomnya dipilih saat berjalan. */
+type ListRes = { data: unknown[] | null; error: { message: string } | null };
 
 type Patch = Partial<Omit<FindingRow, 'id'>>;
 type StatusFilter = FindingStatus | 'all';
 type PhotoMap = Record<string, { phase: PhotoPhase }[]>;
 const GENERAL = '__umum__';
 
-const todayIso = (): string => {
-  const d = new Date();
-  const p = (n: number) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
-};
-
 /** Kolom teks: disimpan saat kolom ditinggalkan, bukan di setiap ketukan. */
-function BlurInput({ value, placeholder, disabled, onSave }: { value: string; placeholder: string; disabled: boolean; onSave: (v: string) => void }) {
-  const [t, setT] = useState(value);
-  useEffect(() => {
-    setT(value);
-  }, [value]);
-  return (
-    <input
-      className={INPUT}
-      placeholder={placeholder}
-      value={t}
-      disabled={disabled}
-      onChange={(e) => setT(e.target.value)}
-      onBlur={() => {
-        if (t.trim() !== value.trim()) onSave(t.trim());
-      }}
-    />
-  );
-}
-
 function FindingItem({ r, projectId, photos, busy, onPatch, onPhotos, onDelete }: { r: FindingRow; projectId: string; photos: { phase: PhotoPhase }[]; busy: boolean; onPatch: (p: Patch) => void; onPhotos: (rows: { phase: PhotoPhase }[]) => void; onDelete: () => void }) {
   const open = r.status === 'open';
   const toggle = () => onPatch({ status: open ? 'closed' : 'open', closed_date: open ? todayIso() : null });
@@ -111,7 +89,7 @@ export default function FindingTracker({ projectId, projectName, onBack }: { pro
   const load = useCallback(async () => {
     if (!supabase) return;
     setErr('');
-    let res = await supabase.from('nb_findings').select(colsRef.current).eq('project_id', projectId).order('created_at', { ascending: true });
+    let res: ListRes = await supabase.from('nb_findings').select(colsRef.current).eq('project_id', projectId).order('created_at', { ascending: true });
     if (res.error && /version/i.test(res.error.message)) {
       colsRef.current = COLS;
       res = await supabase.from('nb_findings').select(COLS).eq('project_id', projectId).order('created_at', { ascending: true });

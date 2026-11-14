@@ -24,8 +24,8 @@ import {
   statusOf,
 } from '../../lib/newbuildingDrawings';
 import type { Drawing, DrawingRow, DrawingStatus } from '../../lib/newbuildingDrawings';
-
-const INPUT = 'w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm';
+import { INPUT, BlurInput } from './fields';
+import { todayIso } from '../../lib/todayIso';
 
 type Props = {
   projectId: string;
@@ -39,12 +39,6 @@ type Props = {
 type Patch = Partial<Omit<DrawingRow, 'item_key'>>;
 type Filter = 'semua' | DrawingStatus;
 
-const todayIso = (): string => {
-  const d = new Date();
-  const p = (n: number) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
-};
-
 const REQ_TONE: Record<Drawing['req'], string> = {
   M: 'bg-teal-100 text-teal-800',
   C: 'bg-amber-100 text-amber-900',
@@ -52,25 +46,6 @@ const REQ_TONE: Record<Drawing['req'], string> = {
 };
 
 /** Kolom teks: disimpan saat kolom ditinggalkan, bukan di setiap ketukan. */
-function BlurInput({ value, placeholder, disabled, onSave }: { value: string; placeholder: string; disabled: boolean; onSave: (v: string) => void }) {
-  const [t, setT] = useState(value);
-  useEffect(() => {
-    setT(value);
-  }, [value]);
-  return (
-    <input
-      className={INPUT}
-      placeholder={placeholder}
-      value={t}
-      disabled={disabled}
-      onChange={(e) => setT(e.target.value)}
-      onBlur={() => {
-        if (t.trim() !== value.trim()) onSave(t.trim());
-      }}
-    />
-  );
-}
-
 function DrawingItem({
   d,
   row,

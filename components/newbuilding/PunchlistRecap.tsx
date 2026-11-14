@@ -6,14 +6,9 @@ import { Button, Chip, Notice } from '../Controls';
 import type { FindingRow } from '../../lib/newbuildingFindings';
 import type { FindingPhoto } from '../../lib/newbuildingPhotos';
 import { groupPunchlist, punchlistCounts, punchlistSummaryText, punchlistText } from '../../lib/punchlist';
+import { todayIso } from '../../lib/todayIso';
 
 const PHOTO_COLS = 'id,finding_id,path,caption,phase,seq';
-
-const todayIso = (): string => {
-  const d = new Date();
-  const p = (n: number) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
-};
 
 /** Nama berkas aman: huruf, angka, strip. */
 const safeName = (s: string): string => s.replace(/[^A-Za-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 60) || 'proyek';

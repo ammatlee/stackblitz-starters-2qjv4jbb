@@ -27,10 +27,13 @@ import { updateWithVersion } from '../../lib/optimisticLock';
 import type { LockClient } from '../../lib/optimisticLock';
 import { TANK_SIDES, TANK_SIDE_LABEL, catalogGroups, countKind, duplicateTankIds, isOilCarrier, kindOfName, nextTankName, rowsNeedingSide, tankDisplayName } from '../../lib/newbuildingTankCatalog';
 import type { TankKind, TankSide } from '../../lib/newbuildingTankCatalog';
+import { INPUT, BlurInput } from './fields';
+import { todayIso } from '../../lib/todayIso';
 
-const INPUT = 'w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm';
 const COLS = 'id,name,side,leak_status,leak_method,leak_date,struct_status,struct_head,struct_date,note,leak_count,struct_leak,struct_deform';
 const COLS_V = COLS + ',version';
+/** Bentuk hasil bacaan yang dipakai di sini; menyeragamkan tipe hasil select yang kolomnya dipilih saat berjalan. */
+type ListRes = { data: unknown[] | null; error: { message: string } | null };
 
 type Patch = Partial<Omit<TankTestRow, 'id'>>;
 
@@ -42,33 +45,7 @@ const KINDS: ('leak' | 'struct')[] = ['leak', 'struct'];
 const detailFor = (r: TankTestRow, kind: 'leak' | 'struct'): string | null => (kind === 'leak' ? leakDetail(r.leak_count) : structDetail(r.struct_leak, r.struct_deform));
 const statusOf = (r: TankTestRow, kind: 'leak' | 'struct'): TestStatus | StructStatus => (kind === 'leak' ? r.leak_status : r.struct_status);
 
-const todayIso = (): string => {
-  const d = new Date();
-  const p = (n: number) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
-};
-
 /** Kolom teks: disimpan saat kolom ditinggalkan, bukan di setiap ketukan. */
-function BlurInput({ value, placeholder, disabled, onSave, inputMode }: { value: string; placeholder: string; disabled: boolean; onSave: (v: string) => void; inputMode?: 'decimal' | 'numeric' }) {
-  const [t, setT] = useState(value);
-  useEffect(() => {
-    setT(value);
-  }, [value]);
-  return (
-    <input
-      className={INPUT}
-      placeholder={placeholder}
-      inputMode={inputMode}
-      value={t}
-      disabled={disabled}
-      onChange={(e) => setT(e.target.value)}
-      onBlur={() => {
-        if (t.trim() !== value.trim()) onSave(t.trim());
-      }}
-    />
-  );
-}
-
 const TONE: Record<string, string> = {
   lulus: 'border-teal-200 bg-teal-50/50',
   tidak_lulus: 'border-red-200 bg-red-50/50',
@@ -257,7 +234,7 @@ export default function TankTestTracker({ projectId, projectName, vesselType, pr
   const load = useCallback(async () => {
     if (!supabase) return;
     setErr('');
-    let res = await supabase.from('nb_tank_tests').select(colsRef.current).eq('project_id', projectId).order('created_at', { ascending: true });
+    let res: ListRes = await supabase.from('nb_tank_tests').select(colsRef.current).eq('project_id', projectId).order('created_at', { ascending: true });
     if (res.error && /version/i.test(res.error.message)) {
       colsRef.current = COLS;
       res = await supabase.from('nb_tank_tests').select(COLS).eq('project_id', projectId).order('created_at', { ascending: true });

@@ -24,6 +24,7 @@ import type { NbRoute } from '../../lib/newbuildingRoute';
 import { groupByProject, projectOverview } from '../../lib/newbuildingOverview';
 import type { ProjectOverview } from '../../lib/newbuildingOverview';
 import type { StageRow } from '../../lib/newbuildingStages';
+import { INPUT } from '../../components/newbuilding/fields';
 
 type Project = {
   id: string;
@@ -55,8 +56,6 @@ type Draft = {
 };
 
 const EMPTY: Draft = { id: null, name: '', yard: '', hull_no: '', vessel_type: '', application_date: '', international: false, gt: '', notasi_l20: false, propelled: null };
-
-const INPUT = 'w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm';
 
 const toNum = (s: string): number | null => {
   const n = Number(s.replace(',', '.').trim());

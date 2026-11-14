@@ -4,8 +4,8 @@ import React, { useState } from 'react';
 import { Chip } from '../Controls';
 import { CRITERIA_DISCLAIMER, CRITERIA_SOURCES, PART_A_MIN_HEAD, governingHead, governingHeadA, partCMinHead } from '../../lib/newbuildingCriteria';
 import type { CriteriaGroup, CriteriaSet, Regime } from '../../lib/newbuildingCriteria';
+import { INPUT } from './fields';
 
-const INPUT = 'w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm';
 const fmt = (n: number) => n.toLocaleString('id-ID', { maximumFractionDigits: 2 });
 const num = (v: string): number | null => {
   const n = parseFloat(v.replace(',', '.'));
