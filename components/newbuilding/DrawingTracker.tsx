@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { Button, Chip } from '../Controls';
 import { Fold } from '../classValidity/ui';
@@ -26,6 +26,8 @@ import {
 import type { Drawing, DrawingRow, DrawingStatus } from '../../lib/newbuildingDrawings';
 import { INPUT, BlurInput } from './fields';
 import { todayIso } from '../../lib/todayIso';
+import { saveKeyedRow, selectKeyed } from '../../lib/rowLock';
+import type { KeyedClient } from '../../lib/rowLock';
 
 type Props = {
   projectId: string;
@@ -121,6 +123,8 @@ export default function DrawingTracker({ projectId, projectName, vesselType, pro
   const [loaded, setLoaded] = useState(false);
   const [err, setErr] = useState('');
   const [busyKey, setBusyKey] = useState('');
+  // false bila kolom version belum ada di database: simpan dengan cara lama (tanpa cek edit bersamaan)
+  const versioned = useRef(true);
   const [q, setQ] = useState('');
   const [filter, setFilter] = useState<Filter>('semua');
   const [showOptional, setShowOptional] = useState(true);
@@ -128,7 +132,8 @@ export default function DrawingTracker({ projectId, projectName, vesselType, pro
   const load = useCallback(async () => {
     if (!supabase) return;
     setErr('');
-    const st = await supabase.from('nb_drawing_status').select('item_key,status,submit_date,done_date,rev,note').eq('project_id', projectId);
+    const st = await selectKeyed(supabase as unknown as KeyedClient, 'nb_drawing_status', 'item_key,status,submit_date,done_date,rev,note', projectId);
+    versioned.current = st.versioned;
     if (st.error) {
       setErr(st.error.message + (/relation|does not exist/i.test(st.error.message) ? ' (sudah menjalankan SQL nb_drawing_status?)' : ''));
       setLoaded(true);
@@ -183,15 +188,23 @@ export default function DrawingTracker({ projectId, projectName, vesselType, pro
     };
     setBusyKey(d.key);
     setErr('');
-    const r = await supabase
-      .from('nb_drawing_status')
-      .upsert({ project_id: projectId, ...next, updated_at: new Date().toISOString() }, { onConflict: 'project_id,item_key' });
+    // baris sudah ada: cek version; belum ada: insert; kolom version belum ada: cara lama
+    const ver = !versioned.current ? undefined : prev ? prev.version : null;
+    const r = await saveKeyedRow(supabase as unknown as KeyedClient, 'nb_drawing_status', projectId, d.key, ver, {
+      status: next.status,
+      submit_date: next.submit_date,
+      done_date: next.done_date,
+      rev: next.rev,
+      note: next.note,
+      updated_at: new Date().toISOString(),
+    });
     setBusyKey('');
-    if (r.error) {
-      setErr(r.error.message);
+    if (r.status !== 'ok') {
+      if (r.status === 'conflict') await load(); // tampilkan data terbaru dulu, lalu pesannya
+      setErr(r.message);
       return;
     }
-    setRows((m) => new Map(m).set(d.key, next));
+    setRows((m) => new Map(m).set(d.key, { ...next, version: r.version }));
   };
 
   const changeStatus = (d: Drawing, status: DrawingStatus) => {

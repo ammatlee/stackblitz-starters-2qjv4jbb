@@ -5,6 +5,8 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { downloadBackup } from '../lib/backup';
 import { parseBackup, planRestore, runRestore, RESTORE_TABLES, TABLE_LABEL } from '../lib/restore';
+import { planRestoreNb, runRestoreNb } from '../lib/restoreNb';
+import { NB_LABEL, NB_TABLES } from '../lib/restoreNbTables';
 import { updateWithVersion } from '../lib/optimisticLock';
 import type { LockClient } from '../lib/optimisticLock';
 import { useAuth } from './AuthProvider';
@@ -239,17 +241,22 @@ export default function AgendaPanel({ vesselName, vesselType, yearBuilt, agendaN
     try {
       const b = parseBackup(await file.text());
       const plan = await planRestore(b, user.id);
+      const nb = await planRestoreNb(b, user.id);
       const sum = (o: Record<string, number>) => RESTORE_TABLES.reduce((n, t) => n + o[t], 0);
-      const toAdd = RESTORE_TABLES.reduce((n, t) => n + plan.toAdd[t].length, 0);
+      const sumNb = (o: Record<string, number>) => NB_TABLES.reduce((n, t) => n + o[t], 0);
+      const toAdd = RESTORE_TABLES.reduce((n, t) => n + plan.toAdd[t].length, 0) + NB_TABLES.reduce((n, t) => n + nb.toAdd[t].length, 0);
       const skip = [
-        sum(plan.exists) ? `${sum(plan.exists)} sudah ada di server` : '',
-        sum(plan.notMine) ? `${sum(plan.notMine)} milik akun lain` : '',
+        sum(plan.exists) + sumNb(nb.exists) ? `${sum(plan.exists) + sumNb(nb.exists)} sudah ada di server` : '',
+        sum(plan.notMine) + sumNb(nb.notMine) ? `${sum(plan.notMine) + sumNb(nb.notMine)} milik akun lain` : '',
         plan.conflict ? `${plan.conflict} agenda bentrok nomor` : '',
       ].filter(Boolean).join(', ');
       if (toAdd === 0) {
         setRsMsg({ k: 'ok', t: 'Tidak ada yang perlu dipulihkan: semua data di file ini sudah ada di server' + (skip ? ` (${skip}).` : '.') });
       } else {
-        const list = RESTORE_TABLES.map((t) => `${plan.toAdd[t].length} ${TABLE_LABEL[t]}`).join(', ');
+        const list = [
+          ...RESTORE_TABLES.map((t) => `${plan.toAdd[t].length} ${TABLE_LABEL[t]}`),
+          ...NB_TABLES.filter((t) => nb.toAdd[t].length > 0).map((t) => `${nb.toAdd[t].length} ${NB_LABEL[t]}`),
+        ].join(', ');
         const yes = await confirm({
           title: 'Pulihkan dari cadangan?',
           message: `Akan ditambahkan: ${list}. Data yang sudah ada di server tidak diubah.` + (skip ? ` Dilewati: ${skip}.` : ''),
@@ -257,12 +264,16 @@ export default function AgendaPanel({ vesselName, vesselType, yearBuilt, agendaN
         });
         if (yes) {
           const r = await runRestore(plan);
-          const done = RESTORE_TABLES.map((t) => `${r.added[t]} ${TABLE_LABEL[t]}`).join(', ');
-          const bad = r.failed.map((f) => `${f.count} ${TABLE_LABEL[f.table]} gagal (${f.message})`).join('; ');
-          const orphan = RESTORE_TABLES.reduce((n, t) => n + r.orphan[t], 0);
+          const rn = await runRestoreNb(nb);
+          const done = [
+            ...RESTORE_TABLES.map((t) => `${r.added[t]} ${TABLE_LABEL[t]}`),
+            ...NB_TABLES.filter((t) => rn.added[t] > 0).map((t) => `${rn.added[t]} ${NB_LABEL[t]}`),
+          ].join(', ');
+          const bad = [...r.failed.map((f) => `${f.count} ${TABLE_LABEL[f.table]} gagal (${f.message})`), ...rn.failed.map((f) => `${f.count} ${NB_LABEL[f.table]} gagal (${f.message})`)].join('; ');
+          const orphan = RESTORE_TABLES.reduce((n, t) => n + r.orphan[t], 0) + NB_TABLES.reduce((n, t) => n + rn.orphan[t], 0);
           setRsMsg({
             k: r.failed.length || orphan ? 'err' : 'ok',
-            t: `Dipulihkan: ${done}.` + (bad ? ` ${bad}.` : '') + (orphan ? ` ${orphan} data dilewati karena kapalnya tidak ada.` : ''),
+            t: `Dipulihkan: ${done}.` + (bad ? ` ${bad}.` : '') + (orphan ? ` ${orphan} data dilewati karena kapal atau proyek induknya tidak ada.` : ''),
           });
           load();
           onSaved?.();

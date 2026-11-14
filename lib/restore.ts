@@ -1,5 +1,6 @@
 import { supabase } from './supabase';
 import { fetchAllRows } from './fetchAll';
+import { NB_TABLES } from './restoreNbTables';
 
 /**
  * Memulihkan data dari file cadangan (rdk-cadangan-*.json buatan lib/backup.ts).
@@ -10,8 +11,8 @@ import { fetchAllRows } from './fetchAll';
  *  - hanya baris milik akun yang sedang masuk (kolom owner) yang dipulihkan;
  *  - urutan: kapal dulu, baru agenda dan pembaruan manual (keduanya bergantung pada kapal);
  *  - agenda dengan nomor agenda yang sudah dipakai akun ini dilewati (bentrok), bukan ditimpa.
- * Tabel yang dipulihkan: vessels, agendas, vessel_events. Bulletin, pengaturan laporan,
- * dan riwayat perubahan belum ikut (lampiran di Storage memang tidak ada di file cadangan).
+ * Tabel yang dipulihkan di sini: vessels, agendas, vessel_events. Data Bangunan Baru dipulihkan oleh lib/restoreNb.ts.
+ * Bulletin, pengaturan laporan, dan riwayat perubahan belum ikut (lampiran di Storage memang tidak ada di file cadangan).
  */
 
 type Row = Record<string, unknown>;
@@ -40,7 +41,8 @@ export function parseBackup(text: string): Backup {
   }
   if (b.format !== 2) throw new Error(`Versi format cadangan (${String(b.format)}) tidak dikenali oleh aplikasi ini.`);
   const tables: Record<string, Row[]> = {};
-  for (const t of RESTORE_TABLES) {
+  // tabel Bangunan Baru ikut dibaca di sini, dipulihkan oleh lib/restoreNb.ts
+  for (const t of [...RESTORE_TABLES, ...NB_TABLES]) {
     const v = (b.tables as Record<string, unknown>)[t];
     tables[t] = Array.isArray(v) ? (v as Row[]).filter((r) => r && typeof r === 'object') : [];
   }

@@ -19,6 +19,14 @@ const EXTRA: { table: string; order: string[] }[] = [
   { table: 'report_na', order: ['owner', 'vessel_type', 'col', 'item'] },
   { table: 'vessel_types_custom', order: ['owner', 'name'] },
   { table: 'audit_log', order: ['id'] },
+  // Bangunan Baru. Tabel status per item tidak punya id: urutannya memakai pasangan (project_id, item_key).
+  { table: 'nb_projects', order: ['id'] },
+  { table: 'nb_stage_status', order: ['project_id', 'item_key'] },
+  { table: 'nb_drawing_status', order: ['project_id', 'item_key'] },
+  { table: 'nb_material_status', order: ['project_id', 'item_key'] },
+  { table: 'nb_tank_tests', order: ['id'] },
+  { table: 'nb_findings', order: ['id'] },
+  { table: 'nb_finding_photos', order: ['id'] },
 ];
 
 async function readTable(table: string, order: string[]): Promise<{ rows: unknown[]; error: string | null }> {
@@ -34,9 +42,10 @@ async function readTable(table: string, order: string[]): Promise<{ rows: unknow
 export type BackupResult = { counts: Record<string, number>; skipped: string[] };
 
 /**
- * Mengunduh data kapal, agenda, pembaruan status, bulletin, pengaturan laporan, jenis kapal sendiri, dan riwayat perubahan
+ * Mengunduh data kapal, agenda, pembaruan status, bulletin, pengaturan laporan, jenis kapal sendiri, riwayat perubahan,
+ * dan data Bangunan Baru (proyek, tahapan, gambar, material, uji tangki, temuan, data foto)
  * sebagai satu file JSON (hanya data yang boleh dibaca akun ini; admin = semua akun).
- * Catatan: file lampiran/gambar di Storage tidak ikut; yang tersimpan hanya tautannya.
+ * Catatan: file lampiran/gambar di Storage (termasuk foto temuan) tidak ikut; yang tersimpan hanya tautannya.
  */
 export async function downloadBackup(): Promise<BackupResult> {
   const tables: Record<string, unknown[]> = {};

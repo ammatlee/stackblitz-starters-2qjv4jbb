@@ -17,6 +17,8 @@ export type StageRow = {
   status: StageStatus;
   done_date: string | null;
   note: string | null;
+  /** Penanda edit bersamaan (kolom version); kosong bila kolomnya belum ada di database. */
+  version?: number;
 };
 
 /** Data proyek yang menentukan item mana yang berlaku. */

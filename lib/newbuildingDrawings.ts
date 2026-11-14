@@ -27,6 +27,8 @@ export type DrawingRow = {
   done_date: string | null;
   rev: string | null;
   note: string | null;
+  /** Penanda edit bersamaan (kolom version); kosong bila kolomnya belum ada di database. */
+  version?: number;
 };
 
 /** M = wajib; C = bersyarat (ada kode dan syarat); O = jika ada/opsional. */

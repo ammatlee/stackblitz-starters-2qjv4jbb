@@ -25,6 +25,9 @@ import { groupByProject, projectOverview } from '../../lib/newbuildingOverview';
 import type { ProjectOverview } from '../../lib/newbuildingOverview';
 import type { StageRow } from '../../lib/newbuildingStages';
 import { INPUT } from '../../components/newbuilding/fields';
+import { updateWithVersion } from '../../lib/optimisticLock';
+import type { LockClient } from '../../lib/optimisticLock';
+import { PAGE_STEP, countArchived, filterProjects } from '../../lib/newbuildingListView';
 
 type Project = {
   id: string;
@@ -40,6 +43,10 @@ type Project = {
   updated_at: string;
   fp_above60?: boolean | null;
   drawing_col?: string | null;
+  /** Penanda edit bersamaan; kosong bila kolom version belum ada di database. */
+  version?: number | null;
+  /** Terisi bila proyek diarsipkan; kosong bila kolomnya belum ada atau proyek aktif. */
+  archived_at?: string | null;
 };
 
 type Draft = {
@@ -53,9 +60,11 @@ type Draft = {
   gt: string;
   notasi_l20: boolean;
   propelled: boolean | null; // null = otomatis dari jenis kapal
+  /** version proyek saat formulir dibuka (untuk cek edit bersamaan); null = proyek baru atau kolom belum ada. */
+  version: number | null;
 };
 
-const EMPTY: Draft = { id: null, name: '', yard: '', hull_no: '', vessel_type: '', application_date: '', international: false, gt: '', notasi_l20: false, propelled: null };
+const EMPTY: Draft = { id: null, name: '', yard: '', hull_no: '', vessel_type: '', application_date: '', international: false, gt: '', notasi_l20: false, propelled: null, version: null };
 
 const toNum = (s: string): number | null => {
   const n = Number(s.replace(',', '.').trim());
@@ -78,6 +87,7 @@ const fromProject = (p: Project): Draft => ({
   gt: p.gt == null ? '' : String(p.gt),
   notasi_l20: p.notasi_l20,
   propelled: p.propelled,
+  version: typeof p.version === 'number' ? p.version : null,
 });
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
@@ -168,21 +178,33 @@ function Inner() {
   const go = (r: NbRoute) => router.push(routeHref(r));
   const [openFind, setOpenFind] = useState<Map<string, number>>(new Map());
   const [ov, setOv] = useState<Map<string, ProjectOverview>>(new Map());
+  // daftar proyek: kata kunci, tab Aktif/Arsip, dan jumlah kartu yang ditampilkan
+  const [q, setQ] = useState('');
+  const [showArchived, setShowArchived] = useState(false);
+  const [limit, setLimit] = useState(PAGE_STEP);
 
   const load = useCallback(async () => {
     if (!supabase) return;
+    const sb = supabase;
     setErr('');
-    const { data, error } = await supabase.from('nb_projects').select('*').order('updated_at', { ascending: false });
-    if (error) {
-      setErr(error.message + (/relation|does not exist/i.test(error.message) ? ' (sudah menjalankan SQL nb_projects?)' : ''));
+    // empat bacaan berjalan bersamaan. Hanya baris yang mengubah angka yang dibaca:
+    // tahapan yang belum dikerjakan dan gambar yang masih Open tidak perlu dibaca (tanpa baris = Belum / Open).
+    const [pr, fd, st, dr] = await Promise.all([
+      sb.from('nb_projects').select('*').order('updated_at', { ascending: false }),
+      // pengingat temuan Open per proyek
+      fetchAllRows((a, b) => sb.from('nb_findings').select('id,project_id').eq('status', 'open').order('id').range(a, b)),
+      fetchAllRows((a, b) => sb.from('nb_stage_status').select('project_id,item_key,status').neq('status', 'belum').order('project_id').order('item_key').range(a, b)),
+      fetchAllRows((a, b) => sb.from('nb_drawing_status').select('project_id,item_key,status').neq('status', 'open').order('project_id').order('item_key').range(a, b)),
+    ]);
+    if (pr.error) {
+      setErr(pr.error.message + (/relation|does not exist/i.test(pr.error.message) ? ' (sudah menjalankan SQL nb_projects?)' : ''));
       setList([]);
       return;
     }
-    const projects = (data ?? []) as Project[];
+    const projects = (pr.data ?? []) as Project[];
     setList(projects);
 
-    // pengingat temuan Open per proyek; bila tabelnya belum ada, kartu tampil tanpa pengingat
-    const fd = await fetchAllRows((a, b) => supabase!.from('nb_findings').select('id,project_id').eq('status', 'open').order('id').range(a, b));
+    // bila tabelnya belum ada, kartu tampil tanpa pengingat
     if (!fd.error) {
       const counts = new Map<string, number>();
       for (const r of fd.data as { project_id: string }[]) counts.set(r.project_id, (counts.get(r.project_id) ?? 0) + 1);
@@ -190,9 +212,7 @@ function Inner() {
     }
 
     // ringkasan progress per proyek; bila tabelnya belum ada, kartu tampil tanpa ringkasan
-    const st = await fetchAllRows((a, b) => supabase!.from('nb_stage_status').select('project_id,item_key,status').order('project_id').order('item_key').range(a, b));
     if (st.error) return;
-    const dr = await fetchAllRows((a, b) => supabase!.from('nb_drawing_status').select('project_id,item_key,status').order('project_id').order('item_key').range(a, b));
     const stageBy = groupByProject(st.data as { project_id: string; item_key: string; status: StageRow['status'] }[]);
     const drawBy = dr.error ? null : groupByProject(dr.data as { project_id: string; item_key: string; status: 'open' | 'closed' | 'tidak_ada' }[]);
     const next = new Map<string, ProjectOverview>();
@@ -231,6 +251,21 @@ function Inner() {
 
   const set = <K extends keyof Draft>(k: K, v: Draft[K]) => setD((x) => (x ? { ...x, [k]: v } : x));
 
+  const counts = useMemo(() => countArchived(list ?? []), [list]);
+  const filtered = useMemo(() => filterProjects(list ?? [], q, showArchived), [list, q, showArchived]);
+
+  /** Mengubah satu proyek. Bila kolom version ada, simpan hanya bila proyek belum diubah orang lain sejak dibuka. */
+  const patchProject = async (id: string, version: number | null | undefined, values: Record<string, unknown>): Promise<{ error: string; conflict: boolean }> => {
+    if (!supabase) return { error: 'Supabase belum dikonfigurasi.', conflict: false };
+    const v = { ...values, updated_at: new Date().toISOString() };
+    if (typeof version === 'number') {
+      const r = await updateWithVersion(supabase as unknown as LockClient, 'nb_projects', id, version, v);
+      return r.status === 'ok' ? { error: '', conflict: false } : { error: r.message, conflict: r.status === 'conflict' };
+    }
+    const r = await supabase.from('nb_projects').update(v).eq('id', id);
+    return { error: r.error ? r.error.message : '', conflict: false };
+  };
+
   const save = async () => {
     if (!supabase || !d) return;
     if (!d.name.trim()) {
@@ -250,21 +285,45 @@ function Inner() {
       notasi_l20: d.notasi_l20,
       propelled: d.propelled,
     };
-    const r = d.id
-      ? await supabase.from('nb_projects').update({ ...payload, updated_at: new Date().toISOString() }).eq('id', d.id)
-      : await supabase.from('nb_projects').insert(payload);
+    let msg = '';
+    let conflict = false;
+    if (d.id) {
+      const r = await patchProject(d.id, d.version, payload);
+      msg = r.error;
+      conflict = r.conflict;
+    } else {
+      const r = await supabase.from('nb_projects').insert(payload);
+      msg = r.error ? r.error.message : '';
+    }
     setBusy(false);
-    if (r.error) {
-      setErr(r.error.message);
+    if (msg) {
+      if (conflict) {
+        // proyek sudah diubah orang lain: tutup formulir, muat data terbaru, lalu tampilkan pesannya
+        setD(null);
+        await load();
+      }
+      setErr(msg);
       return;
     }
     setD(null);
     await load();
   };
 
+  const setArchived = async (p: Project, archived: boolean) => {
+    if (archived && !(await confirm({ title: 'Arsipkan proyek?', message: `Proyek "${p.name}" disembunyikan dari daftar aktif. Datanya tetap tersimpan dan bisa dipulihkan dari tab Arsip.`, confirmText: 'Arsipkan' }))) return;
+    setErr('');
+    const r = await patchProject(p.id, p.version, { archived_at: archived ? new Date().toISOString() : null });
+    if (r.error) {
+      setErr(r.error + (/archived_at|column/i.test(r.error) ? ' (sudah menjalankan SQL arsip proyek?)' : ''));
+      if (r.conflict) await load();
+      return;
+    }
+    await load();
+  };
+
   const remove = async (p: Project) => {
     if (!supabase) return;
-    if (!(await confirm({ title: 'Hapus proyek?', message: `Hapus proyek "${p.name}"? Data proyek ini tidak bisa dikembalikan.`, confirmText: 'Hapus', tone: 'danger' }))) return;
+    if (!(await confirm({ title: 'Hapus permanen?', message: `Hapus permanen proyek "${p.name}" beserta semua tahapan, gambar, material, uji tangki, temuan, dan fotonya? Tidak bisa dikembalikan. Unduh cadangan dulu bila ragu.`, confirmText: 'Hapus permanen', tone: 'danger' }))) return;
     // jalur foto dicatat dulu: barisnya ikut terhapus bersama proyek, berkasnya dihapus sesudahnya
     const pp = await fetchAllRows((a, b) => supabase!.from('nb_finding_photos').select('path').eq('project_id', p.id).order('path').range(a, b));
     if (pp.error) {
@@ -428,14 +487,54 @@ function Inner() {
         </section>
       )}
 
+      {supabase && !d && list !== null && list.length > 0 && (
+        <div className="mt-4 space-y-2">
+          <input
+            className={INPUT}
+            placeholder="Cari nama, galangan, no. lambung, jenis kapal"
+            value={q}
+            onChange={(e) => {
+              setQ(e.target.value);
+              setLimit(PAGE_STEP);
+            }}
+          />
+          {(counts.arsip > 0 || showArchived) && (
+            <div className="flex gap-2">
+              <Chip
+                selected={!showArchived}
+                onClick={() => {
+                  setShowArchived(false);
+                  setLimit(PAGE_STEP);
+                }}
+              >
+                Aktif ({counts.aktif})
+              </Chip>
+              <Chip
+                selected={showArchived}
+                onClick={() => {
+                  setShowArchived(true);
+                  setLimit(PAGE_STEP);
+                }}
+              >
+                Arsip ({counts.arsip})
+              </Chip>
+            </div>
+          )}
+        </div>
+      )}
+
       {supabase && !d && (
         <div className="mt-5 space-y-3">
           {list === null ? (
             <p className="text-sm text-slate-500">Memuat…</p>
           ) : list.length === 0 ? (
             <p className="rounded-2xl border border-dashed border-slate-300 p-5 text-center text-sm text-slate-500">Belum ada proyek.</p>
+          ) : filtered.length === 0 ? (
+            <p className="rounded-2xl border border-dashed border-slate-300 p-5 text-center text-sm text-slate-500">
+              {q.trim() ? 'Tidak ada proyek yang cocok dengan pencarian.' : showArchived ? 'Belum ada proyek di arsip.' : 'Semua proyek ada di arsip.'}
+            </p>
           ) : (
-            list.map((p) => {
+            filtered.slice(0, limit).map((p) => {
               const tipe = tipeOf(p);
               return (
                 <div key={p.id} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
@@ -450,15 +549,31 @@ function Inner() {
                   </div>
                   <Overview o={ov.get(p.id)} />
                   {(openFind.get(p.id) ?? 0) > 0 && <p className="mt-2 text-xs font-semibold text-amber-800">{openFindingsText(openFind.get(p.id) ?? 0)}</p>}
-                  <div className="mt-3 flex gap-2">
+                  <div className="mt-3 flex flex-wrap gap-2">
                     <Button size="sm" variant="primary" onClick={() => go({ projectId: p.id, view: 'stage' })}>Tahapan</Button>
-                    <Button size="sm" onClick={() => go({ projectId: p.id, view: 'material' })}>Material</Button>
-                    <Button size="sm" onClick={() => setD(fromProject(p))}>Ubah</Button>
-                    <Button size="sm" variant="warn" onClick={() => remove(p)}>Hapus</Button>
+                    {p.archived_at ? (
+                      <>
+                        <Button size="sm" onClick={() => setArchived(p, false)}>Pulihkan</Button>
+                        <Button size="sm" variant="warn" onClick={() => remove(p)}>Hapus permanen</Button>
+                      </>
+                    ) : (
+                      <>
+                        <Button size="sm" onClick={() => go({ projectId: p.id, view: 'material' })}>Material</Button>
+                        <Button size="sm" onClick={() => setD(fromProject(p))}>Ubah</Button>
+                        <Button size="sm" onClick={() => setArchived(p, true)}>Arsipkan</Button>
+                      </>
+                    )}
                   </div>
                 </div>
               );
             })
+          )}
+          {list !== null && filtered.length > limit && (
+            <div className="text-center">
+              <Button size="sm" onClick={() => setLimit((n) => n + PAGE_STEP)}>
+                Tampilkan lagi ({filtered.length - limit} proyek)
+              </Button>
+            </div>
           )}
         </div>
       )}

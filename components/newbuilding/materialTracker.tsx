@@ -1,8 +1,10 @@
 'use client';
 
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { Button, Chip } from '../Controls';
+import { saveKeyedRow, selectKeyed } from '../../lib/rowLock';
+import type { KeyedClient } from '../../lib/rowLock';
 import { CELL_LEGEND, COL_LEGEND, NOTES, TIPE_LEGEND, WELDING, cellsFor, parseCell, vesselProfile } from '../../lib/materialRules';
 import type { MatItem, MatTipe } from '../../lib/materialRules';
 import { STATUSES, STATUS_LABEL, itemKey, progressOf, trackerItems } from '../../lib/materialTracker';
@@ -127,6 +129,8 @@ export default function MaterialTracker({ projectId, projectName, tipe, vesselTy
   const [loaded, setLoaded] = useState(false);
   const [err, setErr] = useState('');
   const [busyKey, setBusyKey] = useState('');
+  // false bila kolom version belum ada di database: simpan dengan cara lama (tanpa cek edit bersamaan)
+  const versioned = useRef(true);
   const [q, setQ] = useState('');
   const [filter, setFilter] = useState<Filter>('semua');
   const [showAll, setShowAll] = useState(false);
@@ -134,7 +138,8 @@ export default function MaterialTracker({ projectId, projectName, tipe, vesselTy
   const load = useCallback(async () => {
     if (!supabase) return;
     setErr('');
-    const { data, error } = await supabase.from('nb_material_status').select('item_key,status,cert_no,note').eq('project_id', projectId);
+    const { data, error, versioned: hasVersion } = await selectKeyed(supabase as unknown as KeyedClient, 'nb_material_status', 'item_key,status,cert_no,note', projectId);
+    versioned.current = hasVersion;
     if (error) {
       setErr(error.message + (/relation|does not exist/i.test(error.message) ? ' (sudah menjalankan SQL nb_material_status?)' : ''));
       setLoaded(true);
@@ -173,15 +178,21 @@ export default function MaterialTracker({ projectId, projectName, tipe, vesselTy
     const next: MatStatusRow = { item_key: key, status, cert_no: prev?.cert_no ?? null, note: prev?.note ?? null };
     setBusyKey(key);
     setErr('');
-    const r = await supabase
-      .from('nb_material_status')
-      .upsert({ project_id: projectId, ...next, updated_at: new Date().toISOString() }, { onConflict: 'project_id,item_key' });
+    // baris sudah ada: cek version; belum ada: insert; kolom version belum ada: cara lama
+    const ver = !versioned.current ? undefined : prev ? prev.version : null;
+    const r = await saveKeyedRow(supabase as unknown as KeyedClient, 'nb_material_status', projectId, key, ver, {
+      status: next.status,
+      cert_no: next.cert_no,
+      note: next.note,
+      updated_at: new Date().toISOString(),
+    });
     setBusyKey('');
-    if (r.error) {
-      setErr(r.error.message);
+    if (r.status !== 'ok') {
+      if (r.status === 'conflict') await load(); // tampilkan data terbaru dulu, lalu pesannya
+      setErr(r.message);
       return;
     }
-    setRows((m) => new Map(m).set(key, next));
+    setRows((m) => new Map(m).set(key, { ...next, version: r.version }));
   };
 
   return (

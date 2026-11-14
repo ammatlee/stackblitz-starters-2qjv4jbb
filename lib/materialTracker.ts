@@ -18,6 +18,8 @@ export type MatStatusRow = {
   status: MatStatus;
   cert_no: string | null;
   note: string | null;
+  /** Penanda edit bersamaan (kolom version); kosong bila kolomnya belum ada di database. */
+  version?: number;
 };
 
 /** Penanda unik item: nomor produk, ditambah sub-jenis bila ada (mis. "11|HHP / VHHP"). */

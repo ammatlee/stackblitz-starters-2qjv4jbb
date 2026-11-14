@@ -29,3 +29,18 @@ export function countTankStates(rows: { leak_status: TestStatus; struct_status: 
   for (const r of rows) c[tankState(r)] += 1;
   return c;
 }
+
+/** Bagian proyek yang dipakai untuk mencari dan menyaring daftar proyek Bangunan Baru. */
+export type ProjectLike = { name: string; yard: string | null; hull_no: string | null; vessel_type: string | null; archived_at?: string | null };
+
+/** Proyek aktif atau proyek arsip, disaring dengan kata kunci (nama, galangan, nomor lambung, jenis kapal). Urutan asli dipertahankan. */
+export function filterProjects<T extends ProjectLike>(list: T[], query: string, archived: boolean): T[] {
+  return list.filter((p) => !!p.archived_at === archived && matchesQuery(query, [p.name, p.yard, p.hull_no, p.vessel_type]));
+}
+
+/** Jumlah proyek aktif dan proyek arsip (untuk label tombol). */
+export function countArchived(list: ProjectLike[]): { aktif: number; arsip: number } {
+  let arsip = 0;
+  for (const p of list) if (p.archived_at) arsip += 1;
+  return { aktif: list.length - arsip, arsip };
+}
