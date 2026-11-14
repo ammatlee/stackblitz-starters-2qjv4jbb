@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { supabase } from '../../lib/supabase';
 import RequireAuth from '../../components/RequireAuth';
 import { Button, Chip } from '../../components/Controls';
@@ -18,6 +19,8 @@ import FindingTracker from '../../components/newbuilding/FindingTracker';
 import { openFindingsText } from '../../lib/newbuildingFindings';
 import { fetchAllRows } from '../../lib/fetchAll';
 import { removePhotoFiles } from '../../lib/photoUpload';
+import { LIST_ROUTE, parseRoute, routeHref } from '../../lib/newbuildingRoute';
+import type { NbRoute } from '../../lib/newbuildingRoute';
 import { groupByProject, projectOverview } from '../../lib/newbuildingOverview';
 import type { ProjectOverview } from '../../lib/newbuildingOverview';
 import type { StageRow } from '../../lib/newbuildingStages';
@@ -159,12 +162,11 @@ function Inner() {
   const [err, setErr] = useState('');
   const [d, setD] = useState<Draft | null>(null);
   const [busy, setBusy] = useState(false);
-  const [matP, setMatP] = useState<Project | null>(null);
-  const [stageP, setStageP] = useState<Project | null>(null);
-  const [matFromStage, setMatFromStage] = useState(false);
-  const [drawP, setDrawP] = useState<Project | null>(null);
-  const [tankP, setTankP] = useState<Project | null>(null);
-  const [findP, setFindP] = useState<Project | null>(null);
+  // layar yang dibuka disimpan di URL (?p=<id proyek>&v=<layar>), bukan di state
+  const router = useRouter();
+  const params = useSearchParams();
+  const route = useMemo(() => parseRoute(params.toString()), [params]);
+  const go = (r: NbRoute) => router.push(routeHref(r));
   const [openFind, setOpenFind] = useState<Map<string, number>>(new Map());
   const [ov, setOv] = useState<Map<string, ProjectOverview>>(new Map());
 
@@ -213,6 +215,20 @@ function Inner() {
   useEffect(() => {
     load();
   }, [load]);
+
+  // kembali ke daftar proyek: muat ulang supaya progres di kartu mengikuti pekerjaan tadi
+  const lastProject = useRef<string | null>(route.projectId);
+  useEffect(() => {
+    if (lastProject.current && !route.projectId) load();
+    lastProject.current = route.projectId;
+  }, [route.projectId, load]);
+
+  const project = route.projectId && list ? list.find((x) => x.id === route.projectId) ?? null : null;
+  const missing = !!route.projectId && list !== null && !project;
+  // proyek di alamat tidak ada (sudah dihapus atau alamat salah): bersihkan alamat
+  useEffect(() => {
+    if (missing) router.replace(routeHref(LIST_ROUTE));
+  }, [missing, router]);
 
   const set = <K extends keyof Draft>(k: K, v: Draft[K]) => setD((x) => (x ? { ...x, [k]: v } : x));
 
@@ -265,90 +281,60 @@ function Inner() {
     await load();
   };
 
-  if (drawP)
+  if (route.projectId && supabase && list === null) return <main className="mx-auto max-w-3xl px-4 py-10 text-sm text-slate-500">Memuat…</main>;
+
+  if (project && route.view === 'drawing')
     return (
       <DrawingTracker
-        projectId={drawP.id}
-        projectName={drawP.name}
-        vesselType={drawP.vessel_type}
-        propelled={effPropelled(drawP.vessel_type, drawP.propelled)}
-        onBack={() => {
-          setStageP(drawP);
-          setDrawP(null);
-        }}
+        projectId={project.id}
+        projectName={project.name}
+        vesselType={project.vessel_type}
+        propelled={effPropelled(project.vessel_type, project.propelled)}
+        onBack={() => go({ projectId: project.id, view: 'stage' })}
       />
     );
 
-  if (findP)
-    return (
-      <FindingTracker
-        projectId={findP.id}
-        projectName={findP.name}
-        onBack={() => {
-          setStageP(findP);
-          setFindP(null);
-        }}
-      />
-    );
+  if (project && route.view === 'finding')
+    return <FindingTracker projectId={project.id} projectName={project.name} onBack={() => go({ projectId: project.id, view: 'stage' })} />;
 
-  if (tankP)
+  if (project && route.view === 'tank')
     return (
       <TankTestTracker
-        projectId={tankP.id}
-        projectName={tankP.name}
-        vesselType={tankP.vessel_type}
-        propelled={effPropelled(tankP.vessel_type, tankP.propelled)}
-        onBack={() => {
-          setStageP(tankP);
-          setTankP(null);
-        }}
+        projectId={project.id}
+        projectName={project.name}
+        vesselType={project.vessel_type}
+        propelled={effPropelled(project.vessel_type, project.propelled)}
+        onBack={() => go({ projectId: project.id, view: 'stage' })}
       />
     );
 
-  if (stageP)
+  if (project && route.view === 'stage')
     return (
       <StageTracker
-        projectId={stageP.id}
-        projectName={stageP.name}
-        tipe={tipeOf(stageP)}
-        propelled={effPropelled(stageP.vessel_type, stageP.propelled)}
-        international={stageP.international}
-        gt={stageP.gt}
-        vesselType={stageP.vessel_type}
-        onBack={() => setStageP(null)}
-        onOpenMaterial={() => {
-          setMatP(stageP);
-          setMatFromStage(true);
-          setStageP(null);
-        }}
-        onOpenDrawing={() => {
-          setDrawP(stageP);
-          setStageP(null);
-        }}
-        onOpenTankTests={() => {
-          setTankP(stageP);
-          setStageP(null);
-        }}
-        onOpenFindings={() => {
-          setFindP(stageP);
-          setStageP(null);
-        }}
+        projectId={project.id}
+        projectName={project.name}
+        tipe={tipeOf(project)}
+        propelled={effPropelled(project.vessel_type, project.propelled)}
+        international={project.international}
+        gt={project.gt}
+        vesselType={project.vessel_type}
+        onBack={() => go(LIST_ROUTE)}
+        onOpenMaterial={() => go({ projectId: project.id, view: 'material', fromStage: true })}
+        onOpenDrawing={() => go({ projectId: project.id, view: 'drawing' })}
+        onOpenTankTests={() => go({ projectId: project.id, view: 'tank' })}
+        onOpenFindings={() => go({ projectId: project.id, view: 'finding' })}
       />
     );
 
-  if (matP)
+  if (project && route.view === 'material')
     return (
       <MaterialTracker
-        projectId={matP.id}
-        projectName={matP.name}
-        tipe={tipeOf(matP)}
-        vesselType={matP.vessel_type}
-        propelled={effPropelled(matP.vessel_type, matP.propelled)}
-        onBack={() => {
-          if (matFromStage) setStageP(matP);
-          setMatFromStage(false);
-          setMatP(null);
-        }}
+        projectId={project.id}
+        projectName={project.name}
+        tipe={tipeOf(project)}
+        vesselType={project.vessel_type}
+        propelled={effPropelled(project.vessel_type, project.propelled)}
+        onBack={() => go(route.fromStage ? { projectId: project.id, view: 'stage' } : LIST_ROUTE)}
       />
     );
 
@@ -466,16 +452,8 @@ function Inner() {
                   <Overview o={ov.get(p.id)} />
                   {(openFind.get(p.id) ?? 0) > 0 && <p className="mt-2 text-xs font-semibold text-amber-800">{openFindingsText(openFind.get(p.id) ?? 0)}</p>}
                   <div className="mt-3 flex gap-2">
-                    <Button size="sm" variant="primary" onClick={() => setStageP(p)}>Tahapan</Button>
-                    <Button
-                      size="sm"
-                      onClick={() => {
-                        setMatFromStage(false);
-                        setMatP(p);
-                      }}
-                    >
-                      Material
-                    </Button>
+                    <Button size="sm" variant="primary" onClick={() => go({ projectId: p.id, view: 'stage' })}>Tahapan</Button>
+                    <Button size="sm" onClick={() => go({ projectId: p.id, view: 'material' })}>Material</Button>
                     <Button size="sm" onClick={() => setD(fromProject(p))}>Ubah</Button>
                     <Button size="sm" variant="warn" onClick={() => remove(p)}>Hapus</Button>
                   </div>
@@ -492,7 +470,9 @@ function Inner() {
 export default function NewbuildingPage() {
   return (
     <RequireAuth>
-      <Inner />
+      <Suspense fallback={<main className="mx-auto max-w-3xl px-4 py-10 text-sm text-slate-500">Memuat…</main>}>
+        <Inner />
+      </Suspense>
     </RequireAuth>
   );
 }
