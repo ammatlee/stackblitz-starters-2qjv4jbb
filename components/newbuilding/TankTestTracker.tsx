@@ -29,6 +29,8 @@ import { TANK_SIDES, TANK_SIDE_LABEL, catalogGroups, countKind, duplicateTankIds
 import type { TankKind, TankSide } from '../../lib/newbuildingTankCatalog';
 import { INPUT, BlurInput } from './fields';
 import { todayIso } from '../../lib/todayIso';
+import { PAGE_STEP, countTankStates, matchesQuery, tankState } from '../../lib/newbuildingListView';
+import type { TankState } from '../../lib/newbuildingListView';
 
 const COLS = 'id,name,side,leak_status,leak_method,leak_date,struct_status,struct_head,struct_date,note,leak_count,struct_leak,struct_deform';
 const COLS_V = COLS + ',version';
@@ -45,13 +47,29 @@ const KINDS: ('leak' | 'struct')[] = ['leak', 'struct'];
 const detailFor = (r: TankTestRow, kind: 'leak' | 'struct'): string | null => (kind === 'leak' ? leakDetail(r.leak_count) : structDetail(r.struct_leak, r.struct_deform));
 const statusOf = (r: TankTestRow, kind: 'leak' | 'struct'): TestStatus | StructStatus => (kind === 'leak' ? r.leak_status : r.struct_status);
 
-/** Kolom teks: disimpan saat kolom ditinggalkan, bukan di setiap ketukan. */
+const PILL: Record<string, string> = {
+  lulus: 'bg-teal-600 text-white',
+  tidak_lulus: 'bg-red-600 text-white',
+  belum: 'bg-slate-200 text-slate-700',
+  tidak_perlu: 'bg-slate-100 text-slate-500',
+};
+
+function StatusPill({ label, value, text }: { label: string; value: string; text: string }) {
+  return (
+    <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${PILL[value] ?? PILL.belum}`}>
+      {label} · {text}
+    </span>
+  );
+}
+
+type TankFilter = 'all' | TankState;
+
 const TONE: Record<string, string> = {
   lulus: 'border-teal-200 bg-teal-50/50',
   tidak_lulus: 'border-red-200 bg-red-50/50',
 };
 
-function TankItem({ r, projectId, busy, hint, showSide, dup, leakLink, structLink, onPatch, onDelete, onBadHead, onBadCount, onFinding }: { r: TankTestRow; busy: boolean; hint: string | null; projectId: string; showSide: boolean; dup: boolean; leakLink: FindingLink | null; structLink: FindingLink | null; onPatch: (p: Patch) => void; onDelete: () => void; onBadHead: () => void; onBadCount: () => void; onFinding: (kind: 'leak' | 'struct') => void }) {
+function TankItem({ r, expanded, onToggle, projectId, busy, hint, showSide, dup, leakLink, structLink, onPatch, onDelete, onBadHead, onBadCount, onFinding }: { r: TankTestRow; expanded: boolean; onToggle: () => void; busy: boolean; hint: string | null; projectId: string; showSide: boolean; dup: boolean; leakLink: FindingLink | null; structLink: FindingLink | null; onPatch: (p: Patch) => void; onDelete: () => void; onBadHead: () => void; onBadCount: () => void; onFinding: (kind: 'leak' | 'struct') => void }) {
   const leakDone = r.leak_status !== 'belum';
   const structDone = r.struct_status === 'lulus' || r.struct_status === 'tidak_lulus';
   const tone = r.leak_status === 'tidak_lulus' || r.struct_status === 'tidak_lulus' ? TONE.tidak_lulus : r.leak_status === 'lulus' && (r.struct_status === 'lulus' || r.struct_status === 'tidak_perlu') ? TONE.lulus : 'border-slate-200 bg-white';
@@ -70,145 +88,174 @@ function TankItem({ r, projectId, busy, hint, showSide, dup, leakLink, structLin
   };
 
   return (
-    <li className={`rounded-xl border p-3 ${tone}`}>
-      <div className="flex items-start gap-2">
-        <div className="min-w-0 flex-1">
-          <BlurInput value={r.name} placeholder="Nama kompartemen" disabled={busy} onSave={(v) => v !== '' && onPatch({ name: v })} />
+    <li className={`rounded-xl border ${tone}`}>
+      <button type="button" aria-expanded={expanded} onClick={onToggle} className="block w-full p-3 text-left">
+        <span className="flex items-center justify-between gap-2">
+          <span className="min-w-0 truncate text-sm font-bold text-slate-900">{tankDisplayName(r.name, r.side)}</span>
+          <span className="shrink-0 text-xs text-slate-400">{expanded ? '▲' : '▼'}</span>
+        </span>
+        <span className="mt-1.5 flex flex-wrap gap-1.5">
+          <StatusPill label="Leak" value={r.leak_status} text={LEAK_STATUS_LABEL[r.leak_status]} />
+          <StatusPill label="Struct" value={r.struct_status} text={STRUCT_STATUS_LABEL[r.struct_status]} />
+          {dup && <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-bold text-amber-900">Nama kembar</span>}
+        </span>
+      </button>
+      {!expanded && (r.leak_status === 'belum' || r.struct_status === 'belum') && (
+        <div className="flex flex-wrap gap-2 px-3 pb-3">
+          {r.leak_status === 'belum' && (
+            <Button size="sm" disabled={busy} onClick={() => setLeak('lulus')}>
+              Leak lulus
+            </Button>
+          )}
+          {r.struct_status === 'belum' && (
+            <Button size="sm" disabled={busy} onClick={() => setStruct('lulus')}>
+              Struct lulus
+            </Button>
+          )}
         </div>
-        <button type="button" className="shrink-0 rounded-md px-2 py-2 text-xs font-semibold text-red-700 hover:bg-red-50" disabled={busy} onClick={onDelete}>
-          Hapus
-        </button>
-      </div>
+      )}
+      {expanded && (
+        <div className="border-t border-slate-200/70 px-3 pb-3 pt-3">
+          <div className="flex items-start gap-2">
+            <div className="min-w-0 flex-1">
+              <BlurInput value={r.name} placeholder="Nama kompartemen" disabled={busy} onSave={(v) => v !== '' && onPatch({ name: v })} />
+            </div>
+            <button type="button" className="shrink-0 rounded-md px-2 py-2 text-xs font-semibold text-red-700 hover:bg-red-50" disabled={busy} onClick={onDelete}>
+              Hapus
+            </button>
+          </div>
 
-      {showSide && (
-        <div className="mt-2">
-          <span className="mb-1 block text-xs font-semibold text-slate-600">Posisi (bila lebih dari satu tangki sejenis)</span>
-          <div className="flex flex-wrap gap-2">
-            {TANK_SIDES.map((sd: TankSide) => (
-              <Chip key={sd} selected={r.side === sd} disabled={busy} onClick={() => onPatch({ side: r.side === sd ? null : sd })}>
-                {sd} · {TANK_SIDE_LABEL[sd]}
+          {showSide && (
+            <div className="mt-2">
+              <span className="mb-1 block text-xs font-semibold text-slate-600">Posisi (bila lebih dari satu tangki sejenis)</span>
+              <div className="flex flex-wrap gap-2">
+                {TANK_SIDES.map((sd: TankSide) => (
+                  <Chip key={sd} selected={r.side === sd} disabled={busy} onClick={() => onPatch({ side: r.side === sd ? null : sd })}>
+                    {sd} · {TANK_SIDE_LABEL[sd]}
+                  </Chip>
+                ))}
+              </div>
+              {dup && <p className="mt-1 text-[11px] font-semibold text-amber-800">Nama dan posisi sama dengan tangki lain. Pilih P/C/S yang berbeda atau ubah namanya.</p>}
+            </div>
+          )}
+
+          <p className="mt-3 text-xs font-bold text-slate-700">Leak test</p>
+          <div className="mt-1 flex flex-wrap gap-2">
+            {LEAK_STATUSES.map((s) => (
+              <Chip key={s} selected={r.leak_status === s} disabled={busy} onClick={() => setLeak(s)}>
+                {LEAK_STATUS_LABEL[s]}
               </Chip>
             ))}
           </div>
-          {dup && <p className="mt-1 text-[11px] font-semibold text-amber-800">Nama dan posisi sama dengan tangki lain. Pilih P/C/S yang berbeda atau ubah namanya.</p>}
-        </div>
-      )}
+          {r.leak_status === 'tidak_lulus' && (
+            <label className="mt-2 block sm:w-1/2">
+              <span className="mb-1 block text-xs font-semibold text-slate-600">Jumlah titik bocor (opsional)</span>
+              <BlurInput
+                inputMode="numeric"
+                value={r.leak_count == null ? '' : String(r.leak_count)}
+                placeholder="mis. 3"
+                disabled={busy}
+                onSave={(v) => {
+                  if (v === '') return onPatch({ leak_count: null });
+                  const n = parseCount(v);
+                  if (n == null) return onBadCount();
+                  onPatch({ leak_count: n });
+                }}
+              />
+            </label>
+          )}
+          {r.leak_status === 'tidak_lulus' && (
+            leakLink ? (
+              <>
+                <p className="mt-2 text-xs font-semibold text-amber-800">Temuan {findingCode(leakLink.seq)} · Open (masuk Daftar temuan)</p>
+                <FindingPhotos projectId={projectId} findingId={leakLink.id} defaultPhase="temuan" disabled={busy} />
+              </>
+            ) : (
+              <Button size="sm" variant="warn" className="mt-2" disabled={busy} onClick={() => onFinding('leak')}>
+                Buat temuan
+              </Button>
+            )
+          )}
+          {leakDone && (
+            <>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {LEAK_METHODS.map((m: LeakMethod) => (
+                  <Chip key={m} selected={r.leak_method === m} disabled={busy} onClick={() => onPatch({ leak_method: r.leak_method === m ? null : m })}>
+                    {LEAK_METHOD_LABEL[m]}
+                  </Chip>
+                ))}
+              </div>
+              <label className="mt-2 block sm:w-1/2">
+                <span className="mb-1 block text-xs font-semibold text-slate-600">Tanggal leak test</span>
+                <DateInput className={INPUT} value={r.leak_date ?? ''} onChange={(iso) => onPatch({ leak_date: iso === '' ? null : iso })} />
+              </label>
+            </>
+          )}
 
-      <p className="mt-3 text-xs font-bold text-slate-700">Leak test</p>
-      <div className="mt-1 flex flex-wrap gap-2">
-        {LEAK_STATUSES.map((s) => (
-          <Chip key={s} selected={r.leak_status === s} disabled={busy} onClick={() => setLeak(s)}>
-            {LEAK_STATUS_LABEL[s]}
-          </Chip>
-        ))}
-      </div>
-      {r.leak_status === 'tidak_lulus' && (
-        <label className="mt-2 block sm:w-1/2">
-          <span className="mb-1 block text-xs font-semibold text-slate-600">Jumlah titik bocor (opsional)</span>
-          <BlurInput
-            inputMode="numeric"
-            value={r.leak_count == null ? '' : String(r.leak_count)}
-            placeholder="mis. 3"
-            disabled={busy}
-            onSave={(v) => {
-              if (v === '') return onPatch({ leak_count: null });
-              const n = parseCount(v);
-              if (n == null) return onBadCount();
-              onPatch({ leak_count: n });
-            }}
-          />
-        </label>
-      )}
-      {r.leak_status === 'tidak_lulus' && (
-        leakLink ? (
-          <>
-            <p className="mt-2 text-xs font-semibold text-amber-800">Temuan {findingCode(leakLink.seq)} · Open (masuk Daftar temuan)</p>
-            <FindingPhotos projectId={projectId} findingId={leakLink.id} defaultPhase="temuan" disabled={busy} />
-          </>
-        ) : (
-          <Button size="sm" variant="warn" className="mt-2" disabled={busy} onClick={() => onFinding('leak')}>
-            Buat temuan
-          </Button>
-        )
-      )}
-      {leakDone && (
-        <>
-          <div className="mt-2 flex flex-wrap gap-2">
-            {LEAK_METHODS.map((m: LeakMethod) => (
-              <Chip key={m} selected={r.leak_method === m} disabled={busy} onClick={() => onPatch({ leak_method: r.leak_method === m ? null : m })}>
-                {LEAK_METHOD_LABEL[m]}
+          <p className="mt-3 text-xs font-bold text-slate-700">Structural test</p>
+          {hint && <p className="mt-1 text-[11px] text-amber-800">{hint}</p>}
+          <div className="mt-1 flex flex-wrap gap-2">
+            {STRUCT_STATUSES.map((s) => (
+              <Chip key={s} selected={r.struct_status === s} disabled={busy} onClick={() => setStruct(s)}>
+                {STRUCT_STATUS_LABEL[s]}
               </Chip>
             ))}
           </div>
-          <label className="mt-2 block sm:w-1/2">
-            <span className="mb-1 block text-xs font-semibold text-slate-600">Tanggal leak test</span>
-            <DateInput className={INPUT} value={r.leak_date ?? ''} onChange={(iso) => onPatch({ leak_date: iso === '' ? null : iso })} />
-          </label>
-        </>
-      )}
+          {r.struct_status === 'tidak_lulus' && (
+            <div className="mt-2">
+              <span className="mb-1 block text-xs font-semibold text-slate-600">Yang ditemukan</span>
+              <div className="flex flex-wrap gap-2">
+                <Chip selected={r.struct_leak} disabled={busy} onClick={() => onPatch({ struct_leak: !r.struct_leak })}>
+                  Bocor
+                </Chip>
+                <Chip selected={r.struct_deform} disabled={busy} onClick={() => onPatch({ struct_deform: !r.struct_deform })}>
+                  Deformasi
+                </Chip>
+              </div>
+            </div>
+          )}
+          {r.struct_status === 'tidak_lulus' && (
+            structLink ? (
+              <>
+                <p className="mt-2 text-xs font-semibold text-amber-800">Temuan {findingCode(structLink.seq)} · Open (masuk Daftar temuan)</p>
+                <FindingPhotos projectId={projectId} findingId={structLink.id} defaultPhase="temuan" disabled={busy} />
+              </>
+            ) : (
+              <Button size="sm" variant="warn" className="mt-2" disabled={busy} onClick={() => onFinding('struct')}>
+                Buat temuan
+              </Button>
+            )
+          )}
+          {structDone && (
+            <div className="mt-2 grid gap-2 sm:grid-cols-2">
+              <label className="block">
+                <span className="mb-1 block text-xs font-semibold text-slate-600">Tinggi uji (m di atas top of tank)</span>
+                <BlurInput
+                  inputMode="decimal"
+                  value={r.struct_head == null ? '' : String(r.struct_head).replace('.', ',')}
+                  placeholder="mis. 2,4"
+                  disabled={busy}
+                  onSave={(v) => {
+                    if (v === '') return onPatch({ struct_head: null });
+                    const n = parseHead(v);
+                    if (n == null) return onBadHead();
+                    onPatch({ struct_head: n });
+                  }}
+                />
+              </label>
+              <label className="block">
+                <span className="mb-1 block text-xs font-semibold text-slate-600">Tanggal uji struktural</span>
+                <DateInput className={INPUT} value={r.struct_date ?? ''} onChange={(iso) => onPatch({ struct_date: iso === '' ? null : iso })} />
+              </label>
+            </div>
+          )}
 
-      <p className="mt-3 text-xs font-bold text-slate-700">Structural test</p>
-      {hint && <p className="mt-1 text-[11px] text-amber-800">{hint}</p>}
-      <div className="mt-1 flex flex-wrap gap-2">
-        {STRUCT_STATUSES.map((s) => (
-          <Chip key={s} selected={r.struct_status === s} disabled={busy} onClick={() => setStruct(s)}>
-            {STRUCT_STATUS_LABEL[s]}
-          </Chip>
-        ))}
-      </div>
-      {r.struct_status === 'tidak_lulus' && (
-        <div className="mt-2">
-          <span className="mb-1 block text-xs font-semibold text-slate-600">Yang ditemukan</span>
-          <div className="flex flex-wrap gap-2">
-            <Chip selected={r.struct_leak} disabled={busy} onClick={() => onPatch({ struct_leak: !r.struct_leak })}>
-              Bocor
-            </Chip>
-            <Chip selected={r.struct_deform} disabled={busy} onClick={() => onPatch({ struct_deform: !r.struct_deform })}>
-              Deformasi
-            </Chip>
-          </div>
-        </div>
-      )}
-      {r.struct_status === 'tidak_lulus' && (
-        structLink ? (
-          <>
-            <p className="mt-2 text-xs font-semibold text-amber-800">Temuan {findingCode(structLink.seq)} · Open (masuk Daftar temuan)</p>
-            <FindingPhotos projectId={projectId} findingId={structLink.id} defaultPhase="temuan" disabled={busy} />
-          </>
-        ) : (
-          <Button size="sm" variant="warn" className="mt-2" disabled={busy} onClick={() => onFinding('struct')}>
-            Buat temuan
-          </Button>
-        )
-      )}
-      {structDone && (
-        <div className="mt-2 grid gap-2 sm:grid-cols-2">
-          <label className="block">
-            <span className="mb-1 block text-xs font-semibold text-slate-600">Tinggi uji (m di atas top of tank)</span>
-            <BlurInput
-              inputMode="decimal"
-              value={r.struct_head == null ? '' : String(r.struct_head).replace('.', ',')}
-              placeholder="mis. 2,4"
-              disabled={busy}
-              onSave={(v) => {
-                if (v === '') return onPatch({ struct_head: null });
-                const n = parseHead(v);
-                if (n == null) return onBadHead();
-                onPatch({ struct_head: n });
-              }}
-            />
-          </label>
-          <label className="block">
-            <span className="mb-1 block text-xs font-semibold text-slate-600">Tanggal uji struktural</span>
-            <DateInput className={INPUT} value={r.struct_date ?? ''} onChange={(iso) => onPatch({ struct_date: iso === '' ? null : iso })} />
+          <label className="mt-3 block">
+            <span className="mb-1 block text-xs font-semibold text-slate-600">Catatan</span>
+            <BlurInput value={r.note ?? ''} placeholder="Catatan (opsional)" disabled={busy} onSave={(v) => onPatch({ note: v === '' ? null : v })} />
           </label>
         </div>
       )}
-
-      <label className="mt-3 block">
-        <span className="mb-1 block text-xs font-semibold text-slate-600">Catatan</span>
-        <BlurInput value={r.note ?? ''} placeholder="Catatan (opsional)" disabled={busy} onSave={(v) => onPatch({ note: v === '' ? null : v })} />
-      </label>
     </li>
   );
 }
@@ -225,6 +272,10 @@ export default function TankTestTracker({ projectId, projectName, vesselType, pr
   const [info, setInfo] = useState('');
   const [showAll, setShowAll] = useState(false);
   const [catOpen, setCatOpen] = useState(false);
+  const [openId, setOpenId] = useState<string | null>(null); // satu kompartemen terbuka pada satu waktu
+  const [q, setQ] = useState('');
+  const [tf, setTf] = useState<TankFilter>('all');
+  const [limit, setLimit] = useState(PAGE_STEP);
   // nama yang sedang disimpan: supaya ketukan beruntun tidak menghasilkan nomor kembar
   const pending = useRef<string[]>([]);
   const rowsRef = useRef<TankTestRow[]>([]);
@@ -263,6 +314,22 @@ export default function TankTestTracker({ projectId, projectName, vesselType, pr
   const names = useMemo(() => rows.map((r) => r.name), [rows]);
   const sideIds = useMemo(() => rowsNeedingSide(rows), [rows]);
   const dupIds = useMemo(() => duplicateTankIds(rows), [rows]);
+  const stateCounts = useMemo(() => countTankStates(rows), [rows]);
+  const shown = useMemo(
+    () =>
+      rows.filter(
+        (r) =>
+          (tf === 'all' || tankState(r) === tf) &&
+          matchesQuery(q, [tankDisplayName(r.name, r.side), r.name, r.note, LEAK_STATUS_LABEL[r.leak_status], STRUCT_STATUS_LABEL[r.struct_status]])
+      ),
+    [rows, tf, q]
+  );
+  const visible = shown.slice(0, limit);
+
+  // ganti filter atau pencarian: mulai lagi dari halaman pertama
+  useEffect(() => {
+    setLimit(PAGE_STEP);
+  }, [tf, q]);
 
   /** Tambah satu tangki dari katalog. Nomor diambil dari daftar yang ada ditambah yang sedang disimpan. */
   const addKind = async (k: TankKind) => {
@@ -280,6 +347,9 @@ export default function TankTestTracker({ projectId, projectName, vesselType, pr
     const row = r.data as unknown as TankTestRow;
     rowsRef.current = [...rowsRef.current, row];
     setRows(rowsRef.current);
+    setTf('all');
+    setQ('');
+    setLimit((l) => l + 1);
   };
 
   const add = async () => {
@@ -295,6 +365,9 @@ export default function TankTestTracker({ projectId, projectName, vesselType, pr
     }
     setRows((l) => [...l, r.data as unknown as TankTestRow]);
     setName('');
+    setTf('all');
+    setQ('');
+    setLimit((l) => l + 1);
   };
 
   const patch = async (id: string, p: Patch): Promise<boolean> => {
@@ -495,20 +568,57 @@ export default function TankTestTracker({ projectId, projectName, vesselType, pr
           Tambah
         </Button>
       </div>
-      <p className="mt-2 text-xs text-slate-500">
-        Uji struktural wajib untuk satu tangki dari tiap grup yang mirip, tangki lain cukup leak test (S14 Part C 2.4). Tandai tangki yang cukup leak test dengan &quot;Tidak perlu&quot;. Pengecualian dan rezim yang berlaku ada di Kriteria penerimaan pada item Structural test. Bila uji tidak lulus, temuan otomatis dibuat di Daftar temuan; catat rinciannya di sini. Setelah diperbaiki dan diuji ulang, ubah status ke Lulus lalu pilih menutup temuannya (rincian di baris ini ikut dikosongkan, riwayatnya tetap ada di Daftar temuan). Bila diuji ulang dan tidak lulus lagi, dibuat temuan baru.
-      </p>
+      <details className="mt-2 text-xs text-slate-500">
+        <summary className="cursor-pointer font-semibold text-slate-600">Aturan uji struktural (S14 Part C 2.4)</summary>
+        <p className="mt-1">
+          Uji struktural wajib untuk satu tangki dari tiap grup yang mirip, tangki lain cukup leak test (S14 Part C 2.4). Tandai tangki yang cukup leak test dengan &quot;Tidak perlu&quot;. Pengecualian dan rezim yang berlaku ada di Kriteria penerimaan pada item Structural test. Bila uji tidak lulus, temuan otomatis dibuat di Daftar temuan; catat rinciannya di sini. Setelah diperbaiki dan diuji ulang, ubah status ke Lulus lalu pilih menutup temuannya (rincian di baris ini ikut dikosongkan, riwayatnya tetap ada di Daftar temuan). Bila diuji ulang dan tidak lulus lagi, dibuat temuan baru.
+        </p>
+      </details>
+
+      {loaded && rows.length > 0 && (
+        <>
+          <div className="sticky top-0 z-10 -mx-3 mt-4 border-b border-slate-200 bg-white/95 px-3 py-2 backdrop-blur sm:-mx-4 sm:px-4">
+            <div className="flex gap-2 overflow-x-auto">
+              <Chip className="shrink-0 whitespace-nowrap" selected={tf === 'all'} onClick={() => setTf('all')}>
+                Semua · {rows.length}
+              </Chip>
+              <Chip className="shrink-0 whitespace-nowrap" selected={tf === 'belum'} onClick={() => setTf('belum')}>
+                Belum selesai · {stateCounts.belum}
+              </Chip>
+              <Chip className="shrink-0 whitespace-nowrap" selected={tf === 'gagal'} onClick={() => setTf('gagal')}>
+                Tidak lulus · {stateCounts.gagal}
+              </Chip>
+              <Chip className="shrink-0 whitespace-nowrap" selected={tf === 'lulus'} onClick={() => setTf('lulus')}>
+                Lulus · {stateCounts.lulus}
+              </Chip>
+            </div>
+          </div>
+          {rows.length > 5 && <input className={INPUT + ' mt-3'} placeholder="Cari nama kompartemen, catatan, status…" value={q} onChange={(e) => setQ(e.target.value)} />}
+        </>
+      )}
 
       {!loaded ? (
         <p className="mt-4 text-sm text-slate-500">Memuat…</p>
       ) : rows.length === 0 ? (
         <p className="mt-4 text-sm text-slate-500">Belum ada kompartemen. Tambahkan satu per satu di atas.</p>
+      ) : shown.length === 0 ? (
+        <p className="mt-4 text-sm text-slate-500">Tidak ada kompartemen yang cocok dengan filter ini.</p>
       ) : (
-        <ul className="mt-4 space-y-3">
-          {rows.map((r) => (
-            <TankItem key={r.id} r={r} busy={busyId === r.id} hint={kindOfName(r.name)?.hint ?? null} showSide={sideIds.has(r.id)} dup={dupIds.has(r.id)} projectId={projectId} leakLink={openLink(r.id, 'leak')} structLink={openLink(r.id, 'struct')} onPatch={(p) => patchTank(r, p)} onDelete={() => remove(r)} onBadHead={() => setErr('Tinggi uji harus berupa angka dalam meter, mis. 2,4.')} onBadCount={() => setErr('Jumlah titik bocor harus bilangan bulat 0 sampai 999.')} onFinding={(k) => ensureFinding(r, k)} />
-          ))}
-        </ul>
+        <>
+          <p className="mt-3 text-xs text-slate-500">
+            Menampilkan {visible.length} dari {shown.length} kompartemen. Ketuk satu kompartemen untuk membuka detailnya.
+          </p>
+          <ul className="mt-2 space-y-2">
+            {visible.map((r) => (
+            <TankItem key={r.id} expanded={openId === r.id} onToggle={() => setOpenId((id) => (id === r.id ? null : r.id))} r={r} busy={busyId === r.id} hint={kindOfName(r.name)?.hint ?? null} showSide={sideIds.has(r.id)} dup={dupIds.has(r.id)} projectId={projectId} leakLink={openLink(r.id, 'leak')} structLink={openLink(r.id, 'struct')} onPatch={(p) => patchTank(r, p)} onDelete={() => remove(r)} onBadHead={() => setErr('Tinggi uji harus berupa angka dalam meter, mis. 2,4.')} onBadCount={() => setErr('Jumlah titik bocor harus bilangan bulat 0 sampai 999.')} onFinding={(k) => ensureFinding(r, k)} />
+            ))}
+          </ul>
+          {shown.length > visible.length && (
+            <Button className="mt-3 w-full" onClick={() => setLimit((l) => l + PAGE_STEP)}>
+              Tampilkan {Math.min(PAGE_STEP, shown.length - visible.length)} lagi (sisa {shown.length - visible.length})
+            </Button>
+          )}
+        </>
       )}
     </main>
   );

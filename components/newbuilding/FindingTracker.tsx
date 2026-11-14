@@ -15,6 +15,7 @@ import { updateWithVersion } from '../../lib/optimisticLock';
 import type { LockClient } from '../../lib/optimisticLock';
 import { INPUT, BlurInput } from './fields';
 import { todayIso } from '../../lib/todayIso';
+import { PAGE_STEP, matchesQuery } from '../../lib/newbuildingListView';
 
 const COLS = 'id,item_key,description,location,status,found_date,closed_date,note,seq,source_tank_id,source_kind';
 const COLS_V = COLS + ',version';
@@ -26,46 +27,81 @@ type StatusFilter = FindingStatus | 'all';
 type PhotoMap = Record<string, { phase: PhotoPhase }[]>;
 const GENERAL = '__umum__';
 
-/** Kolom teks: disimpan saat kolom ditinggalkan, bukan di setiap ketukan. */
-function FindingItem({ r, projectId, photos, busy, onPatch, onPhotos, onDelete }: { r: FindingRow; projectId: string; photos: { phase: PhotoPhase }[]; busy: boolean; onPatch: (p: Patch) => void; onPhotos: (rows: { phase: PhotoPhase }[]) => void; onDelete: () => void }) {
+function FindingItem({
+  r,
+  projectId,
+  photos,
+  busy,
+  expanded,
+  onToggle,
+  onPatch,
+  onPhotos,
+  onDelete,
+}: {
+  r: FindingRow;
+  projectId: string;
+  photos: { phase: PhotoPhase }[];
+  busy: boolean;
+  expanded: boolean;
+  onToggle: () => void;
+  onPatch: (p: Patch) => void;
+  onPhotos: (rows: { phase: PhotoPhase }[]) => void;
+  onDelete: () => void;
+}) {
   const open = r.status === 'open';
   const toggle = () => onPatch({ status: open ? 'closed' : 'open', closed_date: open ? todayIso() : null });
   return (
-    <li className={`rounded-xl border p-3 ${open ? 'border-amber-300 bg-amber-50/50' : 'border-teal-200 bg-teal-50/50'}`}>
-      <div className="flex items-center justify-between gap-2">
-        <span className="text-[11px] font-bold uppercase tracking-wide text-slate-500">
-          {findingCode(r.seq) !== '' && <b className="mr-1 text-slate-900">{findingCode(r.seq)}</b>}
-          {findingItemLabel(r.item_key)}
-          {r.source_tank_id !== null && <span className="ml-1 rounded bg-slate-200 px-1 py-0.5 text-[10px] normal-case text-slate-700">dari uji tangki</span>}
-        </span>
-        <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${open ? 'bg-amber-200 text-amber-900' : 'bg-teal-600 text-white'}`}>{FINDING_STATUS_LABEL[r.status]}</span>
-      </div>
-      <div className="mt-2 space-y-2">
-        <BlurInput value={r.description} placeholder="Uraian temuan" disabled={busy} onSave={(v) => v !== '' && onPatch({ description: v })} />
-        <BlurInput value={r.location ?? ''} placeholder="Lokasi (blok, frame, tangki)" disabled={busy} onSave={(v) => onPatch({ location: v === '' ? null : v })} />
-        <BlurInput value={r.note ?? ''} placeholder="Catatan tindak lanjut (opsional)" disabled={busy} onSave={(v) => onPatch({ note: v === '' ? null : v })} />
-      </div>
-      <div className="mt-2 grid gap-2 sm:grid-cols-2">
-        <label className="block">
-          <span className="mb-1 block text-xs font-semibold text-slate-600">Tanggal temuan</span>
-          <DateInput className={INPUT} value={r.found_date ?? ''} onChange={(iso) => onPatch({ found_date: iso === '' ? null : iso })} />
-        </label>
-        {!open && (
-          <label className="block">
-            <span className="mb-1 block text-xs font-semibold text-slate-600">Tanggal ditutup</span>
-            <DateInput className={INPUT} value={r.closed_date ?? ''} onChange={(iso) => onPatch({ closed_date: iso === '' ? null : iso })} />
-          </label>
-        )}
-      </div>
-      <FindingPhotos projectId={projectId} findingId={r.id} defaultPhase={open ? 'temuan' : 'perbaikan'} disabled={busy} known={photos} onChange={onPhotos} />
-      <div className="mt-3 flex items-center justify-between gap-2">
-        <Button size="sm" variant={open ? 'primary' : 'secondary'} disabled={busy} onClick={toggle}>
-          {open ? 'Tutup temuan' : 'Buka kembali'}
-        </Button>
-        <button type="button" className="rounded-md px-2 py-2 text-xs font-semibold text-red-700 hover:bg-red-50" disabled={busy} onClick={onDelete}>
-          Hapus
+    <li className={`rounded-xl border ${open ? 'border-amber-300 bg-amber-50/50' : 'border-teal-200 bg-teal-50/50'}`}>
+      <div className="flex items-start gap-2 p-3">
+        <button type="button" aria-expanded={expanded} onClick={onToggle} className="min-w-0 flex-1 text-left">
+          <span className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[11px] font-bold uppercase tracking-wide text-slate-500">
+            {findingCode(r.seq) !== '' && <b className="text-slate-900">{findingCode(r.seq)}</b>}
+            <span>{findingItemLabel(r.item_key)}</span>
+            {r.source_tank_id !== null && <span className="rounded bg-slate-200 px-1 py-0.5 text-[10px] normal-case text-slate-700">dari uji tangki</span>}
+            {photos.length > 0 && <span className="normal-case">📷 {photos.length}</span>}
+          </span>
+          <span className={`mt-1 block text-sm font-semibold text-slate-900 ${expanded ? '' : 'line-clamp-2'}`}>{r.description}</span>
+          {r.location && <span className="mt-0.5 block truncate text-xs text-slate-600">{r.location}</span>}
         </button>
+        <div className="flex shrink-0 flex-col items-end gap-1.5">
+          <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${open ? 'bg-amber-200 text-amber-900' : 'bg-teal-600 text-white'}`}>{FINDING_STATUS_LABEL[r.status]}</span>
+          {open && !expanded && (
+            <Button size="sm" disabled={busy} onClick={toggle}>
+              ✓ Tutup
+            </Button>
+          )}
+        </div>
       </div>
+      {expanded && (
+        <div className="border-t border-slate-200/70 px-3 pb-3 pt-3">
+          <div className="space-y-2">
+            <BlurInput value={r.description} placeholder="Uraian temuan" disabled={busy} onSave={(v) => v !== '' && onPatch({ description: v })} />
+            <BlurInput value={r.location ?? ''} placeholder="Lokasi (blok, frame, tangki)" disabled={busy} onSave={(v) => onPatch({ location: v === '' ? null : v })} />
+            <BlurInput value={r.note ?? ''} placeholder="Catatan tindak lanjut (opsional)" disabled={busy} onSave={(v) => onPatch({ note: v === '' ? null : v })} />
+          </div>
+          <div className="mt-2 grid gap-2 sm:grid-cols-2">
+            <label className="block">
+              <span className="mb-1 block text-xs font-semibold text-slate-600">Tanggal temuan</span>
+              <DateInput className={INPUT} value={r.found_date ?? ''} onChange={(iso) => onPatch({ found_date: iso === '' ? null : iso })} />
+            </label>
+            {!open && (
+              <label className="block">
+                <span className="mb-1 block text-xs font-semibold text-slate-600">Tanggal ditutup</span>
+                <DateInput className={INPUT} value={r.closed_date ?? ''} onChange={(iso) => onPatch({ closed_date: iso === '' ? null : iso })} />
+              </label>
+            )}
+          </div>
+          <FindingPhotos projectId={projectId} findingId={r.id} defaultPhase={open ? 'temuan' : 'perbaikan'} disabled={busy} known={photos} onChange={onPhotos} />
+          <div className="mt-3 flex items-center justify-between gap-2">
+            <Button size="sm" variant={open ? 'primary' : 'secondary'} disabled={busy} onClick={toggle}>
+              {open ? 'Tutup temuan' : 'Buka kembali'}
+            </Button>
+            <button type="button" className="rounded-md px-2 py-2 text-xs font-semibold text-red-700 hover:bg-red-50" disabled={busy} onClick={onDelete}>
+              Hapus
+            </button>
+          </div>
+        </div>
+      )}
     </li>
   );
 }
@@ -83,6 +119,10 @@ export default function FindingTracker({ projectId, projectName, onBack }: { pro
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('open');
   const [itemFilter, setItemFilter] = useState<string | null>(null);
   const [photoMap, setPhotoMap] = useState<PhotoMap>({});
+  const [openId, setOpenId] = useState<string | null>(null); // satu temuan terbuka pada satu waktu
+  const [q, setQ] = useState('');
+  const [limit, setLimit] = useState(PAGE_STEP);
+  const [showAdd, setShowAdd] = useState<boolean | null>(null); // null = otomatis: terbuka hanya bila belum ada temuan
   // kolom version ikut dibaca; bila SQL-nya belum dijalankan, beralih ke kolom tanpa version
   const colsRef = useRef<string>(COLS_V);
 
@@ -119,10 +159,22 @@ export default function FindingTracker({ projectId, projectName, onBack }: { pro
   const shown = useMemo(
     () =>
       sortFindings(
-        rows.filter((r) => (statusFilter === 'all' || r.status === statusFilter) && (itemFilter === null || (itemFilter === GENERAL ? r.item_key === null : r.item_key === itemFilter)))
+        rows.filter(
+          (r) =>
+            (statusFilter === 'all' || r.status === statusFilter) &&
+            (itemFilter === null || (itemFilter === GENERAL ? r.item_key === null : r.item_key === itemFilter)) &&
+            matchesQuery(q, [findingCode(r.seq), r.description, r.location, r.note, findingItemLabel(r.item_key)])
+        )
       ),
-    [rows, statusFilter, itemFilter]
+    [rows, statusFilter, itemFilter, q]
   );
+  const visible = shown.slice(0, limit);
+  const addOpen = showAdd ?? (loaded && rows.length === 0);
+
+  // ganti filter atau pencarian: mulai lagi dari halaman pertama
+  useEffect(() => {
+    setLimit(PAGE_STEP);
+  }, [statusFilter, itemFilter, q]);
 
   const add = async () => {
     const d = desc.trim();
@@ -142,6 +194,9 @@ export default function FindingTracker({ projectId, projectName, onBack }: { pro
     setRows((l) => [...l, r.data as unknown as FindingRow]);
     setDesc('');
     setLoc('');
+    setShowAdd(true);
+    setQ('');
+    setLimit((l) => l + 1);
     // temuan baru berstatus Open: pastikan terlihat
     if (statusFilter === 'closed') setStatusFilter('open');
   };
@@ -207,8 +262,16 @@ export default function FindingTracker({ projectId, projectName, onBack }: { pro
 
       {err && <p className="mt-4 rounded-xl border border-red-300 bg-red-50 p-3 text-sm text-red-800">{err}</p>}
 
+      {addOpen ? (
       <div className="mt-4 rounded-xl border border-slate-200 bg-white p-3">
-        <p className="text-xs font-bold text-slate-700">Tambah temuan</p>
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-xs font-bold text-slate-700">Tambah temuan</p>
+          {rows.length > 0 && (
+            <button type="button" className="rounded-md px-2 py-1 text-xs font-semibold text-slate-500 hover:bg-slate-100" onClick={() => setShowAdd(false)}>
+              Sembunyikan
+            </button>
+          )}
+        </div>
         <div className="mt-2 space-y-2">
           <input
             className={INPUT}
@@ -241,30 +304,39 @@ export default function FindingTracker({ projectId, projectName, onBack }: { pro
           </Button>
         </div>
       </div>
+      ) : (
+        <Button variant="primary" className="mt-4" onClick={() => setShowAdd(true)}>
+          ＋ Tambah temuan
+        </Button>
+      )}
 
       {loaded && sum.total > 0 && <PunchlistRecap projectId={projectId} projectName={projectName} rows={rows} />}
 
       {loaded && sum.total > 0 && (
         <>
-          <p className="mt-4 text-xs text-slate-700">
-            <b className={sum.open > 0 ? 'text-amber-800' : ''}>{sum.open}</b> Open · <b>{sum.closed}</b> Closed
-          </p>
-          <div className="mt-2 flex flex-wrap gap-2">
-            {FINDING_STATUSES.map((s) => (
-              <Chip key={s} selected={statusFilter === s} onClick={() => setStatusFilter(s)}>
-                {FINDING_STATUS_LABEL[s]}
+          <div className="sticky top-0 z-10 -mx-3 mt-3 border-b border-slate-200 bg-white/95 px-3 py-2 backdrop-blur sm:-mx-4 sm:px-4">
+            <div className="flex gap-2 overflow-x-auto">
+              {FINDING_STATUSES.map((s) => (
+                <Chip key={s} className="shrink-0 whitespace-nowrap" selected={statusFilter === s} onClick={() => setStatusFilter(s)}>
+                  {FINDING_STATUS_LABEL[s]} · {s === 'open' ? sum.open : sum.closed}
+                </Chip>
+              ))}
+              <Chip className="shrink-0 whitespace-nowrap" selected={statusFilter === 'all'} onClick={() => setStatusFilter('all')}>
+                Semua · {sum.total}
               </Chip>
-            ))}
-            <Chip selected={statusFilter === 'all'} onClick={() => setStatusFilter('all')}>Semua</Chip>
+            </div>
           </div>
-          <div className="mt-2 flex flex-wrap gap-2">
-            <Chip tone="dark" selected={itemFilter === null} onClick={() => setItemFilter(null)}>Semua item</Chip>
-            <Chip tone="dark" selected={itemFilter === GENERAL} onClick={() => setItemFilter(GENERAL)}>Umum</Chip>
-            {FINDING_ITEMS.map((i) => (
-              <Chip key={i.key} tone="dark" selected={itemFilter === i.key} onClick={() => setItemFilter(i.key)}>
-                {i.label}
-              </Chip>
-            ))}
+          <div className="mt-3 space-y-2">
+            {rows.length > 5 && <input className={INPUT} placeholder="Cari kode, uraian, lokasi, catatan…" value={q} onChange={(e) => setQ(e.target.value)} />}
+            <div className="flex gap-2 overflow-x-auto pb-1">
+              <Chip tone="dark" className="shrink-0 whitespace-nowrap" selected={itemFilter === null} onClick={() => setItemFilter(null)}>Semua item</Chip>
+              <Chip tone="dark" className="shrink-0 whitespace-nowrap" selected={itemFilter === GENERAL} onClick={() => setItemFilter(GENERAL)}>Umum</Chip>
+              {FINDING_ITEMS.map((i) => (
+                <Chip key={i.key} tone="dark" className="shrink-0 whitespace-nowrap" selected={itemFilter === i.key} onClick={() => setItemFilter(i.key)}>
+                  {i.label}
+                </Chip>
+              ))}
+            </div>
           </div>
         </>
       )}
@@ -276,11 +348,32 @@ export default function FindingTracker({ projectId, projectName, onBack }: { pro
       ) : shown.length === 0 ? (
         <p className="mt-4 text-sm text-slate-500">Tidak ada temuan yang cocok dengan filter ini.</p>
       ) : (
-        <ul className="mt-4 space-y-3">
-          {shown.map((r) => (
-            <FindingItem key={r.id} r={r} projectId={projectId} photos={photoMap[r.id] ?? []} busy={busyId === r.id} onPatch={(p) => patch(r.id, p)} onPhotos={(list) => setPhotoMap((m) => ({ ...m, [r.id]: list }))} onDelete={() => remove(r)} />
-          ))}
-        </ul>
+        <>
+          <p className="mt-3 text-xs text-slate-500">
+            Menampilkan {visible.length} dari {shown.length} temuan. Ketuk satu temuan untuk membuka detail dan foto.
+          </p>
+          <ul className="mt-2 space-y-2">
+            {visible.map((r) => (
+              <FindingItem
+                key={r.id}
+                r={r}
+                projectId={projectId}
+                photos={photoMap[r.id] ?? []}
+                busy={busyId === r.id}
+                expanded={openId === r.id}
+                onToggle={() => setOpenId((id) => (id === r.id ? null : r.id))}
+                onPatch={(p) => patch(r.id, p)}
+                onPhotos={(list) => setPhotoMap((m) => ({ ...m, [r.id]: list }))}
+                onDelete={() => remove(r)}
+              />
+            ))}
+          </ul>
+          {shown.length > visible.length && (
+            <Button className="mt-3 w-full" onClick={() => setLimit((l) => l + PAGE_STEP)}>
+              Tampilkan {Math.min(PAGE_STEP, shown.length - visible.length)} lagi (sisa {shown.length - visible.length})
+            </Button>
+          )}
+        </>
       )}
     </main>
   );

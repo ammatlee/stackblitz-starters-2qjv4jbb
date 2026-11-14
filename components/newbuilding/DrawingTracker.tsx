@@ -45,7 +45,6 @@ const REQ_TONE: Record<Drawing['req'], string> = {
   O: 'bg-slate-100 text-slate-600',
 };
 
-/** Kolom teks: disimpan saat kolom ditinggalkan, bukan di setiap ketukan. */
 function DrawingItem({
   d,
   row,
