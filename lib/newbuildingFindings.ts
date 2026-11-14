@@ -62,6 +62,20 @@
      return { total: rows.length, open, closed: rows.length - open, openByItem };
    }
    
+   /** Item Tahapan yang tidak boleh ditandai Selesai/N/A selama masih ada temuan Open (untuk item itu, atau temuan umum). */
+   export const FINDING_GATED = FINDING_ITEMS.map((i) => i.key);
+
+   /** Pesan alasan bila item ini belum boleh Selesai/N/A karena temuan; null bila boleh. openByItem null = daftar temuan belum bisa dibaca. */
+   export function findingGate(itemKey: string, openByItem: Record<string, number> | null): string | null {
+     if (!FINDING_GATED.includes(itemKey)) return null;
+     if (openByItem === null) return 'Daftar temuan belum bisa dibaca, jadi item ini belum bisa diselesaikan. Muat ulang halaman.';
+     const own = openByItem[itemKey] ?? 0;
+     if (own > 0) return `Masih ada ${own} temuan Open untuk item ini. Tutup (Closed) di daftar temuan dulu.`;
+     const general = openByItem[GENERAL_KEY] ?? 0;
+     if (general > 0) return `Masih ada ${general} temuan umum Open. Tutup (Closed) di daftar temuan dulu.`;
+     return null;
+   }
+
    /** Open dulu, lalu yang terbaru di atas. Tanggal kosong dianggap paling lama. */
    export function sortFindings<T extends Pick<FindingRow, 'status' | 'found_date' | 'closed_date'>>(rows: T[]): T[] {
      const stamp = (r: T) => (r.status === 'open' ? r.found_date : r.closed_date ?? r.found_date) ?? '';

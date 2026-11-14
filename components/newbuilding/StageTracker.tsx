@@ -12,7 +12,7 @@ import CriteriaFold from './CriteriaFold';
 import { summarizeTankTests, tankSummaryText } from '../../lib/newbuildingTankTests';
 import type { TankSummary } from '../../lib/newbuildingTankTests';
 import { drawingSummary } from '../../lib/newbuildingDrawings';
-import { openFindingsText, summarizeFindings } from '../../lib/newbuildingFindings';
+import { findingGate, openFindingsText, summarizeFindings } from '../../lib/newbuildingFindings';
 import type { DrawingSummary } from '../../lib/newbuildingDrawings';
 import type { CriteriaSet, Regime } from '../../lib/newbuildingCriteria';
 import type { Stage, StageItem, StageProgress, StageRow, StageStatus } from '../../lib/newbuildingStages';
@@ -107,8 +107,8 @@ function ItemRow({
   tank?: { kind: 'leak' | 'struct'; sum: TankSummary | null; onOpen: () => void } | null;
   findOpen: number;
   onOpenFindings: () => void;
-  /** Alasan item ini belum boleh Selesai/N/A (gambar masih Open); null = boleh. */
-  gate: string | null;
+  /** Alasan item ini belum boleh Selesai/N/A (gambar atau temuan masih Open); null = boleh. */
+  gate: { msg: string; kind: 'drawing' | 'finding' } | null;
 }) {
   const status: StageStatus = row?.status ?? 'belum';
   const done = status === 'selesai';
@@ -138,9 +138,9 @@ function ItemRow({
           </div>
           {gate && (
             <div className="mt-2 rounded-lg border border-red-300 bg-red-50 p-2 text-xs text-red-900">
-              <p className="font-semibold">{status !== 'belum' ? 'Status ini tidak sesuai: ' : 'Belum bisa diselesaikan: '}{gate}</p>
-              {status !== 'belum' && <p className="mt-0.5">Ubah kembali ke Belum, atau selesaikan gambarnya dulu.</p>}
-              <Button size="sm" variant="warn" className="mt-2" onClick={onOpenDrawing}>Buka pelacak gambar</Button>
+              <p className="font-semibold">{status !== 'belum' ? 'Status ini tidak sesuai: ' : 'Belum bisa diselesaikan: '}{gate.msg}</p>
+              {status !== 'belum' && <p className="mt-0.5">Ubah kembali ke Belum, atau {gate.kind === 'drawing' ? 'selesaikan gambarnya' : 'tutup temuannya'} dulu.</p>}
+              <Button size="sm" variant="warn" className="mt-2" onClick={gate.kind === 'drawing' ? onOpenDrawing : onOpenFindings}>{gate.kind === 'drawing' ? 'Buka pelacak gambar' : 'Buka daftar temuan'}</Button>
             </div>
           )}
           {crit && <CriteriaFold set={crit} regimeHint={regimeHint} />}
@@ -301,6 +301,13 @@ export default function StageTracker({ projectId, projectName, tipe, propelled, 
   const drawInfo = useMemo(() => (drawLoaded ? drawingSummary({ vesselType, propelled, fpAbove60: fp, override }, drawRows) : null), [drawLoaded, vesselType, propelled, fp, override, drawRows]);
   const tankSum = useMemo(() => (tankRows ? summarizeTankTests(tankRows) : null), [tankRows]);
   const findSum = useMemo(() => (findRows ? summarizeFindings(findRows) : null), [findRows]);
+  /** Penjaga item: gambar masih Open, atau temuan masih Open. null = item boleh diselesaikan. */
+  const gateOf = (key: string): { msg: string; kind: 'drawing' | 'finding' } | null => {
+    const d = drawingGate(key, drawInfo);
+    if (d) return { msg: d, kind: 'drawing' };
+    const f = findingGate(key, findSum ? findSum.openByItem : null);
+    return f ? { msg: f, kind: 'finding' } : null;
+  };
   const total = useMemo(() => overallProgress(ctx, rows), [ctx, rows]);
   const hidden = useMemo(() => hiddenItemCount(ctx), [ctx]);
 
@@ -335,10 +342,10 @@ export default function StageTracker({ projectId, projectName, tipe, propelled, 
   };
 
   const changeStatus = (st: Stage, it: StageItem, status: StageStatus) => {
-    // penjaga kedua (tombolnya sudah dimatikan di tampilan): selama ada gambar Open, tidak boleh Selesai atau N/A
-    const block = status !== 'belum' ? drawingGate(stageItemKey(st, it), drawInfo) : null;
+    // penjaga kedua (tombolnya sudah dimatikan di tampilan): selama ada gambar atau temuan Open, tidak boleh Selesai atau N/A
+    const block = status !== 'belum' ? gateOf(stageItemKey(st, it)) : null;
     if (block) {
-      setErr(block);
+      setErr(block.msg);
       return;
     }
     const prev = rows.get(stageItemKey(st, it));
@@ -374,8 +381,8 @@ export default function StageTracker({ projectId, projectName, tipe, propelled, 
             const heading = st.group && st.group !== lastGroup ? st.group : null;
             lastGroup = st.group ?? '';
             const p = stageProgress(st, ctx, rows);
-            // tahap tidak dianggap selesai bila ada item yang ditandai Selesai padahal gambar masih Open
-            const inconsistent = applicableItems(st, ctx).some((it) => (rows.get(stageItemKey(st, it))?.status ?? 'belum') !== 'belum' && drawingGate(stageItemKey(st, it), drawInfo) !== null);
+            // tahap tidak dianggap selesai bila ada item yang ditandai Selesai padahal gambar atau temuan masih Open
+            const inconsistent = applicableItems(st, ctx).some((it) => (rows.get(stageItemKey(st, it))?.status ?? 'belum') !== 'belum' && gateOf(stageItemKey(st, it)) !== null);
             const done = isStageDone(st, ctx, rows) && p.selesai + p.tidakAda > 0 && !inconsistent;
             const state: StageState = done ? 'done' : openKey === st.key ? 'active' : 'pending';
             return (
@@ -424,7 +431,7 @@ export default function StageTracker({ projectId, projectName, tipe, propelled, 
                           crit={criteriaFor(key)}
                           regimeHint={regimeHint}
                           findOpen={findSum ? findSum.openByItem[key] ?? 0 : 0}
-                          gate={drawingGate(key, drawInfo)}
+                          gate={gateOf(key)}
                           onOpenFindings={onOpenFindings}
                           tank={key === 'fabrication.leaktest' ? { kind: 'leak', sum: tankSum, onOpen: onOpenTankTests } : key === 'fabrication.structtest' ? { kind: 'struct', sum: tankSum, onOpen: onOpenTankTests } : null}
                         />

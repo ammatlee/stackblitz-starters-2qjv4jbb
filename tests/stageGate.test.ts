@@ -27,3 +27,26 @@ describe('drawingGate — proyek tidak bisa selesai selama ada gambar Open', () 
     for (const k of DRAWING_GATED) expect(keys.includes(k)).toBe(true);
   });
 });
+
+import { FINDING_GATED, findingGate } from '../lib/newbuildingFindings';
+
+describe('findingGate — item Fabrication tidak bisa Selesai selama ada temuan Open', () => {
+  it('terkunci bila ada temuan Open untuk item itu', () => {
+    expect(findingGate('fabrication.leaktest', { 'fabrication.leaktest': 2 })).toMatch(/2 temuan Open untuk item ini/);
+  });
+  it('temuan item lain tidak mengunci item ini', () => {
+    expect(findingGate('fabrication.fitup', { 'fabrication.leaktest': 2 })).toBeNull();
+  });
+  it('temuan umum mengunci semua item Fabrication', () => {
+    for (const k of FINDING_GATED) expect(findingGate(k, { umum: 1 })).toMatch(/temuan umum/);
+  });
+  it('tanpa temuan Open: boleh', () => {
+    expect(findingGate('fabrication.visual', {})).toBeNull();
+  });
+  it('item di luar Fabrication tidak dijaga (hanya pengingat)', () => {
+    expect(findingGate('keel.keel', { umum: 4 })).toBeNull();
+  });
+  it('daftar temuan belum terbaca: tetap terkunci', () => {
+    expect(findingGate('fabrication.fitup', null)).toMatch(/belum bisa dibaca/);
+  });
+});
